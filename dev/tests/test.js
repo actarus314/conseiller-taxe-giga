@@ -1,7 +1,11 @@
 // Tests du conseiller sur des états simulés au format exact du jeu (jsdom).
 // node test.js      → teste conseiller.js ; node test.js bm → teste le favori généré
 const { JSDOM } = require('jsdom');
-const utils = require('jsdom/lib/jsdom/living/generated/utils');
+// utilitaires internes de jsdom (pour marquer un clic « de confiance ») : leur chemin a changé en jsdom 30
+const utils = (() => {
+  for (const p of ['jsdom/lib/generated/idl/utils', 'jsdom/lib/jsdom/living/generated/utils']) { try { return require(p); } catch (e) { /* chemin suivant */ } }
+  throw new Error('jsdom : utilitaires internes introuvables');
+})();
 const fs = require('fs'), path = require('path'), ROOT = path.join(__dirname, '..', '..');
 const SRC = process.argv[2] === 'bm'
   ? decodeURIComponent(fs.readFileSync(path.join(ROOT, 'bookmarklet.txt'), 'utf8').trim().slice(11))
