@@ -1,0 +1,80 @@
+<title>Conseiller Taxe au Giga</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout : une colonne étroite façon fiche de jeu ; le marque-page est l'objet central, en gros bouton à glisser. */
+:root{
+  --bg:#ffe27a; --card:#fffbe6; --ink:#1b1a17; --muted:#5c5747; --go:#19d3a2; --warn:#ff7eb6;
+  --display:"Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#1d1b14;--card:#2a271d;--ink:#f5efd6;--muted:#b8b092;--go:#2be3b2;--warn:#ff8fc0;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#1d1b14;--card:#2a271d;--ink:#f5efd6;--muted:#b8b092;--go:#2be3b2;--warn:#ff8fc0;color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:16px/1.55 var(--display);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 48px}
+main{max-width:660px;margin:0 auto;display:grid;gap:22px}
+h1{font-size:clamp(28px,6vw,40px);line-height:1.05;margin:0;font-weight:800;text-wrap:balance}
+h2{font-size:19px;margin:0 0 8px;font-weight:800}
+p{margin:0}
+.lead{color:var(--muted);max-width:60ch}
+.card{background:var(--card);border:3px solid var(--ink);border-radius:14px;box-shadow:5px 5px 0 var(--ink);padding:18px 20px;display:grid;gap:12px;min-width:0}
+.bm{display:inline-flex;align-items:center;gap:10px;justify-self:start;background:var(--go);color:#1b1a17;border:3px solid var(--ink);border-radius:12px;box-shadow:4px 4px 0 var(--ink);padding:12px 18px;font:800 20px/1 var(--display);text-decoration:none;cursor:grab}
+.bm:focus-visible,button:focus-visible{outline:3px solid var(--warn);outline-offset:3px}
+ol{margin:0;padding-left:22px;display:grid;gap:6px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+button{font:700 14px/1 var(--mono);background:var(--card);color:var(--ink);border:2.5px solid var(--ink);border-radius:10px;padding:10px 14px;cursor:pointer;box-shadow:3px 3px 0 var(--ink)}
+.ok{font:500 13px/1.3 var(--mono);color:var(--muted)}
+textarea{width:100%;box-sizing:border-box;height:90px;font:12px/1.4 var(--mono);background:var(--bg);color:var(--ink);border:2px solid var(--ink);border-radius:10px;padding:8px;resize:vertical}
+.facts{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0}
+.facts dt{font:700 13px/1.5 var(--mono);text-transform:uppercase;letter-spacing:.06em}
+.facts dd{margin:0;min-width:0}
+code{font:500 .9em var(--mono)}
+small{color:var(--muted)}
+</style>
+
+<main>
+  <header style="display:grid;gap:10px">
+    <h1>🧮 Conseiller</h1>
+    <p class="lead">Un panneau posé sur la page du jeu qui surligne en vert le bonus à acheter, avec le compte à rebours jusqu'au prochain achat et les huit suivants. Deux modes : Passif, quand la page tourne seule, et Actif, quand tu cliques sur TAXER.</p>
+  </header>
+
+  <section class="card" aria-labelledby="t1">
+    <h2 id="t1">Installer en marque-page</h2>
+    <a class="bm" id="bm" href="__BM__" title="Glisser vers la barre de favoris">🧮 Conseiller</a>
+    <ol>
+      <li><b>Glisser</b> le bouton vert dans la barre de favoris (ne pas cliquer ici, il ne marche que sur le jeu).</li>
+      <li>Ouvrir <a href="https://taxe-au-giga.fr/" style="color:inherit">taxe-au-giga.fr</a> avec ta partie.</li>
+      <li>Cliquer le favori : le panneau apparaît en bas à droite, au-dessus du bouton TAXER flottant. Il se déplace par son en-tête. Un second clic sur le favori le ferme.</li>
+    </ol>
+    <div class="row">
+      <button type="button" id="copy">Copier le code du favori</button>
+      <span class="ok" id="msg" aria-live="polite"></span>
+    </div>
+    <small>Si le glisser ne marche pas : créer un favori quelconque, puis coller ce code à la place de son adresse.</small>
+    <textarea id="code" readonly hidden aria-label="Code du favori"></textarea>
+  </section>
+
+  <section class="card" aria-labelledby="t2">
+    <h2 id="t2">Ce qu'il fait, ce qu'il ne fait pas</h2>
+    <dl class="facts">
+      <dt>Lit</dt><dd>la cagnotte, le nombre possédé et le prix affichés par le jeu, deux fois par seconde.</dd>
+      <dt>Calcule</dt><dd>le bonus qui minimise l'attente avant de le payer plus le temps pour qu'il se rembourse. Une Frénésie en cours (production ×3) est comptée.</dd>
+      <dt>Passif</dt><dd>seule la production automatique compte ; les bonus de clic ne sont jamais conseillés.</dd>
+      <dt>Actif</dt><dd>ajoute tes clics à la cadence prévue (5 par seconde au plus : le serveur ne compte que 18 000 clics par heure et 760 par minute). Le panneau affiche ta cadence mesurée et ton compteur de l'heure.</dd>
+      <dt>Signale</dt><dd>en vert le bonus à acheter, et dans l'onglet : <code>🟢 Commission…</code> quand l'achat est possible.</dd>
+      <dt>Alerte</dt><dd>en rose si un prix ou la puissance de clic affichés ne collent plus au barème connu (règles du jeu modifiées).</dd>
+      <dt>Ne fait pas</dt><dd>aucun clic, aucun achat, aucun appel au serveur du jeu.</dd>
+    </dl>
+    <small>Barème lu dans le code du jeu le 03/11/2026 (version 2026-11-03e) : prix = base × 1,15<sup>possédés</sup>, arrondi au supérieur ; visites par clic = 1 + bonus de clic + 1 % de la production par seconde.</small>
+  </section>
+</main>
+
+<script>
+const href = document.getElementById('bm').getAttribute('href');
+const ta = document.getElementById('code'), msg = document.getElementById('msg');
+document.getElementById('bm').addEventListener('click', e => { e.preventDefault(); msg.textContent = 'À glisser dans la barre de favoris, pas à cliquer.'; });
+document.getElementById('copy').addEventListener('click', () => {
+  navigator.clipboard.writeText(href).then(() => { msg.textContent = 'Copié.'; }, () => {
+    ta.value = href; ta.hidden = false; ta.focus(); ta.select(); msg.textContent = 'Copie bloquée ici : le code est sélectionné, faire Cmd+C.';
+  });
+});
+</script>

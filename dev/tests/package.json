@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "scripts": { "test": "node test.js && node test.js bm" },
+  "devDependencies": { "jsdom": "24.1.3" }
+}
