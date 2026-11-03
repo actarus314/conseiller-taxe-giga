@@ -4,17 +4,13 @@ Panneau posé sur la page de [Taxe au Giga](https://taxe-au-giga.fr/) qui surlig
 
 Il lit ce que le jeu affiche. **Aucun clic, aucun achat, aucun appel au serveur du jeu.**
 
-[![Installer le favori](https://img.shields.io/badge/Installer_le_favori-glisser--d%C3%A9poser-19d3a2?style=for-the-badge)](https://actarus314.github.io/conseiller-taxe-giga/)
-
-Le bouton ouvre la page d'installation, d'où le favori se glisse dans la barre du navigateur. GitHub retire les liens `javascript:` des README (vérifié le 03/11/2026 : le lien s'affiche en texte simple), d'où ce passage par une page à part.
+[![Installer le favori](https://img.shields.io/badge/Installer_le_favori-glisser--d%C3%A9poser-19d3a2?style=for-the-badge)](https://raw.githack.com/actarus314/conseiller-taxe-giga/main/index.html)
 
 ![Conseil en mode Passif : Satellite à acheter, suite des achats prévue](captures/passif.png)
 
 | Mode Auto pendant des clics | Téléphone |
 |---|---|
 | ![Mode Auto à 4 clics/s mesurés : Tampon à acheter](captures/auto-clics.png) | ![Panneau réduit sur téléphone](captures/mobile.png) |
-
-*Captures sur l'état réel d'une partie, à 11 h 52 (passif) et 12 h 36 (actif).*
 
 ## Modes
 
