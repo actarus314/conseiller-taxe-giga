@@ -38,11 +38,15 @@ async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, cli
   }
   now = 1793700000000 + at * 1000;
   const refresh = [...timers.values()].reduce((a, b) => (b.ms < a.ms ? b : a)); refresh.f(); // un tour de mise à jour du panneau
+  // garde-fou de performance : 20 tours de plus sans aucun changement ne doivent rien écrire dans la page
+  const mo = new w.MutationObserver(() => {}); mo.observe(d, { subtree: true, childList: true, attributes: true, characterData: true });
+  for (let i = 0; i < 20; i++) refresh.f();
+  const idleMutations = mo.takeRecords().length; mo.disconnect();
   const r = {
     now: d.querySelector('#tagAdv .now').textContent, list: [...d.querySelectorAll('#tagAdv li')].map(l => l.textContent),
     ft: d.querySelector('#tagAdv .ft').textContent, warn: d.querySelector('#tagAdv .warn').hidden ? '' : d.querySelector('#tagAdv .warn').textContent,
     best: d.querySelector('.tagAdvBest')?.dataset.id, adv: d.querySelector('.tagAdvBest')?.dataset.adv,
-    repo: d.querySelector('#tagAdv header a.v')?.getAttribute('href'), state: w.eval('window.__tagAdv.state()'), text: d.querySelector('#tagAdv').textContent, z: parseInt(w.getComputedStyle(d.querySelector('#tagAdv')).zIndex, 10), titles: d.querySelectorAll('#tagAdv [title]').length, docTitle: d.title,
+    idleMutations, repo: d.querySelector('#tagAdv header a.v')?.getAttribute('href'), state: w.eval('window.__tagAdv.state()'), text: d.querySelector('#tagAdv').textContent, z: parseInt(w.getComputedStyle(d.querySelector('#tagAdv')).zIndex, 10), titles: d.querySelectorAll('#tagAdv [title]').length, docTitle: d.title,
   };
   w.eval('window.__tagAdv.stop()'); r.stopped = !d.querySelector('#tagAdv') && !d.querySelector('.tagAdvBest') && !d.querySelector('[data-adv]'); r.timers = timers.size; w.close();
   return r;
@@ -166,6 +170,16 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
     r = await page({ ...base });
     check(v && r.text.includes('Conseiller v' + v), 'en-tête : ' + r.text.slice(0, 24) + ' | @version ' + v);
     check(r.repo === 'https://github.com/actarus314/conseiller-taxe-giga', 'lien du numéro de version : ' + r.repo);
+  }
+
+  console.log('Performance : aucune écriture dans la page quand rien ne change, favoris de taille raisonnable');
+  for (const [lab, opts] of [['passif', { ...base, mode: 'passif' }], ['actif', { ...base, mode: 'actif', cps: 5 }], ['frénésie', { ...base, mode: 'passif', chip: '🔥 Frénésie fiscale : production ×3 encore 40 s' }]]) {
+    r = await page(opts);
+    check(r.idleMutations === 0, `${lab} : ${r.idleMutations} écriture(s) dans la page sur 20 tours sans changement`);
+  }
+  {
+    const fige = fs.readFileSync(path.join(ROOT, 'bookmarklet.txt'), 'utf8').trim().length, auto = fs.readFileSync(path.join(ROOT, 'bookmarklet-auto.txt'), 'utf8').trim().length;
+    check(fige < 32000 && auto < 500, `taille des favoris : figé ${fige} caractères (plafond 32000), à jour ${auto} (plafond 500)`);
   }
 
   console.log('Forme : nombres au point décimal sans séparateur, aucune info-bulle native, aucun « vous »');

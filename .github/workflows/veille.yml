@@ -13,11 +13,13 @@ on:
     paths: ['dev/veille/**', '.github/workflows/veille.yml', 'conseiller.js']
 permissions:
   contents: read
-  issues: write
 jobs:
   veille:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
     # contrôles l'un après l'autre, jamais annulés ; un lancement manuel passe tout de suite, même pendant l'attente
     concurrency:
       group: veille-controle

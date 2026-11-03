@@ -1,8 +1,9 @@
-# Tests du conseiller à chaque envoi sur main
+# Tests du conseiller et contrôles du code, à chaque envoi sur main et sur chaque demande de fusion (Dependabot)
 name: Tests
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 permissions:
   contents: read
@@ -22,3 +23,17 @@ jobs:
           node-version: 22
       - run: npm ci --ignore-scripts
       - run: npm test
+  controles:
+    # workflows (actionlint : erreurs ; zizmor : failles propres à GitHub Actions) et scripts Python (ruff : erreurs et bogues probables)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: actionlint
+        run: pipx run --spec actionlint-py==1.7.12.25 actionlint .github/workflows/*.yml
+      - name: zizmor
+        run: pipx run zizmor==1.32.0 --offline .github/workflows/
+      - name: ruff
+        run: pipx run ruff==0.17.3 check dev/

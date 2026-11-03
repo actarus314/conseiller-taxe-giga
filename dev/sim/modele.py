@@ -38,10 +38,11 @@ def run(heur,T,o0,w,c,cps,dt=1):
             else: break
         R=income(o,cps);w+=R*dt;c+=R*dt;t+=dt
     return income(o,cps),c,o
-o0=dict(doigt=14,souris=6,gant=9,stagiaire=32,chat=29,hamster=25,bot=20,fax=15,commission=11,satellite=2)
-import sys
-cps=float(sys.argv[1]);w0=9847633;c0=41373467
-for T,dt in [(3600,1),(8*3600,2),(86400,5),(7*86400,20)]:
-    res={h:run(h,T,o0,w0,c0,cps,dt) for h in ['ratio','temps','cc']}
-    b=max(r[1] for r in res.values())
-    print('%6.1fh'%(T/3600),'  '.join('%s: prod %.4g (%.2f%%) R=%.3g'%(h,r[1],100*(r[1]/b-1),r[0]) for h,r in res.items()))
+if __name__ == '__main__':
+    o0=dict(doigt=14,souris=6,gant=9,stagiaire=32,chat=29,hamster=25,bot=20,fax=15,commission=11,satellite=2)
+    import sys
+    cps=float(sys.argv[1]);w0=9847633;c0=41373467
+    for T,dt in [(3600,1),(8*3600,2),(86400,5),(7*86400,20)]:
+        res={h:run(h,T,o0,w0,c0,cps,dt) for h in ['ratio','temps','cc']}
+        b=max(r[1] for r in res.values())
+        print('%6.1fh'%(T/3600),'  '.join('%s: prod %.4g (%.2f%%) R=%.3g'%(h,r[1],100*(r[1]/b-1),r[0]) for h,r in res.items()))

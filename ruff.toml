@@ -1,0 +1,3 @@
+# Contrôles Python : erreurs (F, E9) et bogues probables (B) seulement, sans règles de style
+[lint]
+select = ["F", "E9", "B"]

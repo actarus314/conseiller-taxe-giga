@@ -43,7 +43,7 @@ def scene(p, name, owned, wallet, produced, mode, vp, clicks=0, mobile=False, pl
     if clicks:
         btn = pg.locator('#stickyTax')
         pg.wait_for_timeout(600)
-        for i in range(clicks):
+        for _ in range(clicks):
             btn.click(force=True); pg.wait_for_timeout(200)  # 5 clics par seconde
     pg.wait_for_timeout(1200)
     # le meilleur bonus au milieu de l'écran, le panneau posé là où il ne le cache pas

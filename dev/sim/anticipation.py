@@ -12,8 +12,7 @@ Usage : python3 dev/sim/anticipation.py [état.json]
 import math, pathlib, sys, time
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-src = (pathlib.Path(__file__).parent / 'modele.py').read_text(encoding='utf-8').split('o0=dict')[0]
-exec(src)  # S, cost, income, gain : barème et modèle du jeu, communs au simulateur
+from modele import S, cost, gain, income  # barème et modèle du jeu, communs au simulateur  # noqa: E402
 
 
 def available(o, c):
@@ -74,7 +73,7 @@ def lookahead(o, w, c, T, cps, H, N=6, terminal=False):
         if not cands:
             c += income(o, cps) * (T - t); break
         h = min(T, t + H)
-        def score(u):
+        def score(u, o=o, w=w, c=c, t=t, h=h):
             cc, oo = greedy(o, w, c, t, h, cps, first=u)
             return cc + (income(oo, cps) * (T - h) if terminal else 0)
         best = max(cands, key=score)

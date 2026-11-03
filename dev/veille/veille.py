@@ -68,7 +68,8 @@ def shop_jeu(html):
     out = {}
     for m in re.finditer(r"\{ id: '(\w+)'.*?base: ([\d.e]+), unlock: ([\d.e]+)(.*?)\n", html[a:b]):
         rest = m.group(4)
-        g = lambda k: float((re.search(k + r': ([\d.e]+)', rest) or [0, 0])[1])
+        def g(k, rest=rest):
+            return float((re.search(k + r': ([\d.e]+)', rest) or [0, 0])[1])
         out[m.group(1)] = dict(base=float(m.group(2)), rate=g('rate'), click=g('click'), pct=g('pct'), max=g('max'))
     return out
 

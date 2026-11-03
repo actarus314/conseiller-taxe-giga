@@ -1,0 +1,17 @@
+# Mises à jour proposées une fois par mois, regroupées : actions des workflows (épinglées par empreinte) et dépendances des tests
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+  - package-ecosystem: npm
+    directory: /dev/tests
+    schedule:
+      interval: monthly
+    groups:
+      tests:
+        patterns: ["*"]

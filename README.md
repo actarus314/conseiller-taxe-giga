@@ -44,4 +44,5 @@ Barème recopié du code du jeu (build 2026-11-03h). Une alerte rose apparaît s
 - Tests : `cd dev/tests && npm install && npm test`.
 - Simulateur des stratégies : `python3 dev/sim/modele.py <clics par seconde>`.
 - Captures : `dev/outils/captures.py` (mode d'emploi en tête du fichier).
+- Contrôles à chaque envoi et sur chaque demande de fusion : tests (dont garde-fous de performance), actionlint et zizmor sur les workflows, ruff sur les scripts Python. CodeQL analyse le code, Dependabot propose chaque mois les mises à jour des actions et des dépendances de test. Signaler une faille : voir [SECURITY.md](SECURITY.md).
 - Veille : en continu, relancée après le délai de l'environnement `attente-veille`, [`dev/veille/veille.py`](dev/veille/veille.py) compare le barème et les règles du jeu à ceux du conseiller ([workflow](.github/workflows/veille.yml)). Écart ou page inaccessible : une issue étiquetée `veille`, refermée d'elle-même au retour à la normale. Après une mise à jour du conseiller : `python3 dev/veille/veille.py --maj-reference`.
