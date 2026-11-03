@@ -1,9 +1,12 @@
-# Veille : toutes les 15 min, vérifie que le barème et les règles du jeu sont ceux du conseiller.
+# Veille : vérifie que le barème et les règles du jeu sont ceux du conseiller.
 # Écart ou page inaccessible → une issue (une seule par constat) ; retour à la normale → issues de veille refermées.
+# Cadence : la veille se relance elle-même après le délai de l'environnement « attente-veille » (réglé dans
+# Settings → Environments), la planification de GitHub n'étant pas fiable ; le passage horaire sert de secours
+# pour relancer la chaîne si elle casse.
 name: Veille du jeu
 on:
   schedule:
-    - cron: '7,22,37,52 * * * *'
+    - cron: '7 * * * *'
   workflow_dispatch:
   push:
     branches: [main]
@@ -18,7 +21,11 @@ jobs:
   veille:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      debut: ${{ steps.debut.outputs.t }}
     steps:
+      - id: debut
+        run: echo "t=$(date +%s)" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
       - name: Comparer le jeu et le conseiller
         id: v
@@ -52,3 +59,27 @@ jobs:
           if [ "$ETAT" = ecart ]; then titre="Veille : le jeu ne correspond plus au conseiller [$EMP]"; else titre="Veille : page du jeu inaccessible [$EMP]"; fi
           { cat rapport.md; echo; echo "Exécution : $RUN"; } > corps.md
           gh issue create --title "$titre" --label veille --body-file corps.md
+  relance:
+    # attend le délai de l'environnement, puis relance la veille ; sans délai effectif, ne relance pas (pas de boucle)
+    needs: veille
+    if: always() && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: attente-veille
+      deployment: false
+    permissions:
+      actions: write
+    steps:
+      - name: Relancer la veille
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEBUT: ${{ needs.veille.outputs.debut }}
+        run: |
+          ecart=$(( $(date +%s) - ${DEBUT:-0} ))
+          echo "Écart depuis le début de la veille : ${ecart} s"
+          if [ "$ecart" -lt 100 ]; then
+            echo "::warning::Délai de l'environnement attente-veille absent ou trop court (${ecart} s) : pas de relance, pour ne pas boucler."
+            exit 0
+          fi
+          gh workflow run veille.yml --ref main -R "$GITHUB_REPOSITORY"

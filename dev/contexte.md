@@ -8,6 +8,6 @@
 - **Pourquoi une surcouche** : l'API du jeu (api.taxe-au-giga.fr) n'autorise pas les autres origines (aucun en-tête CORS), une page séparée ne peut pas la lire.
 - **Identité visuelle** : celle du jeu (crème, encre noire, ombre portée pleine, vert #19d3a2 pour l'action).
 - **Tests** : `dev/tests` (`npm test`, jsdom) sur des états simulés au format exact du jeu.
-- **Veille** : workflow GitHub toutes les 15 min (`dev/veille/veille.py`) ; barème du jeu comparé au tableau `P`, 15 passages de règles comparés à `dev/veille/reference.json` (build 2026-11-03g au départ). Le jeu a changé de build 3 fois le 03/11/2026 (e → f → g) sans toucher aux règles.
+- **Veille** : workflow GitHub qui se relance lui-même après le délai de l'environnement `attente-veille` (Settings → Environments ; la planification de GitHub n'a lancé aucun passage le 03/11/2026, elle reste en secours horaire) (`dev/veille/veille.py`) ; barème du jeu comparé au tableau `P`, 15 passages de règles comparés à `dev/veille/reference.json` (build 2026-11-03g au départ). Le jeu a changé de build 3 fois le 03/11/2026 (e → f → g) sans toucher aux règles.
 - **Revue automatique** (correctif mécanique du barème, revue par Claude Code GitHub Actions) : proposée et écartée par Romain le 03/11/2026 ; les écarts signalés par la veille se traitent à la main.
 - **Si le jeu change** : le panneau passe une alerte rose quand un prix ou la puissance de clic ne correspondent plus ; relire le tableau `SHOP` du jeu et mettre à jour `P` dans `conseiller.js`.
