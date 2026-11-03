@@ -40,7 +40,7 @@ async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, cli
     now: d.querySelector('#tagAdv .now').textContent, list: [...d.querySelectorAll('#tagAdv li')].map(l => l.textContent),
     ft: d.querySelector('#tagAdv .ft').textContent, warn: d.querySelector('#tagAdv .warn').hidden ? '' : d.querySelector('#tagAdv .warn').textContent,
     best: d.querySelector('.tagAdvBest')?.dataset.id, adv: d.querySelector('.tagAdvBest')?.dataset.adv,
-    state: w.eval('window.__tagAdv.state()'), text: d.querySelector('#tagAdv').textContent, z: parseInt(w.getComputedStyle(d.querySelector('#tagAdv')).zIndex, 10), titles: d.querySelectorAll('#tagAdv [title]').length, docTitle: d.title,
+    repo: d.querySelector('#tagAdv header a.v')?.getAttribute('href'), state: w.eval('window.__tagAdv.state()'), text: d.querySelector('#tagAdv').textContent, z: parseInt(w.getComputedStyle(d.querySelector('#tagAdv')).zIndex, 10), titles: d.querySelectorAll('#tagAdv [title]').length, docTitle: d.title,
   };
   w.eval('window.__tagAdv.stop()'); r.stopped = !d.querySelector('#tagAdv') && !d.querySelector('.tagAdvBest'); w.close();
   return r;
@@ -163,6 +163,7 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
     const v = (fs.readFileSync(path.join(ROOT, 'conseiller.user.js'), 'utf8').match(/@version\s+(\S+)/) || [])[1];
     r = await page({ ...base });
     check(v && r.text.includes('Conseiller v' + v), 'en-tête : ' + r.text.slice(0, 24) + ' | @version ' + v);
+    check(r.repo === 'https://github.com/actarus314/conseiller-taxe-giga', 'lien du numéro de version : ' + r.repo);
   }
 
   console.log('Forme : nombres au point décimal sans séparateur, aucune info-bulle native, aucun « vous »');

@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.10 — 03/11/2026
+Numéro de version du panneau cliquable : il ouvre le dépôt GitHub dans un nouvel onglet, pour signaler un écart ou suivre les versions. Un appui sur le lien ne déplace pas le panneau.
+
 ## v2.9 — 03/11/2026
 Jeu en build 2026-11-03h : Décret d'application porté de +25000 à +100000 visites par clic, et autoclic repéré après 10 min au plafond de 760 clics/min (3 min avant). Écart trouvé par la veille lancée à la main, ses passages programmés n'ayant pas démarré.
 
