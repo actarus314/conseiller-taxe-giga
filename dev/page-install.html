@@ -57,7 +57,7 @@ small{color:var(--muted)}
   <section class="card" aria-labelledby="t2">
     <h2 id="t2">Modes</h2>
     <dl class="facts">
-      <dt>Auto</dt><dd>par défaut. Cadence mesurée sur la série de clics TAXER en cours (15 dernières secondes) ; après 2 à 5 s sans clic, conseil passif aussitôt.</dd>
+      <dt>Auto</dt><dd>par défaut. Cadence moyenne de la série de clics TAXER en cours sur la dernière minute ; une pause de quelques secondes la fait à peine baisser. Après 8 s sans clic, conseil passif.</dd>
       <dt>Passif</dt><dd>production automatique seule ; les bonus de clic ne sont jamais conseillés.</dd>
       <dt>Actif</dt><dd>cadence fixée à la main (5 clics/s par défaut).</dd>
       <dt>Limites</dt><dd>le serveur ne compte que 760 clics par minute et 18000 par heure. La cadence retenue reste sous 12.7/s, et le reste du quota horaire se répartit sur 15 min quand il ne suffit plus. Un rythme tenu au plafond 3 min est pris pour un autoclic : clics ignorés 10 min.</dd>

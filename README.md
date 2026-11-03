@@ -16,7 +16,7 @@ Il lit ce que le jeu affiche. **Aucun clic, aucun achat, aucun appel au serveur 
 
 | Mode | Cadence de clic prise en compte |
 |---|---|
-| **Auto** (défaut) | mesurée sur la série de clics TAXER en cours (15 dernières secondes) ; arrêt détecté après 2 à 5 s sans clic (4 intervalles habituels), conseil passif aussitôt |
+| **Auto** (défaut) | moyenne de la série de clics TAXER en cours sur la dernière minute (une pause de quelques secondes la fait à peine baisser) ; après 8 s sans clic, conseil passif |
 | Passif | aucune : seule la production automatique compte |
 | Actif | fixée à la main (5 clics/s par défaut) |
 

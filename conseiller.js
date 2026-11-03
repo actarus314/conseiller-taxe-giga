@@ -43,10 +43,11 @@
   let cpsPlan = Math.min(CPS_MAX, Math.max(0.1, parseFloat(store('cps')) || 5));
 
   // Mesure des clics réels sur TAXER (bouton principal et bouton flottant).
-  // Arrêt : aucun clic depuis 4 intervalles habituels (médiane des derniers clics), borné entre 2 et 5 s.
-  // Cadence : clics de la série en cours sur les 15 dernières secondes ÷ temps écoulé (2 s au moins).
+  // Cadence : moyenne des clics de la série en cours sur la dernière minute (3 s de mesure au moins),
+  // pour qu'une pause de quelques secondes (le temps d'un achat) la fasse à peine baisser.
+  // Arrêt : 8 s sans clic ; une nouvelle série repart alors de zéro.
   // Compteur horaire : par minute, gardé dans le navigateur pour survivre à un rechargement.
-  const WIN = 15e3, recent = [];
+  const WIN = 60e3, STOP = 8e3, recent = [];
   let perMin = {}; try { perMin = JSON.parse(store('clics') || '{}') || {}; } catch (e) { perMin = {}; }
   const onClick = e => {
     if (!e.isTrusted || !e.target.closest || !e.target.closest('#taxBtn, #stickyTax')) return;
@@ -59,12 +60,10 @@
     for (const k in perMin) if (k <= m0 - 60) delete perMin[k];
     const hour = Object.values(perMin).reduce((a, b) => a + b, 0), minute = perMin[m0] || 0;
     if (!recent.length) return { rate: 0, idle: Infinity, hour, minute };
-    const gaps = recent.slice(1).map((t, i) => t - recent[i]).sort((a, b) => a - b);
-    const med = gaps.length ? gaps[gaps.length >> 1] : 1000, stopAfter = Math.min(5000, Math.max(2000, 4 * med));
     const idle = now - recent[recent.length - 1];
-    if (idle > stopAfter) return { rate: 0, idle, hour, minute };
-    let i = recent.length - 1; while (i > 0 && recent[i] - recent[i - 1] <= stopAfter) i--; // début de la série en cours
-    const n = recent.length - i, span = Math.max(2000, now - recent[i]);
+    if (idle > STOP) return { rate: 0, idle, hour, minute };
+    let i = recent.length - 1; while (i > 0 && recent[i] - recent[i - 1] <= STOP) i--; // début de la série en cours
+    const n = recent.length - i, span = Math.max(3000, now - recent[i]);
     return { rate: n / (span / 1000), idle, hour, minute };
   }
   const ivSave = setInterval(() => store('clics', JSON.stringify(perMin)), 5000);
