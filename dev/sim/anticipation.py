@@ -6,7 +6,8 @@ Stratégie qui anticipe (« par simulation ») : à chaque achat, essayer chacun
 la suite avec la règle gloutonne pendant un horizon H, et garder celui qui a produit le plus de visites.
 Simulation par événements (achat possible, déblocage d'un palier), exacte à revenu constant entre deux événements.
 
-Usage : python3 dev/sim/anticipation.py
+Usage : python3 dev/sim/anticipation.py [état.json]
+  état.json : réponse de /api/sync du jeu (champ state : owned, wallet, produced) ; défaut : la partie à 14 h 25.
 """
 import math, pathlib, sys, time
 
@@ -63,7 +64,9 @@ def greedy(o, w, c, t, T, cps, first=None):
     return c, o
 
 
-def lookahead(o, w, c, T, cps, H, N=6):
+def lookahead(o, w, c, T, cps, H, N=6, terminal=False):
+    # terminal : la simulation de chaque candidat compte aussi le revenu atteint à l'horizon, prolongé jusqu'à la fin
+    # de la période ; sans lui, un gros achat qui se rembourse après l'horizon est pénalisé à tort
     o = dict(o); t = 0.0
     decisions = 0
     while t < T - 1e-9:
@@ -71,7 +74,10 @@ def lookahead(o, w, c, T, cps, H, N=6):
         if not cands:
             c += income(o, cps) * (T - t); break
         h = min(T, t + H)
-        best = max(cands, key=lambda u: greedy(o, w, c, t, h, cps, first=u)[0])
+        def score(u):
+            cc, oo = greedy(o, w, c, t, h, cps, first=u)
+            return cc + (income(oo, cps) * (T - h) if terminal else 0)
+        best = max(cands, key=score)
         decisions += 1
         while t < T - 1e-9:
             w, c, t, bought = advance(o, w, c, t, cps, best, T)
@@ -89,14 +95,21 @@ if __name__ == '__main__':
     # partie réelle lue sur le serveur à 14 h 25 le 03/11/2026
     o0 = dict(doigt=46, stagiaire=45, chat=41, hamster=38, souris=34, bot=33, fax=28, commission=24, gant=21, satellite=16, trounoir=7, tampon=12)
     w0, c0 = 43557887, 1885613722
+    if len(sys.argv) > 1:
+        import json
+        st = json.load(open(sys.argv[1]))['state']
+        o0 = {k: v for k, v in st['owned'].items() if v}; w0, c0 = st['wallet'], st['produced']
+    print(f'État de départ : produit {c0:.4g}, cagnotte {w0:.4g}, production {income(o0, 0):.4g}/s, revenu à 5 clics/s {income(o0, 5):.4g}/s', flush=True)
     print('Visites produites sur la période, règle gloutonne (conseiller) contre stratégie par simulation\n')
-    print(f"{'clics/s':>7} {'durée':>6} {'horizon':>8} {'glouton':>12} {'anticipe':>12} {'écart':>8} {'décisions':>9} {'temps':>6}")
+    print('+VT : avec valeur terminale (revenu atteint à l\'horizon prolongé jusqu\'à la fin de la période)\n')
+    print(f"{'clics/s':>7} {'durée':>6} {'horizon':>11} {'glouton':>12} {'anticipe':>12} {'écart':>8} {'décisions':>9} {'temps':>6}")
     for cps in (0, 5):
         for T in (4 * 3600, 24 * 3600):
             g, og = greedy(o0, w0, c0, 0.0, T, cps)
-            for H in (1800, 3600):
+            for H, term in ((1800, False), (3600, False), (1800, True), (3600, True), (T, False)):
                 t1 = time.time()
-                a, oa, n = lookahead(o0, w0, c0, T, cps, H)
-                print(f"{cps:>7} {T // 3600:>4} h {H // 60:>5} min {g - c0:>12.4g} {a - c0:>12.4g} {100 * (a - g) / (g - c0):>+7.2f}% {n:>9} {time.time() - t1:>5.0f}s")
+                a, oa, n = lookahead(o0, w0, c0, T, cps, H, terminal=term)
+                lab = 'fin période' if H == T else f"{H // 60} min" + (' +VT' if term else '')
+                print(f"{cps:>7} {T // 3600:>4} h {lab:>11} {g - c0:>12.4g} {a - c0:>12.4g} {100 * (a - g) / (g - c0):>+7.2f}% {n:>9} {time.time() - t1:>5.0f}s", flush=True)
             diff = {k: (og.get(k, 0), oa.get(k, 0)) for k in set(og) | set(oa) if og.get(k, 0) != oa.get(k, 0)}
-            print(f"{'':>7} parc final différent (glouton, anticipe) : {dict(sorted(diff.items()))}")
+            print(f"{'':>7} parc final différent (glouton, anticipe) : {dict(sorted(diff.items()))}", flush=True)
