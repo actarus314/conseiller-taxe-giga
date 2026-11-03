@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Conseiller — Taxe au Giga
 // @namespace    https://github.com/actarus314/conseiller-taxe-giga
-// @version      2.7
+// @version      2.8
 // @description  Indique le meilleur bonus à acheter dans Taxe au Giga. Ne clique et n'achète rien.
 // @match        https://taxe-au-giga.fr/*
 // @grant        none
@@ -13,7 +13,7 @@
   // Conseiller pour taxe-au-giga.fr : lit l'état affiché par le jeu, ne clique et n'achète jamais rien.
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.7'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.8'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (build 2026-11-03e).
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -47,7 +47,10 @@
   // nombres au point décimal, sans séparateur de milliers
   const fmt = n => n < 1e6 ? String(Math.round(n)) : n < 1e9 ? (n / 1e6).toFixed(2) + ' M' : n < 1e12 ? (n / 1e9).toFixed(2) + ' Md' : (n / 1e12).toFixed(2) + ' T';
   const dec1 = n => n.toFixed(1).replace(/\.0$/, '');
-  const dur = s => !isFinite(s) ? 'après quelques clics' : s < 1 ? 'quelques secondes' : s < 60 ? Math.ceil(s) + ' s' : s < 3600 ? Math.round(s / 60) + ' min' : dec1(s / 3600) + ' h';
+  const pad = n => String(n).padStart(2, '0');
+  // compte à rebours à la seconde jusqu'à 1 h, puis heures et minutes
+  const dur = s => { if (!isFinite(s)) return 'après quelques clics'; if (s < 1) return 'moins d’1 s'; const k = Math.ceil(s);
+    return k < 60 ? k + ' s' : k < 3600 ? Math.floor(k / 60) + ' min ' + pad(k % 60) + ' s' : Math.floor(k / 3600) + ' h ' + pad(Math.floor(k % 3600 / 60)); };
   const clock = s => !isFinite(s) ? '—' : new Date(Date.now() + s * 1000).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   const store = (k, v) => { try { if (v === undefined) return localStorage.getItem('tagAdv-' + k); localStorage.setItem('tagAdv-' + k, v); } catch (e) { return null; } };
 
@@ -81,6 +84,24 @@
   }
   const ivSave = setInterval(() => store('clics', JSON.stringify(perMin)), 5000);
 
+  // Cagnotte : l'affichage du jeu est arrondi (10000 près en M, 10 M près en Md). La sauvegarde du jeu
+  // (exacte, réécrite toutes les 5 s), plus la production et les clics TAXER faits depuis son heure, donne
+  // la valeur fine ; elle est gardée dans l'intervalle d'arrondi de l'affichage, qui reste la référence.
+  function walletNow(own, boost) {
+    const txt = ($('#wallet') || {}).textContent || '', shown = num(txt);
+    if (!Number.isFinite(shown)) return shown;
+    const [lo, hi] = /Md/.test(txt) ? [shown - 5e6, shown + 5e6] : /M/.test(txt) ? [shown - 5e3, shown + 5e3] : [shown, shown + 1];
+    let est = NaN;
+    try {
+      const sv = JSON.parse(localStorage.getItem('taxe-giga-partie-v1') || 'null');
+      if (sv && Number.isFinite(sv.wallet) && sv.t) {
+        const since = recent.filter(t => t > sv.t).length; // clics comptés par le panneau depuis la sauvegarde
+        est = sv.wallet + prodRate(own) * (boost.fz ? 3 : 1) * Math.max(0, Date.now() - sv.t) / 1000 + since * clickPow(own) * (boost.rf ? 10 : 1);
+      }
+    } catch (e) {}
+    return Number.isFinite(est) ? Math.min(hi, Math.max(lo, est)) : shown;
+  }
+
   // Lecture de l'état affiché
   function read() {
     const items = [], drift = [], own = {};
@@ -104,7 +125,7 @@
     const chip = $('#buffChip'), ct = chip && !chip.hidden ? chip.textContent : '', left = (ct.match(/(\d+)\s*s\b/) || [])[1];
     const boost = { fz: /Frénésie/.test(ct) && left ? +left : 0, rf: /Rafale/.test(ct) && left ? +left : 0 };
     const gold = $('#goldBill'); // Facture dorée à l'écran
-    return { items, own, drift, wallet: num(($('#wallet') || {}).textContent), boost, goldUp: !!gold && !gold.hidden };
+    return { items, own, drift, wallet: walletNow(own, boost), boost, goldUp: !!gold && !gold.hidden };
   }
 
   // Revenu à l'instant t (s) : Frénésie = production ×3 pendant fz s, Rafale = clics ×10 pendant rf s
@@ -212,9 +233,10 @@
   });
   addEventListener('resize', place); place();
 
+  let last = null;
   const PFX = /^🟢 [^·]+ · /, baseTitle = () => document.title.replace(PFX, ''); let marked = null;
   function tick() {
-    const st = read(), now = box.querySelector('.now'), warn = box.querySelector('.warn');
+    const st = last = read(), now = box.querySelector('.now'), warn = box.querySelector('.warn');
     box.classList.toggle('gold', st.goldUp); // la Facture dorée ne reste que 15 s à l'écran
     box.querySelector('header .t').textContent = st.goldUp ? '🧾 Facture dorée à cliquer !' : '🧮 Conseiller';
     // Cadence retenue : la cadence voulue (mesurée en Auto, réglée en Actif), dans la limite de 760/min,
@@ -252,12 +274,13 @@
     const t = (ready ? '🟢 ' + first.it.u.name + ' · ' : '') + baseTitle(); if (document.title !== t) document.title = t;
   }
   setMode(mode);
-  const iv = setInterval(tick, 500);
+  const iv = setInterval(tick, 250);
   function stop() {
     clearInterval(iv); clearInterval(ivSave); store('clics', JSON.stringify(perMin)); box.remove(); css.remove(); document.title = baseTitle();
     document.removeEventListener('click', onClick, true); removeEventListener('resize', place);
     if (marked) marked.classList.remove('tagAdvBest');
     delete window.__tagAdv;
   }
-  window.__tagAdv = { stop };
+  // état lu au dernier rafraîchissement (diagnostic depuis la console, et tests)
+  window.__tagAdv = { stop, state: () => last && { wallet: last.wallet, own: { ...last.own }, boost: { ...last.boost }, cadence: cadence() } };
 })();

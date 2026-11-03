@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.8 — 03/11/2026
+Compte à rebours à la seconde (« 3 min 05 s ») au lieu de la minute arrondie, panneau rafraîchi 4 fois par seconde. Cagnotte affinée par la sauvegarde exacte du jeu plus la production et les clics TAXER faits depuis : l'affichage arrondi à 10 M près en milliards décalait l'attente de plusieurs minutes et ignorait les clics entre deux rafraîchissements.
+
 ## v2.7 — 03/11/2026
 Numéro de version affiché dans l'en-tête du panneau, pour savoir quelle version le favori a chargée ; il est écrit dans la source par build.py, seule déclaration du numéro.
 

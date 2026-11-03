@@ -15,7 +15,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 let fails = 0;
 const check = (ok, msg) => { console.log((ok ? '  ok   ' : '  ÉCHEC ') + msg); if (!ok) fails++; };
 
-async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, clicks = [], hourClicks = 0, at = 0, done = [], gold = false }) {
+async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, clicks = [], hourClicks = 0, at = 0, done = [], gold = false, save = null }) {
   const items = Object.entries(owned).map(([id, n]) => {
     const c = Math.ceil(B[id] * 1.15 ** n), d = done.includes(id);
     return `<button class="item" data-id="${id}" ${d || wallet < c ? 'disabled' : ''}><span class="ic"><b class="own">${d ? '✓' : '×' + n}</b><small class="price">${d ? 'acquis' : '💰 ' + big(c)}</small></span></button>`;
@@ -25,6 +25,7 @@ async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, cli
   const w = dom.window, d = w.document;
   let now = 1793700000000; w.Date.now = () => now; // horloge simulée
   w.localStorage.setItem('tagAdv-mode', mode); w.localStorage.setItem('tagAdv-cps', String(cps));
+  if (save) { const sv = typeof save === 'number' ? { w: save, at } : save; w.localStorage.setItem('taxe-giga-partie-v1', JSON.stringify({ wallet: sv.w, owned: {}, myCount: 0, t: now + sv.at * 1000 })); }
   if (hourClicks) w.localStorage.setItem('tagAdv-clics', JSON.stringify({ [Math.floor(now / 60e3) - 5]: hourClicks }));
   w.eval(SRC);
   // clics « de confiance » sur TAXER, à des instants donnés (secondes)
@@ -39,7 +40,7 @@ async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, cli
     now: d.querySelector('#tagAdv .now').textContent, list: [...d.querySelectorAll('#tagAdv li')].map(l => l.textContent),
     ft: d.querySelector('#tagAdv .ft').textContent, warn: d.querySelector('#tagAdv .warn').hidden ? '' : d.querySelector('#tagAdv .warn').textContent,
     best: d.querySelector('.tagAdvBest')?.dataset.id, adv: d.querySelector('.tagAdvBest')?.dataset.adv,
-    text: d.querySelector('#tagAdv').textContent, z: parseInt(w.getComputedStyle(d.querySelector('#tagAdv')).zIndex, 10), titles: d.querySelectorAll('#tagAdv [title]').length, docTitle: d.title,
+    state: w.eval('window.__tagAdv.state()'), text: d.querySelector('#tagAdv').textContent, z: parseInt(w.getComputedStyle(d.querySelector('#tagAdv')).zIndex, 10), titles: d.querySelectorAll('#tagAdv [title]').length, docTitle: d.title,
   };
   w.eval('window.__tagAdv.stop()'); r.stopped = !d.querySelector('#tagAdv') && !d.querySelector('.tagAdvBest'); w.close();
   return r;
@@ -144,6 +145,18 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   console.log('Main de l’État achetée (✓ « acquis ») : comptée dans la puissance de clic (497107), jamais reproposée');
   r = await page({ owned: { ...o2, mainetat: 1 }, done: ['mainetat'], wallet: 43557887, perClick: '497 107 visites', mode: 'actif', cps: 5 });
   check(!r.warn && /dont clics 2.49 M/.test(r.ft) && !r.list.some(l => /Main de l/.test(l)), r.ft + ' | alerte : ' + (r.warn || 'aucune'));
+
+  console.log('Cagnotte en milliards : valeur fine tirée de la sauvegarde du jeu, compte à rebours à la seconde');
+  // affichage « 1,14 Md » (arrondi à 10 M près) ; sauvegarde exacte 1144900000 ; Datacenter ×1 : 60000/s, prochain à 1.15 Md
+  r = await page({ owned: { datacenter: 1 }, wallet: 1144900000, mode: 'passif', save: 1144900000 });
+  const r3 = await page({ owned: { datacenter: 1 }, wallet: 1144900000, mode: 'passif' });
+  check(/dans 1 min 25 s/.test(r.now) && /dans 2 min 47 s/.test(r3.now), 'avec sauvegarde : ' + r.now.slice(0, 40) + ' | sans : ' + r3.now.slice(0, 40));
+
+  console.log('Clics faits depuis la sauvegarde du jeu ajoutés à la cagnotte estimée');
+  // Datacenter ×1 (60000/s), Tampon ×35 (clic : 1 + 35 × 40000 + 1 % × 60000 = 1400601) ; sauvegarde 1140000000 à t = 0,
+  // 2 clics à 1 et 2 s, lecture à 3 s : 1140000000 + 3 × 60000 + 2 × 1400601 = 1142981202, dans l’arrondi de « 1,14 Md »
+  r = await page({ owned: { datacenter: 1, tampon: 35 }, wallet: 1140000000, mode: 'actif', cps: 5, save: { w: 1140000000, at: 0 }, clicks: [1, 2], at: 3 });
+  check(Math.abs(r.state.wallet - 1142981202) < 2, 'cagnotte estimée ' + r.state.wallet);
 
   console.log('Version affichée dans l’en-tête, égale à celle du script utilisateur');
   {
