@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.11 — 03/11/2026
+Audit : panneau 3 à 19 fois moins coûteux par rafraîchissement (Chrome : 0.9–3.5 ms → 0.1–0.4 ms ; formateur d'heure unique, plan calculé une fois par étape, DOM réécrit seulement si changé), glissement arrêté sur pointercancel, constantes uniques. Sécurité : panneau et favori limités à taxe-au-giga.fr ; veille durcie (page plafonnée à 3 Mo, regex bornées, texte du jeu neutralisé dans les issues et hors des journaux, relance plafonnée, actions épinglées par empreinte, Node 22).
+
 ## v2.10 — 03/11/2026
 Numéro de version du panneau cliquable : il ouvre le dépôt GitHub dans un nouvel onglet, pour signaler un écart ou suivre les versions. Un appui sur le lien ne déplace pas le panneau.
 

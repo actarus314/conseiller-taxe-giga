@@ -23,11 +23,11 @@ jobs:
       group: veille-controle
       cancel-in-progress: false
     outputs:
-      debut: ${{ steps.debut.outputs.t }}
+      fin: ${{ steps.fin.outputs.t }}
     steps:
-      - id: debut
-        run: echo "t=$(date +%s)" >> "$GITHUB_OUTPUT"
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
       - name: Comparer le jeu et le conseiller
         id: v
         run: |
@@ -39,7 +39,8 @@ jobs:
             if [ "$essai" != 3 ]; then sleep 120; fi
           done
           cat "$GITHUB_OUTPUT.tmp" >> "$GITHUB_OUTPUT"
-          cat rapport.md | tee -a "$GITHUB_STEP_SUMMARY"
+          # rapport (contenu tiers) dans le résumé seulement, jamais sur la sortie standard : pas de commandes « :: » injectables
+          cat rapport.md >> "$GITHUB_STEP_SUMMARY"
       - name: Ouvrir ou refermer les issues de veille
         env:
           GH_TOKEN: ${{ github.token }}
@@ -60,6 +61,10 @@ jobs:
           if [ "$ETAT" = ecart ]; then titre="Veille : le jeu ne correspond plus au conseiller [$EMP]"; else titre="Veille : page du jeu inaccessible [$EMP]"; fi
           { cat rapport.md; echo; echo "Exécution : $RUN"; } > corps.md
           gh issue create --title "$titre" --label veille --body-file corps.md
+      - name: Noter l'heure de fin
+        id: fin
+        if: always()
+        run: echo "t=$(date +%s)" >> "$GITHUB_OUTPUT"
   relance:
     # attend le délai de l'environnement, puis relance la veille ; sans délai effectif, ne relance pas (pas de boucle)
     needs: veille
@@ -79,12 +84,16 @@ jobs:
       - name: Relancer la veille
         env:
           GH_TOKEN: ${{ github.token }}
-          DEBUT: ${{ needs.veille.outputs.debut }}
+          FIN: ${{ needs.veille.outputs.fin }}
         run: |
-          ecart=$(( $(date +%s) - ${DEBUT:-0} ))
-          echo "Écart depuis le début de la veille : ${ecart} s"
+          # garde-fous contre une boucle : heure de fin connue, délai réel depuis la fin du contrôle, 4 passages par heure au plus
+          if [ -z "$FIN" ]; then echo "::warning::Heure de fin de la veille inconnue : pas de relance."; exit 0; fi
+          ecart=$(( $(date +%s) - FIN ))
+          echo "Écart depuis la fin de la veille : ${ecart} s"
           if [ "$ecart" -lt 100 ]; then
             echo "::warning::Délai de l'environnement attente-veille absent ou trop court (${ecart} s) : pas de relance, pour ne pas boucler."
             exit 0
           fi
+          n=$(gh run list -R "$GITHUB_REPOSITORY" --workflow veille.yml --created ">$(date -u -d '-60 min' +%FT%TZ)" --json databaseId --jq length)
+          if [ "$n" -gt 4 ]; then echo "::warning::$n passages en une heure : pas de relance."; exit 0; fi
           gh workflow run veille.yml --ref main -R "$GITHUB_REPOSITORY"

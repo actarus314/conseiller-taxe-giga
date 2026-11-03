@@ -1,6 +1,6 @@
 # Conseiller — Taxe au Giga
 
-Panneau posé sur la page de [Taxe au Giga](https://taxe-au-giga.fr/) qui surligne le bonus à acheter, avec le compte à rebours jusqu'au prochain achat et les huit suivants.
+Panneau posé sur la page de [Taxe au Giga](https://taxe-au-giga.fr/) qui surligne le bonus à acheter, avec le compte à rebours jusqu'au prochain achat et les sept suivants.
 
 Il lit ce que le jeu affiche. **Aucun clic, aucun achat, aucun appel au serveur du jeu.**
 

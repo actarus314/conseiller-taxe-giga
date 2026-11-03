@@ -24,6 +24,8 @@ async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, cli
     <button id="taxBtn">TAXER</button><button id="stickyTax">T</button><div id="shop">${items}</div>`, { runScripts: 'outside-only', url: 'https://taxe-au-giga.fr/' });
   const w = dom.window, d = w.document;
   let now = 1793700000000; w.Date.now = () => now; // horloge simulée
+  const timers = new Map(); let timerId = 0; // minuteries simulées : un « tour de mise à jour » se joue d'un appel, sans attendre 650 ms réelles
+  w.setInterval = (f, ms) => { timers.set(++timerId, { f, ms }); return timerId; }; w.clearInterval = id => { timers.delete(id); };
   w.localStorage.setItem('tagAdv-mode', mode); w.localStorage.setItem('tagAdv-cps', String(cps));
   if (save) { const sv = typeof save === 'number' ? { w: save, at } : save; w.localStorage.setItem('taxe-giga-partie-v1', JSON.stringify({ wallet: sv.w, owned: {}, myCount: 0, t: now + sv.at * 1000 })); }
   if (hourClicks) w.localStorage.setItem('tagAdv-clics', JSON.stringify({ [Math.floor(now / 60e3) - 5]: hourClicks }));
@@ -35,14 +37,14 @@ async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, cli
     utils.implForWrapper(d.getElementById('taxBtn'))._dispatch(ei);
   }
   now = 1793700000000 + at * 1000;
-  await sleep(650); // un tour de mise à jour du panneau
+  const refresh = [...timers.values()].reduce((a, b) => (b.ms < a.ms ? b : a)); refresh.f(); // un tour de mise à jour du panneau
   const r = {
     now: d.querySelector('#tagAdv .now').textContent, list: [...d.querySelectorAll('#tagAdv li')].map(l => l.textContent),
     ft: d.querySelector('#tagAdv .ft').textContent, warn: d.querySelector('#tagAdv .warn').hidden ? '' : d.querySelector('#tagAdv .warn').textContent,
     best: d.querySelector('.tagAdvBest')?.dataset.id, adv: d.querySelector('.tagAdvBest')?.dataset.adv,
     repo: d.querySelector('#tagAdv header a.v')?.getAttribute('href'), state: w.eval('window.__tagAdv.state()'), text: d.querySelector('#tagAdv').textContent, z: parseInt(w.getComputedStyle(d.querySelector('#tagAdv')).zIndex, 10), titles: d.querySelectorAll('#tagAdv [title]').length, docTitle: d.title,
   };
-  w.eval('window.__tagAdv.stop()'); r.stopped = !d.querySelector('#tagAdv') && !d.querySelector('.tagAdvBest'); w.close();
+  w.eval('window.__tagAdv.stop()'); r.stopped = !d.querySelector('#tagAdv') && !d.querySelector('.tagAdvBest') && !d.querySelector('[data-adv]'); r.timers = timers.size; w.close();
   return r;
 }
 const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) }, (_, i) => from + i / n);
@@ -57,7 +59,7 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   check(r.best === 'satellite' && /Acheter maintenant/.test(r.now), r.now);
   check(/Fax.*×16/.test(r.list[0]) && /Ferme de bots ×21/.test(r.list[1]) && /Hamster-routeur ×26/.test(r.list[2]), 'suite : ' + r.list.slice(0, 3).join(' | '));
   check(/Revenu 22174\/s/.test(r.ft), r.ft);
-  check(r.stopped, 'arrêt propre');
+  check(r.stopped && r.timers === 0, 'arrêt propre : panneau, marque et minuteries retirés (minuteries restantes : ' + r.timers + ')');
 
   console.log('Actif 5/s : revenu 51024/s comme le simulateur, Doigts en premier');
   r = await page({ ...base, mode: 'actif', cps: 5 });
@@ -172,6 +174,17 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   check(!/\d \d{3}\b/.test(t) && !/\d,\d/.test(t), 'aucun « 1 234 » ni « 6,61 » dans le panneau');
   check(r.titles === 0, 'aucun attribut title');
   check(!/\b(vous|tu|achetez)\b/i.test(r.text), 'formulations impersonnelles');
+
+  console.log('Hors de taxe-au-giga.fr : panneau et favori à jour refusent de démarrer');
+  {
+    const dom = new JSDOM(`<b id="wallet">0</b><div id="shop"></div>`, { runScripts: 'outside-only', url: 'https://mail.example.com/' });
+    const w = dom.window; let msg = '', fetched = 0; w.alert = m => { msg += m + ' | '; }; w.fetch = async () => { fetched++; return { ok: true, text: async () => '' }; };
+    w.eval(SRC);
+    w.eval(decodeURIComponent(fs.readFileSync(path.join(ROOT, 'bookmarklet-auto.txt'), 'utf8').trim().slice(11)));
+    await new Promise(r => setTimeout(r, 50));
+    check(!w.document.querySelector('#tagAdv') && fetched === 0 && (msg.match(/à lancer sur taxe-au-giga\.fr/g) || []).length === 2, `panneau ${!!w.document.querySelector('#tagAdv')} · chargements ${fetched} · alertes « ${msg} »`);
+    w.close();
+  }
 
   console.log('Favori à jour : charge conseiller.js depuis GitHub Pages (paramètre à la minute), ouvre puis ferme le panneau');
   {

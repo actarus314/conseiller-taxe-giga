@@ -16,23 +16,24 @@ import hashlib, json, os, pathlib, re, sys, urllib.request
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 REF = ROOT / 'dev' / 'veille' / 'reference.json'
 URL = 'https://taxe-au-giga.fr/'
+MAX_PAGE = 3_000_000
 
 # Règles suivies : nom → expression qui isole le passage du code du jeu dont le conseiller dépend
 REGLES = {
-    'prix': r"const cost = u => [^;]+;",
-    'production': r"const rate = \(\) => [^;]+;",
-    'part du clic': r"const clickPct = \(\) => [^;]+;",
-    'puissance de clic': r"const clickPower = \(\) => [^;]+;",
-    'frénésie (production)': r"acc \+= effRate\(\) \* dt \* [^;]+;",
+    'prix': r"const cost = u => [^;]{1,400};",
+    'production': r"const rate = \(\) => [^;]{1,400};",
+    'part du clic': r"const clickPct = \(\) => [^;]{1,400};",
+    'puissance de clic': r"const clickPower = \(\) => [^;]{1,400};",
+    'frénésie (production)': r"acc \+= effRate\(\) \* dt \* [^;]{1,400};",
     'rafale (clics)': r"n = power\(\) \* \(rafaleOn \? \d+ : 1\)",
     'durées des bonus dorés': r"frenzyUntil = Date\.now\(\) \+ \d+;.{0,200}?rafaleUntil = Date\.now\(\) \+ \d+;",
-    'déblocage': r"const visible = SHOP\.filter\([^;]+;",
+    'déblocage': r"const visible = SHOP\.filter\([^;]{1,400};",
     'limites de clics': r"au-delà de [\d\s ]+clics par minute ou [\d\s ]+par heure",
     'hors ligne': r"Fenêtre fermée, ils continuent à \d+ %</b>, pendant \d+ h au plus",
     'sauvegarde': r"const SAVE = '[^']+';",
     'contenu sauvegardé': r"JSON\.stringify\(\{ myCount, wallet, owned, t: Date\.now\(\) \}\)",
     'carte de bonus': r'b\.innerHTML = `<span class="ie">[^`]+`;',
-    'affichage possédés et prix': r"b\.querySelector\('\.own'\)\.textContent = [^;]+;\s*b\.querySelector\('\.price'\)\.textContent = [^;]+;",
+    'affichage possédés et prix': r"b\.querySelector\('\.own'\)\.textContent = [^;]{1,400};\s*b\.querySelector\('\.price'\)\.textContent = [^;]{1,400};",
     'éléments lus': r'id="(?:wallet|shop|perClick|buffChip|goldBill|taxBtn|stickyTax)"',
 }
 
@@ -42,7 +43,17 @@ def page():
         return pathlib.Path(sys.argv[sys.argv.index('--fichier') + 1]).read_text(encoding='utf-8')
     req = urllib.request.Request(URL, headers={'User-Agent': 'conseiller-taxe-giga-veille (+https://github.com/actarus314/conseiller-taxe-giga)'})
     with urllib.request.urlopen(req, timeout=30) as r:
-        return r.read().decode('utf-8', 'replace')
+        data = r.read(MAX_PAGE + 1)  # plafond : une page énorme ne bloque pas la veille
+    if len(data) > MAX_PAGE:
+        raise ValueError(f'page de plus de {MAX_PAGE} octets')
+    return data.decode('utf-8', 'replace')
+
+
+def sur(s, n=400):
+    """Texte tiers (page du jeu) rendu inerte : coupé, sans mention @, dans un bloc de code qu'il ne peut pas fermer,
+    et sans « :: » en début de ligne (commandes de workflow)."""
+    s = (s or '')[:n].replace('@', '@\u200b').replace('~~~~', '~ ~ ~ ~').replace('::', ':\u200b:')
+    return '~~~~\n' + s + '\n~~~~'
 
 
 def norm(s):
@@ -84,12 +95,12 @@ def main():
     try:
         html = page()
     except Exception as e:
-        print(f'## Page du jeu inaccessible\n\n{e}')
+        print(f'## Page du jeu inaccessible\n\n{sur(str(e), 200)}')
         return finish('inaccessible', str(type(e).__name__), 2)
     build = (re.search(r"const BUILD = '([^']+)'", html) or [None, None])[1]
     if 'const SHOP = [' not in html or not build:
         titre = (re.search(r'<title>([^<]*)', html) or [None, '?'])[1]
-        print(f'## Page du jeu inaccessible\n\nPage reçue : « {titre.strip()} » ({len(html)} octets), sans le code du jeu. Probablement une page de vérification anti-robot.')
+        print(f'## Page du jeu inaccessible\n\nPage reçue ({len(html)} octets), sans le code du jeu. Probablement une page de vérification anti-robot. Titre :\n{sur(titre.strip(), 120)}')
         return finish('inaccessible', 'sans-code', 2)
 
     actuel = regles(html)
@@ -112,7 +123,7 @@ def main():
     for nom in REGLES:
         avant, apres = ref['regles'].get(nom), actuel.get(nom)
         if avant != apres:
-            ecarts.append(f'- Règle **{nom}** modifiée\n  - référence : `{avant}`\n  - jeu : `{apres}`')
+            ecarts.append(f'- Règle **{nom}** modifiée. Référence :\n{sur(avant)}\nJeu :\n{sur(apres)}')
 
     print(f'Build du jeu : {build} (référence : {ref["build"]}) · {len(jeu)} bonus · {len(REGLES)} règles suivies\n')
     if not ecarts:

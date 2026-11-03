@@ -28,6 +28,7 @@ def scene(p, name, owned, wallet, produced, mode, vp, clicks=0, mobile=False, pl
                           proxy={'server': os.environ['HTTPS_PROXY'], 'bypass': '127.0.0.1,localhost'} if os.environ.get('HTTPS_PROXY') else None)
     ctx = b.new_context(viewport=vp, device_scale_factor=2, is_mobile=mobile, has_touch=mobile, locale='fr-FR', timezone_id='Europe/Paris')
     pg = ctx.new_page()
+    pg.route('**://*taxe-au-giga.fr/**', lambda r: r.abort())  # rien ne doit atteindre le vrai jeu
     pg.route('**/api/**', fake(dict(produced=produced, wallet=wallet, owned=owned, rate=0, click=0)))
     pg.route('**/*.pdf*', lambda r: r.abort())
     pg.add_init_script(f"try{{localStorage.setItem('tagAdv-mode','{mode}')}}catch(e){{}}")

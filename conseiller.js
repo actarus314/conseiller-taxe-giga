@@ -1,8 +1,9 @@
 (() => {
   // Conseiller pour taxe-au-giga.fr : lit l'état affiché par le jeu, ne clique et n'achète jamais rien.
+  if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.10'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.11'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (build 2026-11-03h : Décret porté à +100000 par clic).
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -20,11 +21,24 @@
   const cost = (u, n) => Math.ceil(u.base * Math.pow(1.15, n));
   // Limites du serveur : 760 clics comptés par minute, 18000 par heure (au-delà, les clics ne rapportent rien)
   const LIM_MIN = 760, LIM_H = 18000, CPS_MAX = LIM_MIN / 60, HORIZON = 900; // horizon de 15 min pour répartir le reste du quota horaire
+  // minutes tenues au plafond de clics/min avant que le serveur y voie un autoclic (clics alors ignorés autant de minutes)
+  const AUTOCLIC = 10;
+  // multiplicateurs des bonus de la Facture dorée : production ×3, clics ×10
+  const FRENESIE = 3, RAFALE = 10;
+  // part de la production ajoutée à chaque clic sans aucun bonus en %
+  const PCT_BASE = 0.01;
+  // rafraîchissement (ms), sauvegarde du compteur (ms), achats planifiés, largeur d'écran « téléphone » (px)
+  const TICK = 250, SAVE_EVERY = 5000, PLAN_LEN = 8, PHONE = 600;
+  // écart relatif toléré entre le modèle et l'affichage du jeu (prix, puissance de clic)
+  const DRIFT = 0.01;
+  const CPS_MIN = 0.1, CPS_DEFAULT = 5;
+  const clampCps = v => Math.min(CPS_MAX, Math.max(CPS_MIN, parseFloat(v) || CPS_DEFAULT));
 
   // Production d'un parc : passive (rate) et par clic, comme clickPower() du jeu
   const prodRate = own => P.reduce((s, u) => s + u.rate * (own[u.id] || 0), 0);
-  const clickPow = own => Math.floor(1 + P.reduce((s, u) => s + u.click * (own[u.id] || 0), 0) + (0.01 + P.reduce((s, u) => s + u.pct * (own[u.id] || 0), 0)) * prodRate(own));
-  const income = (own, cps) => prodRate(own) + (cps > 0 ? clickPow(own) * cps : 0);
+  // rate : prodRate(own), déjà calculée par l'appelant
+  const clickPow = (own, rate = prodRate(own)) => Math.floor(1 + P.reduce((s, u) => s + u.click * (own[u.id] || 0), 0) + (PCT_BASE + P.reduce((s, u) => s + u.pct * (own[u.id] || 0), 0)) * rate);
+  const income = (own, cps) => { const r = prodRate(own); return r + (cps > 0 ? clickPow(own, r) * cps : 0); };
 
   const $ = s => document.querySelector(s);
   const num = s => {
@@ -40,12 +54,14 @@
   // compte à rebours à la seconde jusqu'à 1 h, puis heures et minutes
   const dur = s => { if (!isFinite(s)) return 'après quelques clics'; if (s < 1) return 'moins d’1 s'; const k = Math.ceil(s);
     return k < 60 ? k + ' s' : k < 3600 ? Math.floor(k / 60) + ' min ' + pad(k % 60) + ' s' : Math.floor(k / 3600) + ' h ' + pad(Math.floor(k % 3600 / 60)); };
-  const clock = s => !isFinite(s) ? '—' : new Date(Date.now() + s * 1000).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  // créé une fois : toLocaleTimeString(options) en recrée un à chaque appel (72 µs)
+  const hhmm = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const clock = s => !isFinite(s) ? '—' : hhmm.format(Date.now() + s * 1000);
   const store = (k, v) => { try { if (v === undefined) return localStorage.getItem('tagAdv-' + k); localStorage.setItem('tagAdv-' + k, v); } catch (e) { return null; } };
 
   // Réglages : Auto (cadence mesurée, par défaut), Passif (aucun clic) ou Actif (cadence fixée)
   let mode = ['auto', 'passif', 'actif'].includes(store('mode')) ? store('mode') : 'auto';
-  let cpsPlan = Math.min(CPS_MAX, Math.max(0.1, parseFloat(store('cps')) || 5));
+  let cpsPlan = clampCps(store('cps'));
 
   // Mesure des clics réels sur TAXER (bouton principal et bouton flottant).
   // Cadence : moyenne des clics de la série en cours sur la dernière minute (3 s de mesure au moins),
@@ -71,7 +87,7 @@
     const n = recent.length - i, span = Math.max(3000, now - recent[i]);
     return { rate: n / (span / 1000), idle, hour, minute };
   }
-  const ivSave = setInterval(() => store('clics', JSON.stringify(perMin)), 5000);
+  const ivSave = setInterval(() => store('clics', JSON.stringify(perMin)), SAVE_EVERY);
 
   // Cagnotte : l'affichage du jeu est arrondi (10000 près en M, 10 M près en Md). La sauvegarde du jeu
   // (exacte, réécrite toutes les 5 s), plus la production et les clics TAXER faits depuis son heure, donne
@@ -85,7 +101,7 @@
       const sv = JSON.parse(localStorage.getItem('taxe-giga-partie-v1') || 'null');
       if (sv && Number.isFinite(sv.wallet) && sv.t) {
         const since = recent.filter(t => t > sv.t).length; // clics comptés par le panneau depuis la sauvegarde
-        est = sv.wallet + prodRate(own) * (boost.fz ? 3 : 1) * Math.max(0, Date.now() - sv.t) / 1000 + since * clickPow(own) * (boost.rf ? 10 : 1);
+        est = sv.wallet + prodRate(own) * (boost.fz ? FRENESIE : 1) * Math.max(0, Date.now() - sv.t) / 1000 + since * clickPow(own) * (boost.rf ? RAFALE : 1);
       }
     } catch (e) {}
     return Number.isFinite(est) ? Math.min(hi, Math.max(lo, est)) : shown;
@@ -103,13 +119,13 @@
       own[u.id] = n;
       if (!done) {
         const shown = num((b.querySelector('.price') || {}).textContent), c = cost(u, n);
-        if (shown && Math.abs(shown - c) / c > 0.01) drift.push(u.name);
+        if (shown && Math.abs(shown - c) / c > DRIFT) drift.push(u.name);
         items.push({ u, el: b });
       }
     }
     // la puissance de clic affichée par le jeu sert de contrôle du modèle
     const pcTxt = ($('#perClick') || {}).textContent || '', pc = /volontaire/.test(pcTxt) ? 0 : parseInt(pcTxt.replace(/\D/g, ''), 10); // mode sérieux : rien à contrôler
-    if (pc && items.length && Math.abs(pc - clickPow(own)) > Math.max(2, pc * 0.01)) drift.push('puissance de clic');
+    if (pc && items.length && Math.abs(pc - clickPow(own)) > Math.max(2, pc * DRIFT)) drift.push('puissance de clic');
     // bonus de la Facture dorée en cours, lus dans le bandeau du jeu : Frénésie (production ×3) ou Rafale (clics ×10)
     const chip = $('#buffChip'), ct = chip && !chip.hidden ? chip.textContent : '', left = (ct.match(/(\d+)\s*s\b/) || [])[1];
     const boost = { fz: /Frénésie/.test(ct) && left ? +left : 0, rf: /Rafale/.test(ct) && left ? +left : 0 };
@@ -118,86 +134,96 @@
   }
 
   // Revenu à l'instant t (s) : Frénésie = production ×3 pendant fz s, Rafale = clics ×10 pendant rf s
-  const rateAt = (own, cps, b, t) => prodRate(own) * (t < b.fz ? 3 : 1) + (cps > 0 ? clickPow(own) * cps * (t < b.rf ? 10 : 1) : 0);
+  const rateAt = (own, cps, b, t) => { const r = prodRate(own); return r * (t < b.fz ? FRENESIE : 1) + (cps > 0 ? clickPow(own, r) * cps * (t < b.rf ? RAFALE : 1) : 0); };
   // Morceaux de temps où le revenu est constant : [0, fin du 1er bonus], [.., fin du 2e], [.., ∞)
   const pieces = b => [...new Set([b.fz, b.rf].filter(x => x > 0))].sort((x, y) => x - y).concat(Infinity);
-  function earnTime(amount, own, cps, b) { // temps pour gagner `amount`
+  // Revenu de chaque morceau de temps, calculé une fois par étape du plan : [{ end, rate }]
+  const segments = (own, cps, b) => { let start = 0; return pieces(b).map(end => { const seg = { end, rate: rateAt(own, cps, b, start) }; start = end; return seg; }); };
+  // temps pour gagner `amount`
+  function earnTime(amount, segs) {
     if (amount <= 0) return 0;
     let t = 0;
-    for (const end of pieces(b)) {
-      const r = rateAt(own, cps, b, t);
-      if (r > 0 && amount <= r * (end - t)) return t + amount / r;
+    for (const { end, rate } of segs) {
+      if (rate > 0 && amount <= rate * (end - t)) return t + amount / rate;
       if (end === Infinity) return Infinity;
-      amount -= r * (end - t); t = end;
+      amount -= rate * (end - t); t = end;
     }
   }
-  function earned(T, own, cps, b) { // visites gagnées pendant T s
+  // visites gagnées pendant T s
+  function earned(T, segs) {
     let t = 0, sum = 0;
-    for (const end of pieces(b)) { const e = Math.min(end, T); if (e > t) sum += rateAt(own, cps, b, t) * (e - t); t = e; if (t >= T) break; }
+    for (const { end, rate } of segs) { const e = Math.min(end, T); if (e > t) sum += rate * (e - t); t = e; if (t >= T) break; }
     return sum;
   }
   const after = (b, dt) => ({ fz: Math.max(0, b.fz - dt), rf: Math.max(0, b.rf - dt) });
   // Choix : le bonus qui minimise (attente avant de pouvoir le payer + temps pour qu'il se rembourse).
-  function pick(items, own, w, cps, fz) {
-    let best = null, bs = Infinity; const r0 = income(own, cps);
+  function pick(items, own, w, cps, boost) {
+    let best = null, bs = Infinity; const r0 = income(own, cps), segs = segments(own, cps, boost);
     for (const it of items) {
       const n = own[it.u.id] || 0; if (it.u.max && n >= it.u.max) continue;
-      const g = income({ ...own, [it.u.id]: n + 1 }, cps) - r0; if (g <= 0) continue;
-      const c = cost(it.u, n), s = earnTime(c - w, own, cps, fz) + c / g;
-      if (s < bs) { bs = s; best = it; }
+      own[it.u.id] = n + 1; const g = income(own, cps) - r0; own[it.u.id] = n; if (g <= 0) continue;
+      const c = cost(it.u, n), wait = earnTime(c - w, segs), s = wait + c / g;
+      if (s < bs) { bs = s; best = { it, c, wait, segs }; }
     }
     return best;
   }
   function plan(st, cps, k) {
-    const own = { ...st.own }; let w = st.wallet, t = 0, fz = st.boost; const out = []; // fz : bonus en cours
+    // boost : Frénésie / Rafale en cours
+    const own = { ...st.own }; let w = st.wallet, t = 0, boost = st.boost; const out = [];
     for (let i = 0; i < k; i++) {
-      const it = pick(st.items, own, w, cps, fz); if (!it) break;
-      const n = own[it.u.id] || 0, c = cost(it.u, n), wait = earnTime(c - w, own, cps, fz);
+      const best = pick(st.items, own, w, cps, boost); if (!best) break;
+      const { it, c, wait, segs } = best, n = own[it.u.id] || 0;
       if (!isFinite(wait)) { out.push({ it, c, t: Infinity, n: n + 1 }); break; }
-      w += earned(wait, own, cps, fz) - c; fz = after(fz, wait); t += wait;
+      w += earned(wait, segs) - c; boost = after(boost, wait); t += wait;
       own[it.u.id] = n + 1; out.push({ it, c, t, n: n + 1 });
     }
     return out;
   }
 
   // Interface
+  // couleurs du panneau et de la marque : déclarées une seule fois (variables --tag*), sans toucher à celles du jeu
   const css = document.createElement('style');
   css.textContent = `
-  #tagAdv{position:fixed;right:12px;z-index:60;width:min(340px,calc(100vw - 24px));background:#fffbe6;color:#1a1a1a;
-    border:3px solid #1a1a1a;border-radius:14px;box-shadow:5px 5px 0 #1a1a1a;font:14px/1.4 system-ui,sans-serif}
-  #tagAdv header{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;border-bottom:2px solid #1a1a1a;font-weight:700;user-select:none;cursor:move;touch-action:none}
+  #tagAdv,.tagAdvBest{--tagInk:#1a1a1a;--tagPaper:#fffbe6;--tagGo:#19d3a2}
+  #tagAdv{position:fixed;right:12px;z-index:60;width:min(340px,calc(100vw - 24px));background:var(--tagPaper);color:var(--tagInk);
+    border:3px solid var(--tagInk);border-radius:14px;box-shadow:5px 5px 0 var(--tagInk);font:14px/1.4 system-ui,sans-serif}
+  #tagAdv header{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;border-bottom:2px solid var(--tagInk);font-weight:700;user-select:none;cursor:move;touch-action:none}
   #tagAdv.gold header{background:#ffd23f}
   #tagAdv header .v{font:500 11px/1 ui-monospace,Menlo,monospace;color:#555;margin-left:4px;text-decoration:underline;cursor:pointer}
-  #tagAdv header .v:focus-visible{outline:2px solid #1a1a1a;outline-offset:2px}
+  #tagAdv header .v:focus-visible{outline:2px solid var(--tagInk);outline-offset:2px}
   #tagAdv header button{all:unset;cursor:pointer;padding:0 4px;font-size:16px}
   #tagAdv .modes{display:flex;gap:6px;padding:8px 12px 0;flex-wrap:wrap;align-items:center}
-  #tagAdv .modes button{all:unset;cursor:pointer;border:2px solid #1a1a1a;border-radius:8px;padding:3px 10px;font-weight:700;font-size:13px}
-  #tagAdv .modes button[aria-pressed="true"]{background:#1a1a1a;color:#fffbe6}
+  #tagAdv .modes button{all:unset;cursor:pointer;border:2px solid var(--tagInk);border-radius:8px;padding:3px 10px;font-weight:700;font-size:13px}
+  #tagAdv .modes button[aria-pressed="true"]{background:var(--tagInk);color:var(--tagPaper)}
   #tagAdv .modes label{font-size:12px;display:flex;gap:4px;align-items:center;margin-left:auto}
   #tagAdv .modes label[hidden]{display:none}
-  #tagAdv .modes input{width:46px;font:inherit;border:2px solid #1a1a1a;border-radius:6px;padding:1px 4px;background:#fff;color:#1a1a1a}
+  #tagAdv .modes input{width:46px;font:inherit;border:2px solid var(--tagInk);border-radius:6px;padding:1px 4px;background:#fff;color:var(--tagInk)}
   #tagAdv .now{padding:10px 12px;font-size:16px}
   #tagAdv .now b{display:block;font-size:18px}
-  #tagAdv .now.go{background:#19d3a2}
+  #tagAdv .now.go{background:var(--tagGo)}
   #tagAdv ol{margin:0;padding:6px 12px 10px 32px;font-size:13px}
   #tagAdv ol li{margin:2px 0}
-  #tagAdv .ft{padding:6px 12px 8px;border-top:2px dashed #1a1a1a;font-size:12px;color:#555}
+  #tagAdv .ft{padding:6px 12px 8px;border-top:2px dashed var(--tagInk);font-size:12px;color:#555}
   #tagAdv .warn{padding:6px 12px;background:#ffb3d6;font-size:12px}
-  #tagAdv .warn[hidden]{display:none}
   #tagAdv.min .modes,#tagAdv.min ol,#tagAdv.min .ft{display:none}
-  .tagAdvBest{outline:5px solid #19d3a2!important;outline-offset:2px;position:relative}
-  .tagAdvBest::after{content:attr(data-adv);position:absolute;top:-12px;left:12px;background:#19d3a2;color:#1a1a1a;border:2px solid #1a1a1a;
+  .tagAdvBest{outline:5px solid var(--tagGo)!important;outline-offset:2px;position:relative}
+  .tagAdvBest::after{content:attr(data-adv);position:absolute;top:-12px;left:12px;background:var(--tagGo);color:var(--tagInk);border:2px solid var(--tagInk);
     border-radius:8px;padding:1px 8px;font:700 12px/1.4 system-ui,sans-serif;pointer-events:none}`;
   document.head.appendChild(css);
   const box = document.createElement('div'); box.id = 'tagAdv';
   box.innerHTML = `<header><span><span class="t">🧮 Conseiller</span> <a class="v" href="https://github.com/actarus314/conseiller-taxe-giga" target="_blank" rel="noopener">v${VERSION}</a></span><span><button data-a="min" aria-label="Réduire">–</button><button data-a="x" aria-label="Fermer">✕</button></span></header>
     <div class="modes"><button data-m="auto">Auto</button><button data-m="passif">Passif</button><button data-m="actif">Actif</button>
-      <label data-cps>clics/s prévus <input id="tagAdvCps" type="number" min="0.1" max="12.6" step="0.5"></label></div>
+      <label data-cps>clics/s prévus <input id="tagAdvCps" type="number" step="0.5"></label></div>
     <div class="warn" hidden></div><div class="now"></div><ol></ol><div class="ft"></div>`;
   document.body.appendChild(box);
-  if (innerWidth < 600) box.classList.add('min'); // téléphone : panneau réduit au conseil, la boutique reste visible
-  const cpsIn = box.querySelector('#tagAdvCps'); cpsIn.value = cpsPlan;
-  cpsIn.addEventListener('change', () => { cpsPlan = Math.min(CPS_MAX, Math.max(0.1, parseFloat(cpsIn.value) || 5)); cpsIn.value = cpsPlan; store('cps', cpsPlan); tick(); });
+  // téléphone : panneau réduit au conseil, la boutique reste visible
+  if (innerWidth < PHONE) box.classList.add('min');
+  const ui = { title: box.querySelector('header .t'), now: box.querySelector('.now'), warn: box.querySelector('.warn'), ol: box.querySelector('ol'), ft: box.querySelector('.ft') };
+  // N'écrit dans le DOM que ce qui change : innerHTML recrée tous les nœuds même à contenu identique (recalcul de style et de mise en page à chaque tick)
+  const shown = {};
+  const put = (k, el, prop, v) => { if (shown[k] !== v) { el[prop] = v; shown[k] = v; } };
+  const cpsIn = box.querySelector('#tagAdvCps'); cpsIn.min = CPS_MIN; cpsIn.max = CPS_MAX; cpsIn.value = cpsPlan;
+  cpsIn.addEventListener('change', () => { cpsPlan = clampCps(cpsIn.value); cpsIn.value = cpsPlan; store('cps', cpsPlan); tick(); });
   const setMode = m => { mode = m; store('mode', m); box.querySelectorAll('[data-m]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.m === m))); box.querySelector('[data-cps]').hidden = m !== 'actif'; tick(); };
   box.addEventListener('click', e => {
     const a = e.target.dataset.a;
@@ -214,61 +240,68 @@
     box.style.bottom = `calc(${24 + h + 18}px + env(safe-area-inset-bottom, 0px))`;
   }
   const hd = box.querySelector('header');
+  // fin du glissement en cours (pointerup, pointercancel ou fermeture du panneau)
+  let endDrag = null;
   hd.addEventListener('pointerdown', e => {
     if (e.target.closest('button, a')) return;
+    if (endDrag) endDrag();
     const r = box.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
     const mv = ev => { dragged = true; box.style.left = Math.max(0, Math.min(innerWidth - r.width, ev.clientX - dx)) + 'px'; box.style.top = Math.max(0, Math.min(innerHeight - 40, ev.clientY - dy)) + 'px'; box.style.right = box.style.bottom = 'auto'; };
-    const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); };
-    addEventListener('pointermove', mv); addEventListener('pointerup', up);
+    const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); endDrag = null; };
+    endDrag = up; addEventListener('pointermove', mv); addEventListener('pointerup', up); addEventListener('pointercancel', up);
   });
   addEventListener('resize', place); place();
 
   let last = null;
+  const unmark = () => { if (marked) { marked.classList.remove('tagAdvBest'); delete marked.dataset.adv; marked = null; } };
   const PFX = /^🟢 [^·]+ · /, baseTitle = () => document.title.replace(PFX, ''); let marked = null;
   function tick() {
-    const st = last = read(), now = box.querySelector('.now'), warn = box.querySelector('.warn');
+    const st = last = read();
     box.classList.toggle('gold', st.goldUp); // la Facture dorée ne reste que 15 s à l'écran
-    box.querySelector('header .t').textContent = st.goldUp ? '🧾 Facture dorée à cliquer !' : '🧮 Conseiller';
+    put('title', ui.title, 'textContent', st.goldUp ? '🧾 Facture dorée à cliquer !' : '🧮 Conseiller');
     // Cadence retenue : la cadence voulue (mesurée en Auto, réglée en Actif), dans la limite de 760/min,
     // et du reste du quota horaire réparti sur 15 min quand il ne suffit plus.
     const cad = cadence(), left = Math.max(0, LIM_H - cad.hour), capped = left === 0;
     const want = mode === 'actif' ? cpsPlan : mode === 'auto' ? cad.rate : 0; // clics arrêtés : conseil passif
     const cps = Math.min(want, CPS_MAX, left / HORIZON);
-    const why = !want || cps >= want - 0.05 ? '' : capped ? '' : cps < Math.min(want, CPS_MAX) - 0.05 ? `ramenée à ${dec1(cps)} : reste ${left} clics sur le quota de l’heure` : `ramenée à ${dec1(CPS_MAX)}, plafond de 760 clics par minute`;
-    if (!Number.isFinite(st.wallet) || !$('#shop')) { now.textContent = 'Boutique introuvable : recharger la page du jeu.'; return; }
-    if (!st.items.length) { now.textContent = 'Aucun bonus débloqué : cliquer sur TAXER.'; return; }
-    warn.hidden = !st.drift.length;
-    if (st.drift.length) warn.textContent = `⚠️ Le jeu ne correspond plus au barème connu (${st.drift.join(', ')}) : il a peut-être changé ses règles, conseils à prendre avec prudence.`;
-    const out = plan(st, cps, 8), first = out[0];
-    if (marked && (!first || marked !== first.it.el)) { marked.classList.remove('tagAdvBest'); marked = null; }
+    const why = !want || cps >= want - 0.05 ? '' : capped ? '' : cps < Math.min(want, CPS_MAX) - 0.05 ? `ramenée à ${dec1(cps)} : reste ${left} clics sur le quota de l’heure` : `ramenée à ${dec1(CPS_MAX)}, plafond de ${LIM_MIN} clics par minute`;
+    if (!Number.isFinite(st.wallet) || !$('#shop')) { put('now', ui.now, 'innerHTML', 'Boutique introuvable : recharger la page du jeu.'); return; }
+    if (!st.items.length) { put('now', ui.now, 'innerHTML', 'Aucun bonus débloqué : cliquer sur TAXER.'); return; }
+    put('warnHidden', ui.warn, 'hidden', !st.drift.length);
+    if (st.drift.length) put('warn', ui.warn, 'textContent', `⚠️ Le jeu ne correspond plus au barème connu (${st.drift.join(', ')}) : il a peut-être changé ses règles, conseils à prendre avec prudence.`);
+    const out = plan(st, cps, PLAN_LEN), first = out[0];
+    if (!first || marked !== first.it.el) unmark();
     if (!first) return;
     const ready = !first.it.el.disabled; // le bouton du jeu fait foi pour « achetable maintenant »
-    first.it.el.classList.add('tagAdvBest'); first.it.el.dataset.adv = ready ? '👉 À ACHETER' : '⏳ ' + dur(first.t);
+    // le jeu peut réécrire les classes de la carte : la marque est reposée si elle a disparu
+    const adv = ready ? '👉 À ACHETER' : '⏳ ' + dur(first.t);
+    if (!first.it.el.classList.contains('tagAdvBest')) first.it.el.classList.add('tagAdvBest');
+    if (first.it.el.dataset.adv !== adv) first.it.el.dataset.adv = adv;
     marked = first.it.el;
-    now.className = 'now' + (ready ? ' go' : '');
-    now.innerHTML = ready
+    put('nowClass', ui.now, 'className', 'now' + (ready ? ' go' : ''));
+    put('now', ui.now, 'innerHTML', ready
       ? `Acheter maintenant<b>${first.it.u.name}</b>💰 ${fmt(first.c)} · devient ×${first.n}`
-      : (isFinite(first.t) ? `Prochain achat dans ${dur(first.t)} (${clock(first.t)})` : 'Prochain achat après quelques clics') + `<b>${first.it.u.name}</b>💰 ${fmt(first.c)} · ne rien acheter d’autre d’ici là`;
-    box.querySelector('ol').innerHTML = out.slice(1).map(o =>
-      `<li>${o.it.u.name} ×${o.n} · 💰 ${fmt(o.c)} · ${o.t < 1 ? 'tout de suite' : clock(o.t)}</li>`).join('');
+      : (isFinite(first.t) ? `Prochain achat dans ${dur(first.t)} (${clock(first.t)})` : 'Prochain achat après quelques clics') + `<b>${first.it.u.name}</b>💰 ${fmt(first.c)} · ne rien acheter d’autre d’ici là`);
+    put('ol', ui.ol, 'innerHTML', out.slice(1).map(o =>
+      `<li>${o.it.u.name} ×${o.n} · 💰 ${fmt(o.c)} · ${o.t < 1 ? 'tout de suite' : clock(o.t)}</li>`).join(''));
     const parts = [`Revenu ${fmt(income(st.own, cps))}/s` + (cps ? ` (dont clics ${fmt(clickPow(st.own) * cps)})` : ''), `cagnotte 💰 ${fmt(st.wallet)}`];
-    if (st.boost.fz) parts.push(`🔥 Frénésie : revenu ${fmt(rateAt(st.own, cps, st.boost, 0))}/s pendant ${st.boost.fz} s (production ×3)`);
-    if (st.boost.rf) parts.push(cps ? `⚡ Rafale : revenu ${fmt(rateAt(st.own, cps, st.boost, 0))}/s pendant ${st.boost.rf} s (clics ×10)` : `⚡ Rafale : chaque clic ×10 pendant ${st.boost.rf} s, à condition de cliquer`);
-    if (capped && want) parts.push('⚠️ 18000 clics atteints sur l’heure : les clics ne comptent plus, conseil passif');
+    if (st.boost.fz) parts.push(`🔥 Frénésie : revenu ${fmt(rateAt(st.own, cps, st.boost, 0))}/s pendant ${st.boost.fz} s (production ×${FRENESIE})`);
+    if (st.boost.rf) parts.push(cps ? `⚡ Rafale : revenu ${fmt(rateAt(st.own, cps, st.boost, 0))}/s pendant ${st.boost.rf} s (clics ×${RAFALE})` : `⚡ Rafale : chaque clic ×${RAFALE} pendant ${st.boost.rf} s, à condition de cliquer`);
+    if (capped && want) parts.push(`⚠️ ${LIM_H} clics atteints sur l’heure : les clics ne comptent plus, conseil passif`);
     else if (mode === 'auto') parts.push(cps ? `conseil calculé pour ${dec1(cps)} clics/s` + (why ? ` (cadence ${dec1(cad.rate)}/s ${why})` : ' (cadence mesurée)') : (isFinite(cad.idle) ? `clics arrêtés depuis ${Math.round(cad.idle / 1000)} s : conseil passif` : 'aucun clic récent : conseil passif'));
     else if (why) parts.push(`cadence ${why}`);
     if (mode !== 'passif' || cad.hour) parts.push(`clics : ${dec1(cad.rate)}/s, ${cad.hour}/${LIM_H} sur l’heure, ${cad.minute}/${LIM_MIN} cette minute`);
     if (!capped && cad.hour > LIM_H - 2000) parts.push(`⚠️ bientôt ${LIM_H} clics sur l’heure : au-delà, ils ne comptent plus`);
-    if (cad.minute > LIM_MIN - 60) parts.push(`⚠️ près de ${LIM_MIN} clics cette minute : au-delà, ils ne comptent plus, et un rythme tenu au plafond 10 min est pris pour un autoclic (clics ignorés 10 min)`);
-    box.querySelector('.ft').textContent = parts.join(' · ');
+    if (cad.minute > LIM_MIN - 60) parts.push(`⚠️ près de ${LIM_MIN} clics cette minute : au-delà, ils ne comptent plus, et un rythme tenu au plafond ${AUTOCLIC} min est pris pour un autoclic (clics ignorés ${AUTOCLIC} min)`);
+    put('ft', ui.ft, 'textContent', parts.join(' · '));
     const t = (ready ? '🟢 ' + first.it.u.name + ' · ' : '') + baseTitle(); if (document.title !== t) document.title = t;
   }
   setMode(mode);
-  const iv = setInterval(tick, 250);
+  const iv = setInterval(tick, TICK);
   function stop() {
     clearInterval(iv); clearInterval(ivSave); store('clics', JSON.stringify(perMin)); box.remove(); css.remove(); document.title = baseTitle();
     document.removeEventListener('click', onClick, true); removeEventListener('resize', place);
-    if (marked) marked.classList.remove('tagAdvBest');
+    unmark(); if (endDrag) endDrag();
     delete window.__tagAdv;
   }
   // état lu au dernier rafraîchissement (diagnostic depuis la console, et tests)

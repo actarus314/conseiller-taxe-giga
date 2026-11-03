@@ -36,7 +36,7 @@ bm = 'javascript:' + urllib.parse.quote(code, safe="()=>,;:'*!~-_.")
 
 # favori à jour : le paramètre change chaque minute, ce qui contourne le cache de 10 min de Pages
 PAGES = 'https://actarus314.github.io/conseiller-taxe-giga/conseiller.js'
-auto = ("javascript:(()=>{fetch('" + PAGES + "?m='+Math.floor(Date.now()/6e4))"
+auto = ("javascript:(()=>{if(location.hostname!=='taxe-au-giga.fr')return alert('Conseiller : à lancer sur taxe-au-giga.fr');fetch('" + PAGES + "?m='+Math.floor(Date.now()/6e4))"
         ".then(r=>{if(!r.ok)throw r.status;return r.text()}).then(eval)"
         ".catch(e=>alert('Conseiller : chargement impossible depuis GitHub Pages ('+e+')'))})()")
 (ROOT / 'bookmarklet-auto.txt').write_text(auto + '\n', encoding='utf-8')
