@@ -149,6 +149,7 @@
       <label data-cps>clics/s prévus <input id="tagAdvCps" type="number" min="0.1" max="12.6" step="0.5"></label></div>
     <div class="warn" hidden></div><div class="now"></div><ol></ol><div class="ft"></div>`;
   document.body.appendChild(box);
+  if (innerWidth < 600) box.classList.add('min'); // téléphone : panneau réduit au conseil, la boutique reste visible
   const cpsIn = box.querySelector('#tagAdvCps'); cpsIn.value = cpsPlan;
   cpsIn.addEventListener('change', () => { cpsPlan = Math.min(CPS_MAX, Math.max(0.1, parseFloat(cpsIn.value) || 5)); cpsIn.value = cpsPlan; store('cps', cpsPlan); tick(); });
   const setMode = m => { mode = m; store('mode', m); box.querySelectorAll('[data-m]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.m === m))); box.querySelector('[data-cps]').hidden = m !== 'actif'; tick(); };
