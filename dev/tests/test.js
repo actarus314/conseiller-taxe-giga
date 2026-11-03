@@ -86,6 +86,23 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   r = await page({ ...base, clicks: every(5, 0, 30), at: 30, hourClicks: 17000 });
   check(/calculé pour 0.9 clics\/s/.test(r.ft) && /reste 850 clics/.test(r.ft), r.ft);
 
+  console.log('Auto, 5 clics/s puis 1 s de pause (le temps d’un achat) : toujours actif');
+  r = await page({ ...base, clicks: every(5, 0, 60), at: 61 });
+  check(/calculé pour 4.\d clics\/s/.test(r.ft) && r.best === 'doigt', r.ft);
+
+  console.log('Auto, 5 clics/s puis 2.5 s sans clic : passif aussitôt');
+  r = await page({ ...base, clicks: every(5, 0, 60), at: 62.3 });
+  check(r.best === 'satellite' && /clics arrêtés depuis 3 s/.test(r.ft), r.ft);
+
+  console.log('Auto, reprise à 3 clics/s pendant 4 s après un arrêt de 20 s : cadence de la nouvelle série');
+  r = await page({ ...base, clicks: [...every(5, 0, 30), ...every(3, 50, 54)], at: 54 });
+  check(/calculé pour 3 clics\/s/.test(r.ft), r.ft);
+
+  console.log('Auto, 1 clic/s : arrêt détecté après 4 s sans clic, pas avant');
+  r = await page({ ...base, clicks: every(1, 0, 20), at: 22.5 });
+  const r2 = await page({ ...base, clicks: every(1, 0, 20), at: 24.2 });
+  check(/calculé pour/.test(r.ft) && /clics arrêtés/.test(r2.ft), r.ft + ' || ' + r2.ft);
+
   console.log('Auto, clics arrêtés depuis 3 min : retour au passif');
   r = await page({ ...base, clicks: every(5, 0, 60), at: 240 });
   check(r.best === 'satellite' && /aucun clic récent/.test(r.ft), r.ft);

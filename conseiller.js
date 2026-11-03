@@ -43,10 +43,10 @@
   let cpsPlan = Math.min(CPS_MAX, Math.max(0.1, parseFloat(store('cps')) || 5));
 
   // Mesure des clics réels sur TAXER (bouton principal et bouton flottant).
-  // Cadence : clics des 2 dernières minutes ÷ temps écoulé depuis le premier d'entre eux (10 s au moins),
-  // ce qui suit vite une reprise et retombe en douceur à l'arrêt.
+  // Arrêt : aucun clic depuis 4 intervalles habituels (médiane des derniers clics), borné entre 2 et 5 s.
+  // Cadence : clics de la série en cours sur les 15 dernières secondes ÷ temps écoulé (2 s au moins).
   // Compteur horaire : par minute, gardé dans le navigateur pour survivre à un rechargement.
-  const WIN = 120e3, recent = [];
+  const WIN = 15e3, recent = [];
   let perMin = {}; try { perMin = JSON.parse(store('clics') || '{}') || {}; } catch (e) { perMin = {}; }
   const onClick = e => {
     if (!e.isTrusted || !e.target.closest || !e.target.closest('#taxBtn, #stickyTax')) return;
@@ -58,8 +58,14 @@
     while (recent.length && recent[0] < now - WIN) recent.shift();
     for (const k in perMin) if (k <= m0 - 60) delete perMin[k];
     const hour = Object.values(perMin).reduce((a, b) => a + b, 0), minute = perMin[m0] || 0;
-    const rate = recent.length ? recent.length / Math.max(10, (now - recent[0]) / 1000) : 0;
-    return { rate, hour, minute };
+    if (!recent.length) return { rate: 0, idle: Infinity, hour, minute };
+    const gaps = recent.slice(1).map((t, i) => t - recent[i]).sort((a, b) => a - b);
+    const med = gaps.length ? gaps[gaps.length >> 1] : 1000, stopAfter = Math.min(5000, Math.max(2000, 4 * med));
+    const idle = now - recent[recent.length - 1];
+    if (idle > stopAfter) return { rate: 0, idle, hour, minute };
+    let i = recent.length - 1; while (i > 0 && recent[i] - recent[i - 1] <= stopAfter) i--; // début de la série en cours
+    const n = recent.length - i, span = Math.max(2000, now - recent[i]);
+    return { rate: n / (span / 1000), idle, hour, minute };
   }
   const ivSave = setInterval(() => store('clics', JSON.stringify(perMin)), 5000);
 
@@ -183,7 +189,7 @@
     // Cadence retenue : la cadence voulue (mesurée en Auto, réglée en Actif), dans la limite de 760/min,
     // et du reste du quota horaire réparti sur 15 min quand il ne suffit plus.
     const cad = cadence(), left = Math.max(0, LIM_H - cad.hour), capped = left === 0;
-    const want = mode === 'actif' ? cpsPlan : mode === 'auto' && cad.rate >= 0.2 ? cad.rate : 0; // sous 1 clic toutes les 5 s : conseil passif
+    const want = mode === 'actif' ? cpsPlan : mode === 'auto' ? cad.rate : 0; // clics arrêtés : conseil passif
     const cps = Math.min(want, CPS_MAX, left / HORIZON);
     const why = !want || cps >= want - 0.05 ? '' : capped ? '' : cps < Math.min(want, CPS_MAX) - 0.05 ? `ramenée à ${dec1(cps)} : reste ${left} clics sur le quota de l’heure` : `ramenée à ${dec1(CPS_MAX)}, plafond de 760 clics par minute`;
     if (!Number.isFinite(st.wallet) || !$('#shop')) { now.textContent = 'Boutique introuvable : recharger la page du jeu.'; return; }
@@ -205,7 +211,7 @@
     const parts = [`Revenu ${fmt(income(st.own, cps))}/s` + (cps ? ` (dont clics ${fmt(clickPow(st.own) * cps)})` : ''), `cagnotte 💰 ${fmt(st.wallet)}`];
     if (st.frenzy) parts.push(`🔥 frénésie ${st.frenzy} s comptée`);
     if (capped && want) parts.push('⚠️ 18000 clics atteints sur l’heure : les clics ne comptent plus, conseil passif');
-    else if (mode === 'auto') parts.push(cps ? `conseil calculé pour ${dec1(cps)} clics/s` + (why ? ` (cadence ${dec1(cad.rate)}/s ${why})` : ' (cadence mesurée)') : 'aucun clic récent : conseil passif');
+    else if (mode === 'auto') parts.push(cps ? `conseil calculé pour ${dec1(cps)} clics/s` + (why ? ` (cadence ${dec1(cad.rate)}/s ${why})` : ' (cadence mesurée)') : (isFinite(cad.idle) ? `clics arrêtés depuis ${Math.round(cad.idle / 1000)} s : conseil passif` : 'aucun clic récent : conseil passif'));
     else if (why) parts.push(`cadence ${why}`);
     if (mode !== 'passif' || cad.hour) parts.push(`clics : ${dec1(cad.rate)}/s, ${cad.hour}/${LIM_H} sur l’heure, ${cad.minute}/${LIM_MIN} cette minute`);
     if (!capped && cad.hour > LIM_H - 2000) parts.push(`⚠️ bientôt ${LIM_H} clics sur l’heure : au-delà, ils ne comptent plus`);
