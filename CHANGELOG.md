@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.13 — 03/11/2026
+Grands nombres : le jeu (build 2026-11-03m) affiche cagnotte et prix en « billions » au-delà de 1e15 ; le panneau les lit, au lieu d'annoncer une boutique introuvable. La veille suit ce format (16 règles).
+
 ## v2.12 — 03/11/2026
 Polices du jeu (Space Grotesk, IBM Plex Mono) : le panneau reprend celles que la page du jeu charge déjà, la page d'installation les sert elle-même (polices/, licence SIL OFL 1.1) au lieu de Google Fonts, qui recevait l'adresse IP des visiteurs. Page d'installation déclarée en UTF-8 avec une fenêtre d'affichage mobile : elle s'affichait jusqu'ici à la largeur d'un ordinateur sur téléphone.
 

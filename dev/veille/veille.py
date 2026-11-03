@@ -34,6 +34,7 @@ REGLES = {
     'contenu sauvegardé': r"JSON\.stringify\(\{ myCount, wallet, owned, t: Date\.now\(\) \}\)",
     'carte de bonus': r'b\.innerHTML = `<span class="ie">[^`]+`;',
     'affichage possédés et prix': r"b\.querySelector\('\.own'\)\.textContent = [^;]{1,400};\s*b\.querySelector\('\.price'\)\.textContent = [^;]{1,400};",
+    'format des grands nombres': r"const big = n => [^;]{1,400};",
     'éléments lus': r'id="(?:wallet|shop|perClick|buffChip|goldBill|taxBtn|stickyTax)"',
 }
 

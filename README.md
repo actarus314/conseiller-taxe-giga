@@ -36,7 +36,7 @@ Un clic sur le favori ouvre le panneau, un second le ferme. Sur téléphone, le 
 - Visites par clic : `floor(1 + Σ bonus de clic + (0.01 + Σ bonus en %) × production/s)`.
 - Choix : le bonus qui minimise *attente avant de pouvoir le payer* + *temps pour qu'il se rembourse*.
 
-Barème recopié du code du jeu (build 2026-11-03h). Une alerte rose apparaît si un prix ou la puissance de clic affichés ne correspondent plus.
+Barème recopié du code du jeu (build 2026-11-03n). Une alerte rose apparaît si un prix ou la puissance de clic affichés ne correspondent plus.
 
 ## Développement
 

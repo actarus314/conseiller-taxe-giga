@@ -3,7 +3,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.12'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.13'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (build 2026-11-03h : Décret porté à +100000 par clic).
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -44,8 +44,8 @@
   const num = s => {
     if (!s) return NaN;
     const t = s.replace(/[\s  💰]/g, '').replace(',', '.');
-    const m = t.match(/^([\d.]+)(Md|M)?$/); if (!m) return NaN;
-    return parseFloat(m[1]) * (m[2] === 'Md' ? 1e9 : m[2] === 'M' ? 1e6 : 1);
+    const m = t.match(/^([\d.]+)(billions?|Md|M)?$/); if (!m) return NaN;
+    return parseFloat(m[1]) * (m[2] === 'Md' ? 1e9 : m[2] === 'M' ? 1e6 : m[2] ? 1e12 : 1);
   };
   // nombres au point décimal, sans séparateur de milliers
   const fmt = n => n < 1e6 ? String(Math.round(n)) : n < 1e9 ? (n / 1e6).toFixed(2) + ' M' : n < 1e12 ? (n / 1e9).toFixed(2) + ' Md' : (n / 1e12).toFixed(2) + ' T';
@@ -89,13 +89,13 @@
   }
   const ivSave = setInterval(() => store('clics', JSON.stringify(perMin)), SAVE_EVERY);
 
-  // Cagnotte : l'affichage du jeu est arrondi (10000 près en M, 10 M près en Md). La sauvegarde du jeu
+  // Cagnotte : l'affichage du jeu est arrondi (10000 près en M, 10 M près en Md, 10 Md près en billions). La sauvegarde du jeu
   // (exacte, réécrite toutes les 5 s), plus la production et les clics TAXER faits depuis son heure, donne
   // la valeur fine ; elle est gardée dans l'intervalle d'arrondi de l'affichage, qui reste la référence.
   function walletNow(own, boost) {
     const txt = ($('#wallet') || {}).textContent || '', shown = num(txt);
     if (!Number.isFinite(shown)) return shown;
-    const [lo, hi] = /Md/.test(txt) ? [shown - 5e6, shown + 5e6] : /M/.test(txt) ? [shown - 5e3, shown + 5e3] : [shown, shown + 1];
+    const [lo, hi] = /billion/.test(txt) ? [shown - 5e9, shown + 5e9] : /Md/.test(txt) ? [shown - 5e6, shown + 5e6] : /M/.test(txt) ? [shown - 5e3, shown + 5e3] : [shown, shown + 1];
     let est = NaN;
     try {
       const sv = JSON.parse(localStorage.getItem('taxe-giga-partie-v1') || 'null');

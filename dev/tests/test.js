@@ -13,7 +13,7 @@ const SRC = process.argv[2] === 'bm'
 
 // formatage du jeu (fonction big() de la page)
 const int = n => new Intl.NumberFormat('fr-FR').format(n), nf = d => new Intl.NumberFormat('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d });
-const big = n => n < 1e6 ? int(Math.floor(n)) : n < 1e9 ? nf(2).format(n / 1e6) + ' M' : nf(2).format(n / 1e9) + ' Md';
+const big = n => n < 1e6 ? int(Math.floor(n)) : n < 1e9 ? nf(2).format(n / 1e6) + ' M' : n < 1e15 ? nf(2).format(n / 1e9) + ' Md' : nf(2).format(n / 1e12) + ' billions';
 const B = { mainetat: 5e8, decret: 1e9, doigt: 10, stagiaire: 15, chat: 100, hamster: 600, souris: 500, bot: 6000, fax: 6e4, commission: 6e5, gant: 15e4, satellite: 5e6, trounoir: 7.5e7, tampon: 2e7, datacenter: 1e9 };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let fails = 0;
@@ -167,6 +167,11 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   // 2 clics à 1 et 2 s, lecture à 3 s : 1140000000 + 3 × 60000 + 2 × 1400601 = 1142981202, dans l’arrondi de « 1,14 Md »
   r = await page({ owned: { datacenter: 1, tampon: 35 }, wallet: 1140000000, mode: 'actif', cps: 5, save: { w: 1140000000, at: 0 }, clicks: [1, 2], at: 3 });
   check(Math.abs(r.state.wallet - 1142981202) < 2, 'cagnotte estimée ' + r.state.wallet);
+
+  console.log('Cagnotte et prix au-delà de 1e15, affichés en « billions » depuis le build 2026-11-03m');
+  // Taxe quantique ×50 : prix 2e12 × 1.15^50 ≈ 2,17 billions ; cagnotte 3,00 billions
+  r = await page({ owned: { quantique: 50 }, wallet: 3e15, mode: 'passif' });
+  check(!r.warn && Math.abs(r.state.wallet - 3e15) <= 5e9 && /Taxe quantique/.test(r.now + r.list.join(' ')), 'cagnotte ' + r.state.wallet + ' | ' + r.now.slice(0, 60) + ' | alerte : ' + (r.warn || 'aucune'));
 
   console.log('Version affichée dans l’en-tête, égale à celle du script utilisateur');
   {
