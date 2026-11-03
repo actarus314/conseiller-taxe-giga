@@ -1,0 +1,54 @@
+# Veille : toutes les 15 min, vérifie que le barème et les règles du jeu sont ceux du conseiller.
+# Écart ou page inaccessible → une issue (une seule par constat) ; retour à la normale → issues de veille refermées.
+name: Veille du jeu
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['dev/veille/**', '.github/workflows/veille.yml', 'conseiller.js']
+permissions:
+  contents: read
+  issues: write
+concurrency:
+  group: veille
+  cancel-in-progress: false
+jobs:
+  veille:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Comparer le jeu et le conseiller
+        id: v
+        run: |
+          # page inaccessible : 3 essais espacés de 2 min avant de conclure
+          for essai in 1 2 3; do
+            : > "$GITHUB_OUTPUT.tmp"
+            GITHUB_OUTPUT="$GITHUB_OUTPUT.tmp" python3 dev/veille/veille.py > rapport.md && code=0 || code=$?
+            if [ "$code" != 2 ]; then break; fi
+            if [ "$essai" != 3 ]; then sleep 120; fi
+          done
+          cat "$GITHUB_OUTPUT.tmp" >> "$GITHUB_OUTPUT"
+          cat rapport.md | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Ouvrir ou refermer les issues de veille
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ETAT: ${{ steps.v.outputs.etat }}
+          EMP: ${{ steps.v.outputs.empreinte }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh label create veille --color FFD23F --description "Alerte de la veille automatique du jeu" --force >/dev/null
+          if [ "$ETAT" = conforme ]; then
+            for n in $(gh issue list --label veille --state open --json number --jq '.[].number'); do
+              gh issue close "$n" --comment "Conforme de nouveau ($RUN)."
+            done
+            exit 0
+          fi
+          if gh issue list --label veille --state open --json title --jq '.[].title' | grep -qF "[$EMP]"; then
+            echo "Issue déjà ouverte pour ce constat [$EMP]."; exit 0
+          fi
+          if [ "$ETAT" = ecart ]; then titre="Veille : le jeu ne correspond plus au conseiller [$EMP]"; else titre="Veille : page du jeu inaccessible [$EMP]"; fi
+          { cat rapport.md; echo; echo "Exécution : $RUN"; } > corps.md
+          gh issue create --title "$titre" --label veille --body-file corps.md
