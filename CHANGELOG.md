@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.12 — 03/11/2026
+Polices du jeu (Space Grotesk, IBM Plex Mono) : le panneau reprend celles que la page du jeu charge déjà, la page d'installation les sert elle-même (polices/, licence SIL OFL 1.1) au lieu de Google Fonts, qui recevait l'adresse IP des visiteurs. Page d'installation déclarée en UTF-8 avec une fenêtre d'affichage mobile : elle s'affichait jusqu'ici à la largeur d'un ordinateur sur téléphone.
+
 ## v2.11 — 03/11/2026
 Audit : panneau 3 à 19 fois moins coûteux par rafraîchissement (Chrome : 0.9–3.5 ms → 0.1–0.4 ms ; formateur d'heure unique, plan calculé une fois par étape, DOM réécrit seulement si changé), glissement arrêté sur pointercancel, constantes uniques. Sécurité : panneau et favori limités à taxe-au-giga.fr ; veille durcie (page plafonnée à 3 Mo, regex bornées, texte du jeu neutralisé dans les issues et hors des journaux, relance plafonnée, actions épinglées par empreinte, Node 22).
 

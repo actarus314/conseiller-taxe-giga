@@ -3,7 +3,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.11'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.12'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (build 2026-11-03h : Décret porté à +100000 par clic).
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -186,10 +186,10 @@
   css.textContent = `
   #tagAdv,.tagAdvBest{--tagInk:#1a1a1a;--tagPaper:#fffbe6;--tagGo:#19d3a2}
   #tagAdv{position:fixed;right:12px;z-index:60;width:min(340px,calc(100vw - 24px));background:var(--tagPaper);color:var(--tagInk);
-    border:3px solid var(--tagInk);border-radius:14px;box-shadow:5px 5px 0 var(--tagInk);font:14px/1.4 system-ui,sans-serif}
+    border:3px solid var(--tagInk);border-radius:14px;box-shadow:5px 5px 0 var(--tagInk);font:14px/1.4 "Space Grotesk",system-ui,sans-serif}
   #tagAdv header{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;border-bottom:2px solid var(--tagInk);font-weight:700;user-select:none;cursor:move;touch-action:none}
   #tagAdv.gold header{background:#ffd23f}
-  #tagAdv header .v{font:500 11px/1 ui-monospace,Menlo,monospace;color:#555;margin-left:4px;text-decoration:underline;cursor:pointer}
+  #tagAdv header .v{font:500 11px/1 "IBM Plex Mono",ui-monospace,Menlo,monospace;color:#555;margin-left:4px;text-decoration:underline;cursor:pointer}
   #tagAdv header .v:focus-visible{outline:2px solid var(--tagInk);outline-offset:2px}
   #tagAdv header button{all:unset;cursor:pointer;padding:0 4px;font-size:16px}
   #tagAdv .modes{display:flex;gap:6px;padding:8px 12px 0;flex-wrap:wrap;align-items:center}
@@ -208,7 +208,7 @@
   #tagAdv.min .modes,#tagAdv.min ol,#tagAdv.min .ft{display:none}
   .tagAdvBest{outline:5px solid var(--tagGo)!important;outline-offset:2px;position:relative}
   .tagAdvBest::after{content:attr(data-adv);position:absolute;top:-12px;left:12px;background:var(--tagGo);color:var(--tagInk);border:2px solid var(--tagInk);
-    border-radius:8px;padding:1px 8px;font:700 12px/1.4 system-ui,sans-serif;pointer-events:none}`;
+    border-radius:8px;padding:1px 8px;font:700 12px/1.4 "Space Grotesk",system-ui,sans-serif;pointer-events:none}`;
   document.head.appendChild(css);
   const box = document.createElement('div'); box.id = 'tagAdv';
   box.innerHTML = `<header><span><span class="t">🧮 Conseiller</span> <a class="v" href="https://github.com/actarus314/conseiller-taxe-giga" target="_blank" rel="noopener">v${VERSION}</a></span><span><button data-a="min" aria-label="Réduire">–</button><button data-a="x" aria-label="Fermer">✕</button></span></header>

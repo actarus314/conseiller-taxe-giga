@@ -1,23 +1,29 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Conseiller Taxe au Giga</title>
-<meta name="claude:viewport-fit-sides" content="cover">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=JetBrains+Mono:wght@500;700&display=swap">
 <style>
+/* Polices du jeu (Space Grotesk, IBM Plex Mono), servies avec la page : aucune requête vers un tiers. Licence SIL OFL 1.1, voir polices/. */
+@font-face{font-family:"Space Grotesk";font-weight:400 700;font-display:swap;src:url(polices/space-grotesk-latin.woff2) format("woff2")}
+@font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(polices/ibm-plex-mono-500-latin.woff2) format("woff2")}
+@font-face{font-family:"IBM Plex Mono";font-weight:700;font-display:swap;src:url(polices/ibm-plex-mono-700-latin.woff2) format("woff2")}
 /* Layout : une colonne étroite façon fiche de jeu ; le marque-page est l'objet central, en gros bouton à glisser. */
 :root{
   --bg:#ffe27a; --card:#fffbe6; --ink:#1b1a17; --muted:#5c5747; --go:#19d3a2; --warn:#ff7eb6;
-  --display:"Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
-  --mono:"JetBrains Mono", ui-monospace, Menlo, monospace;
+  --display:"Space Grotesk", system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#1d1b14;--card:#2a271d;--ink:#f5efd6;--muted:#b8b092;--go:#2be3b2;--warn:#ff8fc0;color-scheme:dark}}
 :root[data-theme="dark"]{--bg:#1d1b14;--card:#2a271d;--ink:#f5efd6;--muted:#b8b092;--go:#2be3b2;--warn:#ff8fc0;color-scheme:dark}
 body{background:var(--bg);color:var(--ink);font:16px/1.55 var(--display);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 48px}
 main{max-width:660px;margin:0 auto;display:grid;gap:22px}
-h1{font-size:clamp(28px,6vw,40px);line-height:1.05;margin:0;font-weight:800;text-wrap:balance}
-h2{font-size:19px;margin:0 0 8px;font-weight:800}
+h1{font-size:clamp(28px,6vw,40px);line-height:1.05;margin:0;font-weight:700;text-wrap:balance}
+h2{font-size:19px;margin:0 0 8px;font-weight:700}
 p{margin:0}
 .lead{color:var(--muted);max-width:60ch}
 .card{background:var(--card);border:3px solid var(--ink);border-radius:14px;box-shadow:5px 5px 0 var(--ink);padding:18px 20px;display:grid;gap:12px;min-width:0}
-.bm{display:inline-flex;align-items:center;gap:10px;justify-self:start;background:var(--go);color:#1b1a17;border:3px solid var(--ink);border-radius:12px;box-shadow:4px 4px 0 var(--ink);padding:12px 18px;font:800 20px/1 var(--display);text-decoration:none;cursor:grab}
+.bm{display:inline-flex;align-items:center;gap:10px;justify-self:start;background:var(--go);color:#1b1a17;border:3px solid var(--ink);border-radius:12px;box-shadow:4px 4px 0 var(--ink);padding:12px 18px;font:700 20px/1 var(--display);text-decoration:none;cursor:grab}
 .bm2{display:inline-block;margin-top:4px;border:2px solid var(--ink);border-radius:8px;padding:2px 8px;color:var(--ink);background:var(--card);font-weight:700;text-decoration:none;cursor:grab}
 .bm:focus-visible,.bm2:focus-visible,button:focus-visible{outline:3px solid var(--warn);outline-offset:3px}
 ol{margin:0;padding-left:22px;display:grid;gap:6px}
