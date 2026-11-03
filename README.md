@@ -25,13 +25,10 @@ Dans tous les cas, la cadence retenue reste sous 760 clics par minute (12.7/s), 
 ## Installation
 
 - **Script utilisateur** (Tampermonkey, Violentmonkey) : ouvrir [`conseiller.user.js`](https://raw.githubusercontent.com/actarus314/conseiller-taxe-giga/main/conseiller.user.js), l'extension propose l'installation. Le panneau s'ouvre à chaque visite du jeu.
-- **Favori autonome** : créer un favori dont l'adresse est le contenu de [`bookmarklet.txt`](bookmarklet.txt) (ou le glisser depuis la page d'installation), puis le cliquer sur la page du jeu. Un second clic ferme le panneau.
-- **Favori court**, qui charge toujours la dernière version publiée sur `main` (cache du CDN de 12 h au plus) :
-  ```
-  javascript:fetch('https://cdn.jsdelivr.net/gh/actarus314/conseiller-taxe-giga@main/conseiller.js').then(r=>r.text()).then(eval)
-  ```
+- **Favori à jour** (conseillé) : glisser le bouton vert de la [page d'installation](https://actarus314.github.io/conseiller-taxe-giga/) dans la barre de favoris, ou créer un favori dont l'adresse est le contenu de [`bookmarklet-auto.txt`](bookmarklet-auto.txt). Il charge `conseiller.js` depuis GitHub Pages à chaque clic : une nouvelle version arrive quelques minutes après sa publication (déploiement de Pages, puis une minute de cache au plus).
+- **Favori figé** : le contenu de [`bookmarklet.txt`](bookmarklet.txt), avec le code entier dans l'adresse ; rien n'est chargé à distance, mais il faut le refaire à chaque nouvelle version.
 
-Sur téléphone, le panneau s'ouvre réduit au conseil ; le bouton « – » le déplie.
+Un clic sur le favori ouvre le panneau, un second le ferme. Sur téléphone, le panneau s'ouvre réduit au conseil ; le bouton « – » le déplie.
 
 ## Modèle
 
@@ -43,7 +40,7 @@ Barème recopié du code du jeu (build 2026-11-03e). Une alerte rose apparaît s
 
 ## Développement
 
-- `conseiller.js` est la seule source ; `python3 dev/outils/build.py <version>` génère `conseiller.user.js`, `bookmarklet.txt` et `index.html`.
+- `conseiller.js` est la seule source ; `python3 dev/outils/build.py <version>` génère `conseiller.user.js`, `bookmarklet-auto.txt`, `bookmarklet.txt` et `index.html`.
 - Tests : `cd dev/tests && npm install && npm test`.
 - Simulateur des stratégies : `python3 dev/sim/modele.py <clics par seconde>`.
 - Captures : `dev/outils/captures.py` (mode d'emploi en tête du fichier).

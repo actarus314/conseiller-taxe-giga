@@ -152,6 +152,24 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   check(r.titles === 0, 'aucun attribut title');
   check(!/\b(vous|tu|achetez)\b/i.test(r.text), 'formulations impersonnelles');
 
+  console.log('Favori à jour : charge conseiller.js depuis GitHub Pages (paramètre à la minute), ouvre puis ferme le panneau');
+  {
+    const auto = fs.readFileSync(path.join(ROOT, 'bookmarklet-auto.txt'), 'utf8').trim();
+    const dom = new JSDOM(`<b id="wallet">0</b><div id="shop"></div>`, { runScripts: 'outside-only', url: 'https://taxe-au-giga.fr/' });
+    const w = dom.window, urls = [];
+    const real = fs.readFileSync(path.join(ROOT, 'conseiller.js'), 'utf8');
+    w.fetch = async u => { urls.push(u); return { ok: true, text: async () => real }; };
+    w.eval(decodeURIComponent(auto.slice(11))); await sleep(100);
+    const opened = !!w.document.querySelector('#tagAdv');
+    w.eval(decodeURIComponent(auto.slice(11))); await sleep(100);
+    const closed = !w.document.querySelector('#tagAdv');
+    check(/^https:\/\/actarus314\.github\.io\/conseiller-taxe-giga\/conseiller\.js\?m=\d+$/.test(urls[0]) && opened && closed, `adresse ${urls[0]} · ouvert ${opened} · refermé ${closed}`);
+    let alerted = ''; w.alert = m => { alerted = m; }; w.fetch = async () => ({ ok: false, status: 404 });
+    w.eval(decodeURIComponent(auto.slice(11))); await sleep(100);
+    check(/chargement impossible.*404/.test(alerted), 'échec de chargement signalé : ' + alerted);
+    w.close();
+  }
+
   console.log(fails ? `\n${fails} échec(s)` : '\nTout est passé');
   process.exit(fails ? 1 : 0);
 })();

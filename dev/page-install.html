@@ -18,7 +18,8 @@ p{margin:0}
 .lead{color:var(--muted);max-width:60ch}
 .card{background:var(--card);border:3px solid var(--ink);border-radius:14px;box-shadow:5px 5px 0 var(--ink);padding:18px 20px;display:grid;gap:12px;min-width:0}
 .bm{display:inline-flex;align-items:center;gap:10px;justify-self:start;background:var(--go);color:#1b1a17;border:3px solid var(--ink);border-radius:12px;box-shadow:4px 4px 0 var(--ink);padding:12px 18px;font:800 20px/1 var(--display);text-decoration:none;cursor:grab}
-.bm:focus-visible,button:focus-visible{outline:3px solid var(--warn);outline-offset:3px}
+.bm2{display:inline-block;margin-top:4px;border:2px solid var(--ink);border-radius:8px;padding:2px 8px;color:var(--ink);background:var(--card);font-weight:700;text-decoration:none;cursor:grab}
+.bm:focus-visible,.bm2:focus-visible,button:focus-visible{outline:3px solid var(--warn);outline-offset:3px}
 ol{margin:0;padding-left:22px;display:grid;gap:6px}
 .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 button{font:700 14px/1 var(--mono);background:var(--card);color:var(--ink);border:2.5px solid var(--ink);border-radius:10px;padding:10px 14px;cursor:pointer;box-shadow:3px 3px 0 var(--ink)}
@@ -40,7 +41,8 @@ small{color:var(--muted)}
 
   <section class="card" aria-labelledby="t1">
     <h2 id="t1">Installer en favori</h2>
-    <a class="bm" id="bm" href="__BM__" aria-label="Favori Conseiller, à glisser vers la barre de favoris">🧮 Conseiller</a>
+    <a class="bm" id="bm" href="__BM_AUTO__" aria-label="Favori Conseiller, à glisser vers la barre de favoris">🧮 Conseiller</a>
+    <small>Toujours à jour : le favori charge la dernière version publiée à chaque clic.</small>
     <ol>
       <li><b>Glisser</b> le bouton vert dans la barre de favoris (un clic ici ne fait rien : il ne marche que sur le jeu).</li>
       <li>Ouvrir <a href="https://taxe-au-giga.fr/" style="color:inherit">taxe-au-giga.fr</a>.</li>
@@ -52,6 +54,7 @@ small{color:var(--muted)}
     </div>
     <small>Si le glisser échoue : créer un favori quelconque, puis coller ce code à la place de son adresse. Autre voie : le <a href="https://raw.githubusercontent.com/actarus314/conseiller-taxe-giga/main/conseiller.user.js" style="color:inherit">script utilisateur</a> (Tampermonkey, Violentmonkey), qui ouvre le panneau à chaque visite.</small>
     <textarea id="code" readonly hidden aria-label="Code du favori"></textarea>
+    <small>Version figée, sans chargement à distance (à re-glisser à chaque nouvelle version) : <a class="bm2" id="bm2" href="__BM__" aria-label="Favori Conseiller version figée, à glisser vers la barre de favoris">🧮 Conseiller v__VERSION__</a></small>
   </section>
 
   <section class="card" aria-labelledby="t2">
@@ -80,7 +83,7 @@ small{color:var(--muted)}
 <script>
 const href = document.getElementById('bm').getAttribute('href');
 const ta = document.getElementById('code'), msg = document.getElementById('msg');
-document.getElementById('bm').addEventListener('click', e => { e.preventDefault(); msg.textContent = 'À glisser dans la barre de favoris.'; });
+for (const id of ['bm', 'bm2']) document.getElementById(id).addEventListener('click', e => { e.preventDefault(); msg.textContent = 'À glisser dans la barre de favoris.'; });
 document.getElementById('copy').addEventListener('click', () => {
   navigator.clipboard.writeText(href).then(() => { msg.textContent = 'Copié.'; }, () => {
     ta.value = href; ta.hidden = false; ta.focus(); ta.select(); msg.textContent = 'Copie bloquée ici : code sélectionné, à copier avec Cmd+C.';
