@@ -14,13 +14,14 @@ on:
 permissions:
   contents: read
   issues: write
-concurrency:
-  group: veille
-  cancel-in-progress: false
 jobs:
   veille:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # contrôles l'un après l'autre, jamais annulés ; un lancement manuel passe tout de suite, même pendant l'attente
+    concurrency:
+      group: veille-controle
+      cancel-in-progress: false
     outputs:
       debut: ${{ steps.debut.outputs.t }}
     steps:
@@ -65,6 +66,10 @@ jobs:
     if: always() && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # une seule relance en attente : la plus récente remplace l'ancienne, donc une seule chaîne
+    concurrency:
+      group: veille-relance
+      cancel-in-progress: true
     environment:
       name: attente-veille
       deployment: false
