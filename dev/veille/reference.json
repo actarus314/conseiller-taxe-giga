@@ -1,5 +1,5 @@
 {
- "build": "2026-11-03g",
+ "build": "2026-11-03h",
  "regles": {
   "prix": "const cost = u => Math.ceil(u.base * Math.pow(1.15, owned[u.id]));",
   "production": "const rate = () => SHOP.reduce((s, u) => s + (u.rate || 0) * owned[u.id], 0);",

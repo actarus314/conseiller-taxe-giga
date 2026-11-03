@@ -1,8 +1,8 @@
 import math
-# Barème complet (base, unlock, rate, click, pct, max) recopié du code, build 2026-11-03e
+# Barème complet (base, unlock, rate, click, pct, max) recopié du code, build 2026-11-03h
 S=[('doigt',10,1,0,2,0,0),('stagiaire',15,10,.5,0,0,0),('chat',100,50,2,0,0,0),('hamster',600,200,8,0,0,0),('souris',500,300,0,20,0,0),
 ('bot',6000,1000,40,0,0,0),('fax',6e4,6e3,200,0,0,0),('commission',6e5,4e4,1100,0,0,0),('gant',15e4,5e4,0,600,0,0),('satellite',5e6,3e5,3000,0,0,0),
-('trounoir',7.5e7,3e6,15000,0,0,0),('tampon',2e7,1e7,0,40000,0,0),('mainetat',5e8,2e8,0,0,.01,1),('decret',1e9,4e8,0,25000,0,0),
+('trounoir',7.5e7,3e6,15000,0,0,0),('tampon',2e7,1e7,0,40000,0,0),('mainetat',5e8,2e8,0,0,.01,1),('decret',1e9,4e8,0,100000,0,0),
 ('datacenter',1e9,4e7,60000,0,0,0),('ia',1.2e10,5e8,250000,0,0,0),('recommande',5e9,2e9,0,0,.02,1),('art493',5e10,2e10,0,0,.04,1),
 ('ordonnance',5e10,2e10,0,200000,0,0),('multivers',1.5e11,8e9,1.2e6,0,0,0),('niche',5e11,2e11,0,0,.08,1),('quantique',2e12,1.5e11,6e6,0,0,0),
 ('directive',2.5e12,1e12,0,3e6,0,0),('mondial',5e12,2e12,0,0,.15,1)]
