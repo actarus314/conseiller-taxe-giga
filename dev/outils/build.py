@@ -10,7 +10,9 @@ import html, pathlib, re, sys, urllib.parse
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 version = sys.argv[1] if len(sys.argv) > 1 else '0.0'
-src = (ROOT / 'conseiller.js').read_text(encoding='utf-8')
+# la version affichée par le panneau est écrite dans la source, à partir du seul argument de ce script
+src = re.sub(r"const VERSION = '[^']*';", f"const VERSION = '{version}';", (ROOT / 'conseiller.js').read_text(encoding='utf-8'), count=1)
+(ROOT / 'conseiller.js').write_text(src, encoding='utf-8')
 
 header = f"""// ==UserScript==
 // @name         Conseiller — Taxe au Giga

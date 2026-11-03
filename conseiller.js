@@ -2,6 +2,8 @@
   // Conseiller pour taxe-au-giga.fr : lit l'état affiché par le jeu, ne clique et n'achète jamais rien.
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
+  const VERSION = '2.7'; // écrite par dev/outils/build.py <version>
+
   // Barème recopié du code du jeu le 03/11/2026 (build 2026-11-03e).
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
   const P = [
@@ -144,6 +146,7 @@
     border:3px solid #1a1a1a;border-radius:14px;box-shadow:5px 5px 0 #1a1a1a;font:14px/1.4 system-ui,sans-serif}
   #tagAdv header{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;border-bottom:2px solid #1a1a1a;font-weight:700;user-select:none;cursor:move;touch-action:none}
   #tagAdv.gold header{background:#ffd23f}
+  #tagAdv header .v{font:500 11px/1 ui-monospace,Menlo,monospace;color:#555;margin-left:4px}
   #tagAdv header button{all:unset;cursor:pointer;padding:0 4px;font-size:16px}
   #tagAdv .modes{display:flex;gap:6px;padding:8px 12px 0;flex-wrap:wrap;align-items:center}
   #tagAdv .modes button{all:unset;cursor:pointer;border:2px solid #1a1a1a;border-radius:8px;padding:3px 10px;font-weight:700;font-size:13px}
@@ -165,7 +168,7 @@
     border-radius:8px;padding:1px 8px;font:700 12px/1.4 system-ui,sans-serif;pointer-events:none}`;
   document.head.appendChild(css);
   const box = document.createElement('div'); box.id = 'tagAdv';
-  box.innerHTML = `<header><span>🧮 Conseiller</span><span><button data-a="min" aria-label="Réduire">–</button><button data-a="x" aria-label="Fermer">✕</button></span></header>
+  box.innerHTML = `<header><span><span class="t">🧮 Conseiller</span> <small class="v">v${VERSION}</small></span><span><button data-a="min" aria-label="Réduire">–</button><button data-a="x" aria-label="Fermer">✕</button></span></header>
     <div class="modes"><button data-m="auto">Auto</button><button data-m="passif">Passif</button><button data-m="actif">Actif</button>
       <label data-cps>clics/s prévus <input id="tagAdvCps" type="number" min="0.1" max="12.6" step="0.5"></label></div>
     <div class="warn" hidden></div><div class="now"></div><ol></ol><div class="ft"></div>`;
@@ -202,7 +205,7 @@
   function tick() {
     const st = read(), now = box.querySelector('.now'), warn = box.querySelector('.warn');
     box.classList.toggle('gold', st.goldUp); // la Facture dorée ne reste que 15 s à l'écran
-    box.querySelector('header span').textContent = st.goldUp ? '🧾 Facture dorée à cliquer !' : '🧮 Conseiller';
+    box.querySelector('header .t').textContent = st.goldUp ? '🧾 Facture dorée à cliquer !' : '🧮 Conseiller';
     // Cadence retenue : la cadence voulue (mesurée en Auto, réglée en Actif), dans la limite de 760/min,
     // et du reste du quota horaire réparti sur 15 min quand il ne suffit plus.
     const cad = cadence(), left = Math.max(0, LIM_H - cad.hour), capped = left === 0;

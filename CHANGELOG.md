@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.7 — 03/11/2026
+Numéro de version affiché dans l'en-tête du panneau, pour savoir quelle version le favori a chargée ; il est écrit dans la source par build.py, seule déclaration du numéro.
+
 ## v2.6 — 03/11/2026
 Favori à jour en bouton principal : il charge conseiller.js depuis GitHub Pages à chaque clic (paramètre à la minute contre le cache de 10 min) et signale un échec de chargement. L'ancien favori reste proposé en version figée (bookmarklet.txt).
 

@@ -145,6 +145,13 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   r = await page({ owned: { ...o2, mainetat: 1 }, done: ['mainetat'], wallet: 43557887, perClick: '497 107 visites', mode: 'actif', cps: 5 });
   check(!r.warn && /dont clics 2.49 M/.test(r.ft) && !r.list.some(l => /Main de l/.test(l)), r.ft + ' | alerte : ' + (r.warn || 'aucune'));
 
+  console.log('Version affichée dans l’en-tête, égale à celle du script utilisateur');
+  {
+    const v = (fs.readFileSync(path.join(ROOT, 'conseiller.user.js'), 'utf8').match(/@version\s+(\S+)/) || [])[1];
+    r = await page({ ...base });
+    check(v && r.text.includes('Conseiller v' + v), 'en-tête : ' + r.text.slice(0, 24) + ' | @version ' + v);
+  }
+
   console.log('Forme : nombres au point décimal sans séparateur, aucune info-bulle native, aucun « vous »');
   r = await page({ ...base, clicks: every(5, 0, 60), at: 60 });
   const t = r.text.replace(/\d{2}:\d{2}/g, '');
