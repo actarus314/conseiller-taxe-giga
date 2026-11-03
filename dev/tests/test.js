@@ -10,15 +10,15 @@ const SRC = process.argv[2] === 'bm'
 // formatage du jeu (fonction big() de la page)
 const int = n => new Intl.NumberFormat('fr-FR').format(n), nf = d => new Intl.NumberFormat('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d });
 const big = n => n < 1e6 ? int(Math.floor(n)) : n < 1e9 ? nf(2).format(n / 1e6) + ' M' : nf(2).format(n / 1e9) + ' Md';
-const B = { doigt: 10, stagiaire: 15, chat: 100, hamster: 600, souris: 500, bot: 6000, fax: 6e4, commission: 6e5, gant: 15e4, satellite: 5e6, trounoir: 7.5e7, tampon: 2e7, datacenter: 1e9 };
+const B = { mainetat: 5e8, decret: 1e9, doigt: 10, stagiaire: 15, chat: 100, hamster: 600, souris: 500, bot: 6000, fax: 6e4, commission: 6e5, gant: 15e4, satellite: 5e6, trounoir: 7.5e7, tampon: 2e7, datacenter: 1e9 };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let fails = 0;
 const check = (ok, msg) => { console.log((ok ? '  ok   ' : '  ÉCHEC ') + msg); if (!ok) fails++; };
 
-async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, clicks = [], hourClicks = 0, at = 0 }) {
+async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, clicks = [], hourClicks = 0, at = 0, done = [] }) {
   const items = Object.entries(owned).map(([id, n]) => {
-    const c = Math.ceil(B[id] * 1.15 ** n);
-    return `<button class="item" data-id="${id}" ${wallet < c ? 'disabled' : ''}><span class="ic"><b class="own">×${n}</b><small class="price">💰 ${big(c)}</small></span></button>`;
+    const c = Math.ceil(B[id] * 1.15 ** n), d = done.includes(id);
+    return `<button class="item" data-id="${id}" ${d || wallet < c ? 'disabled' : ''}><span class="ic"><b class="own">${d ? '✓' : '×' + n}</b><small class="price">${d ? 'acquis' : '💰 ' + big(c)}</small></span></button>`;
   }).join('');
   const dom = new JSDOM(`<title>Jeu</title><b id="wallet">${big(wallet)}</b><span id="perClick">${perClick || ''}</span><p id="buffChip" ${chip ? '' : 'hidden'}>${chip || ''}</p>
     <button id="taxBtn">TAXER</button><button id="stickyTax">T</button><div id="shop">${items}</div>`, { runScripts: 'outside-only', url: 'https://taxe-au-giga.fr/' });
@@ -122,6 +122,16 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   console.log('Puissance de clic affichée différente du modèle : alerte');
   r = await page({ ...base, perClick: '9 999 visites' });
   check(/puissance de clic/.test(r.warn), r.warn);
+
+  // état serveur de 14 h 25 : production 186728.5/s, 495240 visites par clic
+  const o2 = { doigt: 46, stagiaire: 45, chat: 41, hamster: 38, souris: 34, bot: 33, fax: 28, commission: 24, gant: 21, satellite: 16, trounoir: 7, tampon: 12, mainetat: 0, decret: 0, datacenter: 0 };
+  console.log('Main de l’État (achat unique) non achetée : pas conseillée, rentable bien après le Tampon');
+  r = await page({ owned: o2, wallet: 43557887, perClick: '495 240 visites', mode: 'actif', cps: 5 });
+  check(r.best === 'tampon' && !r.list.some(l => /Main de l/.test(l)) && !r.warn, r.now + ' | ' + r.list.join(' | '));
+
+  console.log('Main de l’État achetée (✓ « acquis ») : comptée dans la puissance de clic (497107), jamais reproposée');
+  r = await page({ owned: { ...o2, mainetat: 1 }, done: ['mainetat'], wallet: 43557887, perClick: '497 107 visites', mode: 'actif', cps: 5 });
+  check(!r.warn && /dont clics 2.49 M/.test(r.ft) && !r.list.some(l => /Main de l/.test(l)), r.ft + ' | alerte : ' + (r.warn || 'aucune'));
 
   console.log('Forme : nombres au point décimal sans séparateur, aucune info-bulle native, aucun « vous »');
   r = await page({ ...base, clicks: every(5, 0, 60), at: 60 });
