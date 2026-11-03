@@ -87,18 +87,33 @@
     // la puissance de clic affichée par le jeu sert de contrôle du modèle
     const pcTxt = ($('#perClick') || {}).textContent || '', pc = /volontaire/.test(pcTxt) ? 0 : parseInt(pcTxt.replace(/\D/g, ''), 10); // mode sérieux : rien à contrôler
     if (pc && items.length && Math.abs(pc - clickPow(own)) > Math.max(2, pc * 0.01)) drift.push('puissance de clic');
-    const chip = $('#buffChip'), m = chip && !chip.hidden && /Frénésie/.test(chip.textContent) && chip.textContent.match(/(\d+)\s*s\b/);
-    return { items, own, drift, wallet: num(($('#wallet') || {}).textContent), frenzy: m ? +m[1] : 0 };
+    // bonus de la Facture dorée en cours, lus dans le bandeau du jeu : Frénésie (production ×3) ou Rafale (clics ×10)
+    const chip = $('#buffChip'), ct = chip && !chip.hidden ? chip.textContent : '', left = (ct.match(/(\d+)\s*s\b/) || [])[1];
+    const boost = { fz: /Frénésie/.test(ct) && left ? +left : 0, rf: /Rafale/.test(ct) && left ? +left : 0 };
+    const gold = $('#goldBill'); // Facture dorée à l'écran
+    return { items, own, drift, wallet: num(($('#wallet') || {}).textContent), boost, goldUp: !!gold && !gold.hidden };
   }
 
-  // Temps pour gagner `amount`, en tenant compte d'une frénésie en cours (production passive ×3)
-  function earnTime(amount, own, cps, fz) {
+  // Revenu à l'instant t (s) : Frénésie = production ×3 pendant fz s, Rafale = clics ×10 pendant rf s
+  const rateAt = (own, cps, b, t) => prodRate(own) * (t < b.fz ? 3 : 1) + (cps > 0 ? clickPow(own) * cps * (t < b.rf ? 10 : 1) : 0);
+  // Morceaux de temps où le revenu est constant : [0, fin du 1er bonus], [.., fin du 2e], [.., ∞)
+  const pieces = b => [...new Set([b.fz, b.rf].filter(x => x > 0))].sort((x, y) => x - y).concat(Infinity);
+  function earnTime(amount, own, cps, b) { // temps pour gagner `amount`
     if (amount <= 0) return 0;
-    const r = income(own, cps), boost = r + 2 * prodRate(own);
-    if (fz > 0 && amount <= boost * fz) return amount / boost;
-    const rest = fz > 0 ? amount - boost * fz : amount;
-    return r > 0 ? Math.max(fz, 0) + rest / r : Infinity;
+    let t = 0;
+    for (const end of pieces(b)) {
+      const r = rateAt(own, cps, b, t);
+      if (r > 0 && amount <= r * (end - t)) return t + amount / r;
+      if (end === Infinity) return Infinity;
+      amount -= r * (end - t); t = end;
+    }
   }
+  function earned(T, own, cps, b) { // visites gagnées pendant T s
+    let t = 0, sum = 0;
+    for (const end of pieces(b)) { const e = Math.min(end, T); if (e > t) sum += rateAt(own, cps, b, t) * (e - t); t = e; if (t >= T) break; }
+    return sum;
+  }
+  const after = (b, dt) => ({ fz: Math.max(0, b.fz - dt), rf: Math.max(0, b.rf - dt) });
   // Choix : le bonus qui minimise (attente avant de pouvoir le payer + temps pour qu'il se rembourse).
   function pick(items, own, w, cps, fz) {
     let best = null, bs = Infinity; const r0 = income(own, cps);
@@ -111,12 +126,12 @@
     return best;
   }
   function plan(st, cps, k) {
-    const own = { ...st.own }; let w = st.wallet, t = 0, fz = st.frenzy; const out = [];
+    const own = { ...st.own }; let w = st.wallet, t = 0, fz = st.boost; const out = []; // fz : bonus en cours
     for (let i = 0; i < k; i++) {
       const it = pick(st.items, own, w, cps, fz); if (!it) break;
       const n = own[it.u.id] || 0, c = cost(it.u, n), wait = earnTime(c - w, own, cps, fz);
       if (!isFinite(wait)) { out.push({ it, c, t: Infinity, n: n + 1 }); break; }
-      w += income(own, cps) * wait + 2 * prodRate(own) * Math.min(wait, fz) - c; fz = Math.max(0, fz - wait); t += wait;
+      w += earned(wait, own, cps, fz) - c; fz = after(fz, wait); t += wait;
       own[it.u.id] = n + 1; out.push({ it, c, t, n: n + 1 });
     }
     return out;
@@ -125,9 +140,10 @@
   // Interface
   const css = document.createElement('style');
   css.textContent = `
-  #tagAdv{position:fixed;right:12px;z-index:99999;width:min(340px,calc(100vw - 24px));background:#fffbe6;color:#1a1a1a;
+  #tagAdv{position:fixed;right:12px;z-index:60;width:min(340px,calc(100vw - 24px));background:#fffbe6;color:#1a1a1a;
     border:3px solid #1a1a1a;border-radius:14px;box-shadow:5px 5px 0 #1a1a1a;font:14px/1.4 system-ui,sans-serif}
   #tagAdv header{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;border-bottom:2px solid #1a1a1a;font-weight:700;user-select:none;cursor:move;touch-action:none}
+  #tagAdv.gold header{background:#ffd23f}
   #tagAdv header button{all:unset;cursor:pointer;padding:0 4px;font-size:16px}
   #tagAdv .modes{display:flex;gap:6px;padding:8px 12px 0;flex-wrap:wrap;align-items:center}
   #tagAdv .modes button{all:unset;cursor:pointer;border:2px solid #1a1a1a;border-radius:8px;padding:3px 10px;font-weight:700;font-size:13px}
@@ -185,6 +201,8 @@
   const PFX = /^🟢 [^·]+ · /, baseTitle = () => document.title.replace(PFX, ''); let marked = null;
   function tick() {
     const st = read(), now = box.querySelector('.now'), warn = box.querySelector('.warn');
+    box.classList.toggle('gold', st.goldUp); // la Facture dorée ne reste que 15 s à l'écran
+    box.querySelector('header span').textContent = st.goldUp ? '🧾 Facture dorée à cliquer !' : '🧮 Conseiller';
     // Cadence retenue : la cadence voulue (mesurée en Auto, réglée en Actif), dans la limite de 760/min,
     // et du reste du quota horaire réparti sur 15 min quand il ne suffit plus.
     const cad = cadence(), left = Math.max(0, LIM_H - cad.hour), capped = left === 0;
@@ -208,7 +226,8 @@
     box.querySelector('ol').innerHTML = out.slice(1).map(o =>
       `<li>${o.it.u.name} ×${o.n} · 💰 ${fmt(o.c)} · ${o.t < 1 ? 'tout de suite' : clock(o.t)}</li>`).join('');
     const parts = [`Revenu ${fmt(income(st.own, cps))}/s` + (cps ? ` (dont clics ${fmt(clickPow(st.own) * cps)})` : ''), `cagnotte 💰 ${fmt(st.wallet)}`];
-    if (st.frenzy) parts.push(`🔥 frénésie ${st.frenzy} s comptée`);
+    if (st.boost.fz) parts.push(`🔥 Frénésie : revenu ${fmt(rateAt(st.own, cps, st.boost, 0))}/s pendant ${st.boost.fz} s (production ×3)`);
+    if (st.boost.rf) parts.push(cps ? `⚡ Rafale : revenu ${fmt(rateAt(st.own, cps, st.boost, 0))}/s pendant ${st.boost.rf} s (clics ×10)` : `⚡ Rafale : chaque clic ×10 pendant ${st.boost.rf} s, à condition de cliquer`);
     if (capped && want) parts.push('⚠️ 18000 clics atteints sur l’heure : les clics ne comptent plus, conseil passif');
     else if (mode === 'auto') parts.push(cps ? `conseil calculé pour ${dec1(cps)} clics/s` + (why ? ` (cadence ${dec1(cad.rate)}/s ${why})` : ' (cadence mesurée)') : (isFinite(cad.idle) ? `clics arrêtés depuis ${Math.round(cad.idle / 1000)} s : conseil passif` : 'aucun clic récent : conseil passif'));
     else if (why) parts.push(`cadence ${why}`);

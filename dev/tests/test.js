@@ -15,12 +15,12 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 let fails = 0;
 const check = (ok, msg) => { console.log((ok ? '  ok   ' : '  ÉCHEC ') + msg); if (!ok) fails++; };
 
-async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, clicks = [], hourClicks = 0, at = 0, done = [] }) {
+async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, clicks = [], hourClicks = 0, at = 0, done = [], gold = false }) {
   const items = Object.entries(owned).map(([id, n]) => {
     const c = Math.ceil(B[id] * 1.15 ** n), d = done.includes(id);
     return `<button class="item" data-id="${id}" ${d || wallet < c ? 'disabled' : ''}><span class="ic"><b class="own">${d ? '✓' : '×' + n}</b><small class="price">${d ? 'acquis' : '💰 ' + big(c)}</small></span></button>`;
   }).join('');
-  const dom = new JSDOM(`<title>Jeu</title><b id="wallet">${big(wallet)}</b><span id="perClick">${perClick || ''}</span><p id="buffChip" ${chip ? '' : 'hidden'}>${chip || ''}</p>
+  const dom = new JSDOM(`<title>Jeu</title><b id="wallet">${big(wallet)}</b><span id="perClick">${perClick || ''}</span><p id="buffChip" ${chip ? '' : 'hidden'}>${chip || ''}</p><button id="goldBill" ${gold ? '' : 'hidden'}>Facture dorée</button>
     <button id="taxBtn">TAXER</button><button id="stickyTax">T</button><div id="shop">${items}</div>`, { runScripts: 'outside-only', url: 'https://taxe-au-giga.fr/' });
   const w = dom.window, d = w.document;
   let now = 1793700000000; w.Date.now = () => now; // horloge simulée
@@ -39,7 +39,7 @@ async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, cli
     now: d.querySelector('#tagAdv .now').textContent, list: [...d.querySelectorAll('#tagAdv li')].map(l => l.textContent),
     ft: d.querySelector('#tagAdv .ft').textContent, warn: d.querySelector('#tagAdv .warn').hidden ? '' : d.querySelector('#tagAdv .warn').textContent,
     best: d.querySelector('.tagAdvBest')?.dataset.id, adv: d.querySelector('.tagAdvBest')?.dataset.adv,
-    text: d.querySelector('#tagAdv').textContent, titles: d.querySelectorAll('#tagAdv [title]').length, docTitle: d.title,
+    text: d.querySelector('#tagAdv').textContent, z: parseInt(w.getComputedStyle(d.querySelector('#tagAdv')).zIndex, 10), titles: d.querySelectorAll('#tagAdv [title]').length, docTitle: d.title,
   };
   w.eval('window.__tagAdv.stop()'); r.stopped = !d.querySelector('#tagAdv') && !d.querySelector('.tagAdvBest'); w.close();
   return r;
@@ -117,7 +117,19 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
 
   console.log('Frénésie de 40 s comptée (Commission plus tôt)');
   r = await page({ owned: { ...o, hamster: 26, bot: 21, fax: 16, satellite: 3 }, wallet: 2628957, perClick: '5 803 visites', mode: 'passif', chip: '🔥 Frénésie fiscale : production ×3 encore 40 s' });
-  check(r.best === 'commission' && /frénésie 40 s/.test(r.ft), r.now + ' | ' + r.ft);
+  check(r.best === 'commission' && /Prochain achat dans 3 s/.test(r.now) && /Frénésie : revenu 76266\/s pendant 40 s/.test(r.ft), r.now + ' | ' + r.ft);
+
+  console.log('Rafale de 13 s en mode Actif 5/s : clics ×10 dans le revenu et les délais');
+  r = await page({ ...base, mode: 'actif', cps: 5, wallet: 2e6, chip: '⚡ Rafale de clics : chaque clic ×10 encore 13 s' });
+  check(/Rafale : revenu 310674\/s pendant 13 s/.test(r.ft), r.ft);
+
+  console.log('Rafale en mode Passif : signalée sans être comptée');
+  r = await page({ ...base, mode: 'passif', chip: '⚡ Rafale de clics : chaque clic ×10 encore 13 s' });
+  check(/chaque clic ×10 pendant 13 s, à condition de cliquer/.test(r.ft), r.ft);
+
+  console.log('Facture dorée à l’écran : signalée dans l’en-tête, panneau sous elle (z-index < 70)');
+  r = await page({ ...base, gold: true });
+  check(/Facture dorée à cliquer/.test(r.text) && r.z < 70, 'en-tête : ' + r.text.slice(0, 32) + ' | z-index ' + r.z);
 
   console.log('Puissance de clic affichée différente du modèle : alerte');
   r = await page({ ...base, perClick: '9 999 visites' });
