@@ -4,7 +4,7 @@ Panneau posé sur la page de [Taxe au Giga](https://taxe-au-giga.fr/) qui surlig
 
 Il lit ce que le jeu affiche. **Aucun clic, aucun achat, aucun appel au serveur du jeu.**
 
-[![Installer le favori](https://img.shields.io/badge/Installer_le_favori-glisser--d%C3%A9poser-19d3a2?style=for-the-badge)](https://actarus314.github.io/conseiller-taxe-giga/)
+[![Ouvrir la page d'installation](https://img.shields.io/badge/Ouvrir_la_page_d%27installation_%E2%86%97-19d3a2?style=for-the-badge)](https://actarus314.github.io/conseiller-taxe-giga/)
 
 ![Conseil en mode Passif : Satellite à acheter, suite des achats prévue](captures/passif.png)
 
