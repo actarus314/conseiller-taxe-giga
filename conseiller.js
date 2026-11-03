@@ -16,7 +16,8 @@
     ['mondial', 'Amendement mondial', 5e12, 0, 0, 0.15, 1],
   ].map(([id, name, base, rate = 0, click = 0, pct = 0, max = 0]) => ({ id, name, base, rate, click, pct, max }));
   const cost = (u, n) => Math.ceil(u.base * Math.pow(1.15, n));
-  const CPS_MAX = 5; // 18 000 clics/h au plus comptés par le serveur (et 760/min), soit 5/s en moyenne sur l'heure
+  // Limites du serveur : 760 clics comptés par minute, 18000 par heure (au-delà, les clics ne rapportent rien)
+  const LIM_MIN = 760, LIM_H = 18000, CPS_MAX = LIM_MIN / 60, HORIZON = 900; // horizon de 15 min pour répartir le reste du quota horaire
 
   // Production d'un parc : passive (rate) et par clic, comme clickPower() du jeu
   const prodRate = own => P.reduce((s, u) => s + u.rate * (own[u.id] || 0), 0);
@@ -30,20 +31,37 @@
     const m = t.match(/^([\d.]+)(Md|M)?$/); if (!m) return NaN;
     return parseFloat(m[1]) * (m[2] === 'Md' ? 1e9 : m[2] === 'M' ? 1e6 : 1);
   };
-  const fmt = n => n < 1e6 ? Math.round(n).toLocaleString('fr-FR') : n < 1e9 ? (n / 1e6).toLocaleString('fr-FR', { maximumFractionDigits: 2 }) + ' M' : (n / 1e9).toLocaleString('fr-FR', { maximumFractionDigits: 2 }) + ' Md';
-  const dur = s => !isFinite(s) ? 'après quelques clics' : s < 1 ? 'quelques secondes' : s < 60 ? Math.ceil(s) + ' s' : s < 3600 ? Math.round(s / 60) + ' min' : (s / 3600).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' h';
+  // nombres au point décimal, sans séparateur de milliers
+  const fmt = n => n < 1e6 ? String(Math.round(n)) : n < 1e9 ? (n / 1e6).toFixed(2) + ' M' : n < 1e12 ? (n / 1e9).toFixed(2) + ' Md' : (n / 1e12).toFixed(2) + ' T';
+  const dec1 = n => n.toFixed(1).replace(/\.0$/, '');
+  const dur = s => !isFinite(s) ? 'après quelques clics' : s < 1 ? 'quelques secondes' : s < 60 ? Math.ceil(s) + ' s' : s < 3600 ? Math.round(s / 60) + ' min' : dec1(s / 3600) + ' h';
   const clock = s => !isFinite(s) ? '—' : new Date(Date.now() + s * 1000).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   const store = (k, v) => { try { if (v === undefined) return localStorage.getItem('tagAdv-' + k); localStorage.setItem('tagAdv-' + k, v); } catch (e) { return null; } };
 
-  // Réglages : mode et cadence prévue
-  let mode = store('mode') === 'actif' ? 'actif' : 'passif';
-  let cpsPlan = Math.min(CPS_MAX, Math.max(0.1, parseFloat(store('cps')) || CPS_MAX));
+  // Réglages : Auto (cadence mesurée, par défaut), Passif (aucun clic) ou Actif (cadence fixée)
+  let mode = ['auto', 'passif', 'actif'].includes(store('mode')) ? store('mode') : 'auto';
+  let cpsPlan = Math.min(CPS_MAX, Math.max(0.1, parseFloat(store('cps')) || 5));
 
-  // Mesure des clics réels sur TAXER (bouton principal et bouton flottant)
-  const clicks = [];
-  const onClick = e => { if (e.isTrusted && e.target.closest && e.target.closest('#taxBtn, #stickyTax')) clicks.push(Date.now()); };
+  // Mesure des clics réels sur TAXER (bouton principal et bouton flottant).
+  // Cadence : clics des 2 dernières minutes ÷ temps écoulé depuis le premier d'entre eux (10 s au moins),
+  // ce qui suit vite une reprise et retombe en douceur à l'arrêt.
+  // Compteur horaire : par minute, gardé dans le navigateur pour survivre à un rechargement.
+  const WIN = 120e3, recent = [];
+  let perMin = {}; try { perMin = JSON.parse(store('clics') || '{}') || {}; } catch (e) { perMin = {}; }
+  const onClick = e => {
+    if (!e.isTrusted || !e.target.closest || !e.target.closest('#taxBtn, #stickyTax')) return;
+    const t = Date.now(); recent.push(t); const m = Math.floor(t / 60e3); perMin[m] = (perMin[m] || 0) + 1;
+  };
   document.addEventListener('click', onClick, true);
-  const clicksIn = ms => { const n = Date.now(); while (clicks.length && clicks[0] < n - 3600e3) clicks.shift(); return clicks.filter(t => t >= n - ms).length; };
+  function cadence() {
+    const now = Date.now(), m0 = Math.floor(now / 60e3);
+    while (recent.length && recent[0] < now - WIN) recent.shift();
+    for (const k in perMin) if (k <= m0 - 60) delete perMin[k];
+    const hour = Object.values(perMin).reduce((a, b) => a + b, 0), minute = perMin[m0] || 0;
+    const rate = recent.length ? recent.length / Math.max(10, (now - recent[0]) / 1000) : 0;
+    return { rate, hour, minute };
+  }
+  const ivSave = setInterval(() => store('clics', JSON.stringify(perMin)), 5000);
 
   // Lecture de l'état affiché
   function read() {
@@ -126,13 +144,13 @@
     border-radius:8px;padding:1px 8px;font:700 12px/1.4 system-ui,sans-serif;pointer-events:none}`;
   document.head.appendChild(css);
   const box = document.createElement('div'); box.id = 'tagAdv';
-  box.innerHTML = `<header><span>🧮 Conseiller</span><span><button data-a="min" title="Réduire">–</button><button data-a="x" title="Fermer">✕</button></span></header>
-    <div class="modes"><button data-m="passif">Passif</button><button data-m="actif">Actif</button>
-      <label data-cps>clics/s prévus <input id="tagAdvCps" type="number" min="0.1" max="${CPS_MAX}" step="0.5"></label></div>
+  box.innerHTML = `<header><span>🧮 Conseiller</span><span><button data-a="min" aria-label="Réduire">–</button><button data-a="x" aria-label="Fermer">✕</button></span></header>
+    <div class="modes"><button data-m="auto">Auto</button><button data-m="passif">Passif</button><button data-m="actif">Actif</button>
+      <label data-cps>clics/s prévus <input id="tagAdvCps" type="number" min="0.1" max="12.6" step="0.5"></label></div>
     <div class="warn" hidden></div><div class="now"></div><ol></ol><div class="ft"></div>`;
   document.body.appendChild(box);
   const cpsIn = box.querySelector('#tagAdvCps'); cpsIn.value = cpsPlan;
-  cpsIn.addEventListener('change', () => { cpsPlan = Math.min(CPS_MAX, Math.max(0.1, parseFloat(cpsIn.value) || CPS_MAX)); cpsIn.value = cpsPlan; store('cps', cpsPlan); tick(); });
+  cpsIn.addEventListener('change', () => { cpsPlan = Math.min(CPS_MAX, Math.max(0.1, parseFloat(cpsIn.value) || 5)); cpsIn.value = cpsPlan; store('cps', cpsPlan); tick(); });
   const setMode = m => { mode = m; store('mode', m); box.querySelectorAll('[data-m]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.m === m))); box.querySelector('[data-cps]').hidden = m !== 'actif'; tick(); };
   box.addEventListener('click', e => {
     const a = e.target.dataset.a;
@@ -161,7 +179,12 @@
   const PFX = /^🟢 [^·]+ · /, baseTitle = () => document.title.replace(PFX, ''); let marked = null;
   function tick() {
     const st = read(), now = box.querySelector('.now'), warn = box.querySelector('.warn');
-    const c60 = clicksIn(60e3), cHour = clicksIn(3600e3), cps = mode === 'actif' ? cpsPlan : 0;
+    // Cadence retenue : la cadence voulue (mesurée en Auto, réglée en Actif), dans la limite de 760/min,
+    // et du reste du quota horaire réparti sur 15 min quand il ne suffit plus.
+    const cad = cadence(), left = Math.max(0, LIM_H - cad.hour), capped = left === 0;
+    const want = mode === 'actif' ? cpsPlan : mode === 'auto' && cad.rate >= 0.2 ? cad.rate : 0; // sous 1 clic toutes les 5 s : conseil passif
+    const cps = Math.min(want, CPS_MAX, left / HORIZON);
+    const why = !want || cps >= want - 0.05 ? '' : capped ? '' : cps < Math.min(want, CPS_MAX) - 0.05 ? `ramenée à ${dec1(cps)} : reste ${left} clics sur le quota de l’heure` : `ramenée à ${dec1(CPS_MAX)}, plafond de 760 clics par minute`;
     if (!Number.isFinite(st.wallet) || !$('#shop')) { now.textContent = 'Boutique introuvable : recharger la page du jeu.'; return; }
     if (!st.items.length) { now.textContent = 'Aucun bonus débloqué : cliquer sur TAXER.'; return; }
     warn.hidden = !st.drift.length;
@@ -174,21 +197,25 @@
     marked = first.it.el;
     now.className = 'now' + (ready ? ' go' : '');
     now.innerHTML = ready
-      ? `Achetez maintenant<b>${first.it.u.name}</b>💰 ${fmt(first.c)} · devient ×${first.n}`
+      ? `Acheter maintenant<b>${first.it.u.name}</b>💰 ${fmt(first.c)} · devient ×${first.n}`
       : (isFinite(first.t) ? `Prochain achat dans ${dur(first.t)} (${clock(first.t)})` : 'Prochain achat après quelques clics') + `<b>${first.it.u.name}</b>💰 ${fmt(first.c)} · ne rien acheter d’autre d’ici là`;
     box.querySelector('ol').innerHTML = out.slice(1).map(o =>
       `<li>${o.it.u.name} ×${o.n} · 💰 ${fmt(o.c)} · ${o.t < 1 ? 'tout de suite' : clock(o.t)}</li>`).join('');
     const parts = [`Revenu ${fmt(income(st.own, cps))}/s` + (cps ? ` (dont clics ${fmt(clickPow(st.own) * cps)})` : ''), `cagnotte 💰 ${fmt(st.wallet)}`];
     if (st.frenzy) parts.push(`🔥 frénésie ${st.frenzy} s comptée`);
-    if (mode === 'actif') parts.push(`clics mesurés : ${(c60 / 60).toLocaleString('fr-FR', { maximumFractionDigits: 1 })}/s, ${cHour.toLocaleString('fr-FR')} / 18 000 sur l’heure` + (cHour > 16000 ? ' ⚠️ au-delà, les clics ne comptent plus' : ''));
-    else if (c60 >= 30) parts.push('vous cliquez : le mode Actif donnera un meilleur conseil');
+    if (capped && want) parts.push('⚠️ 18000 clics atteints sur l’heure : les clics ne comptent plus, conseil passif');
+    else if (mode === 'auto') parts.push(cps ? `conseil calculé pour ${dec1(cps)} clics/s` + (why ? ` (cadence ${dec1(cad.rate)}/s ${why})` : ' (cadence mesurée)') : 'aucun clic récent : conseil passif');
+    else if (why) parts.push(`cadence ${why}`);
+    if (mode !== 'passif' || cad.hour) parts.push(`clics : ${dec1(cad.rate)}/s, ${cad.hour}/${LIM_H} sur l’heure, ${cad.minute}/${LIM_MIN} cette minute`);
+    if (!capped && cad.hour > LIM_H - 2000) parts.push(`⚠️ bientôt ${LIM_H} clics sur l’heure : au-delà, ils ne comptent plus`);
+    if (cad.minute > LIM_MIN - 60) parts.push(`⚠️ près de ${LIM_MIN} clics cette minute : au-delà, ils ne comptent plus, et un rythme tenu au plafond 3 min est pris pour un autoclic (clics ignorés 10 min)`);
     box.querySelector('.ft').textContent = parts.join(' · ');
     const t = (ready ? '🟢 ' + first.it.u.name + ' · ' : '') + baseTitle(); if (document.title !== t) document.title = t;
   }
   setMode(mode);
   const iv = setInterval(tick, 500);
   function stop() {
-    clearInterval(iv); box.remove(); css.remove(); document.title = baseTitle();
+    clearInterval(iv); clearInterval(ivSave); store('clics', JSON.stringify(perMin)); box.remove(); css.remove(); document.title = baseTitle();
     document.removeEventListener('click', onClick, true); removeEventListener('resize', place);
     if (marked) marked.classList.remove('tagAdvBest');
     delete window.__tagAdv;

@@ -31,9 +31,7 @@ code = '\n'.join(l for l in lines if l)
 bm = 'javascript:' + urllib.parse.quote(code, safe="()=>,;:'*!~-_.")
 (ROOT / 'bookmarklet.txt').write_text(bm + '\n', encoding='utf-8')
 
-loader = ("javascript:fetch('https://cdn.jsdelivr.net/gh/actarus314/conseiller-taxe-giga@v" + version +
-          "/conseiller.js').then(r=>r.text()).then(eval)")
 tpl = (ROOT / 'dev' / 'page-install.html').read_text(encoding='utf-8')
-page = tpl.replace('__BM__', html.escape(bm, quote=True)).replace('__LOADER__', html.escape(loader, quote=True)).replace('__VERSION__', version)
+page = tpl.replace('__BM__', html.escape(bm, quote=True)).replace('__VERSION__', version)
 (ROOT / 'index.html').write_text(page, encoding='utf-8')
 print(f'v{version} : conseiller.user.js, bookmarklet.txt ({len(bm)} car.), index.html')
