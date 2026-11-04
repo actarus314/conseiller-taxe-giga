@@ -19,7 +19,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 let fails = 0;
 const check = (ok, msg) => { console.log((ok ? '  ok   ' : '  ÉCHEC ') + msg); if (!ok) fails++; };
 
-async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, clicks = [], hourClicks = 0, at = 0, done = [], gold = false, save = null }) {
+async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, clicks = [], hourClicks = 0, hist = null, at = 0, done = [], gold = false, save = null }) {
   const items = Object.entries(owned).map(([id, n]) => {
     const c = Math.ceil(B[id] * 1.15 ** n), d = done.includes(id);
     return `<button class="item" data-id="${id}" ${d || wallet < c ? 'disabled' : ''}><span class="ic"><b class="own">${d ? '✓' : '×' + n}</b><small class="price">${d ? 'acquis' : '💰 ' + big(c)}</small></span></button>`;
@@ -32,7 +32,12 @@ async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, cli
   w.setInterval = (f, ms) => { timers.set(++timerId, { f, ms }); return timerId; }; w.clearInterval = id => { timers.delete(id); };
   w.localStorage.setItem('tagAdv-mode', mode); w.localStorage.setItem('tagAdv-cps', String(cps));
   if (save) { const sv = typeof save === 'number' ? { w: save, at } : save; w.localStorage.setItem('taxe-giga-partie-v1', JSON.stringify({ wallet: sv.w, owned: {}, myCount: 0, t: now + sv.at * 1000 })); }
-  if (hourClicks) w.localStorage.setItem('tagAdv-clics', JSON.stringify({ [Math.floor(now / 60e3) - 5]: hourClicks }));
+  if (hourClicks || hist) {
+    const m0 = Math.floor(now / 60e3), pm = {};
+    for (const [ago, n] of Object.entries(hist || {})) pm[m0 - ago] = n;
+    if (hourClicks) pm[m0 - 5] = (pm[m0 - 5] || 0) + hourClicks;
+    w.localStorage.setItem('tagAdv-clics', JSON.stringify(pm));
+  }
   w.eval(SRC);
   // clics « de confiance » sur TAXER, à des instants donnés (secondes)
   for (const s of clicks) {
@@ -75,56 +80,47 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
 
   console.log('Auto sans clic : conseil passif');
   r = await page({ ...base });
-  check(r.best === 'satellite' && /aucun clic récent/.test(r.ft), r.ft);
+  check(r.best === 'satellite' && /aucun clic sur les 3 dernières heures/.test(r.ft), r.ft);
 
-  console.log('Auto, 5 clics/s pendant 60 s : conseil actif à 5/s');
+  // historique : minutes écoulées → clics comptés dans cette minute (0 = minute observée sans clic)
+  const minutes = (from, to, f) => Object.fromEntries(Array.from({ length: to - from + 1 }, (_, i) => [from + i, f(from + i)]));
+
+  console.log('Auto, 3 h de jeu observé à 30 clics par minute : conseil à 0.50 clic/s (revenu 25059/s)');
+  r = await page({ ...base, hist: minutes(1, 179, () => 30) });
+  check(/calculé pour 0.50 clic\/s, moyenne de 5370 clics sur 2 h 59 de jeu observé/.test(r.ft) && /Revenu 25059\/s/.test(r.ft), r.ft);
+
+  console.log('Auto, séries de 2 min à 5 clics/s trois fois par heure : même conseil pendant et entre les séries');
+  {
+    const h = minutes(1, 120, m => m % 20 < 2 ? 300 : 0);
+    const entre = await page({ ...base, hist: h });
+    const pendant = await page({ ...base, hist: h, clicks: every(5, 0, 30), at: 30 });
+    check(/calculé pour 0.50 clic\/s/.test(entre.ft) && /calculé pour 0.52 clic\/s/.test(pendant.ft) && /série en cours 5\/s/.test(pendant.ft) && entre.best === pendant.best,
+      'entre : ' + entre.best + ' | pendant : ' + pendant.best + ' | ' + pendant.ft);
+  }
+
+  console.log('Auto, 10 min observées avec 600 clics : moyenne comptée sur 30 min au moins (0.33 clic/s)');
+  r = await page({ ...base, hist: minutes(1, 10, () => 60) });
+  check(/calculé pour 0.33 clic\/s, moyenne de 600 clics sur 30 min \(durée minimale comptée\)/.test(r.ft), r.ft);
+
+  console.log('Auto, une seule série de 60 s à 5 clics/s sur un panneau qui vient de s’ouvrir : 0.17 clic/s, pas 5');
   r = await page({ ...base, clicks: every(5, 0, 60), at: 60 });
-  check(r.best === 'doigt' && /calculé pour 5 clics\/s/.test(r.ft) && /Revenu 51024\/s/.test(r.ft), r.ft);
+  check(/calculé pour 0.17 clic\/s/.test(r.ft) && /Revenu 23136\/s/.test(r.ft), r.ft);
 
-  console.log('Auto, 3 clics/s pendant 20 s : conseil à 3/s (revenu 39484/s)');
-  r = await page({ ...base, clicks: every(3, 0, 20), at: 20 });
-  check(/calculé pour 3 clics\/s/.test(r.ft) && /Revenu 39484\/s/.test(r.ft), r.ft);
-
-  console.log('Auto, 8 clics/s : gardé tel quel (sous 760/min, quota horaire suffisant)');
-  r = await page({ ...base, clicks: every(8, 0, 30), at: 30 });
-  check(/calculé pour 8 clics\/s \(cadence mesurée\)/.test(r.ft), r.ft);
-
-  console.log('Auto, 15 clics/s : ramené à 12.7/s (760 par minute), avec la raison');
-  r = await page({ ...base, clicks: every(15, 0, 20), at: 20 });
-  check(/calculé pour 12.7 clics\/s/.test(r.ft) && /760 clics par minute/.test(r.ft), r.ft);
-
-  console.log('Auto, 5 clics/s mais 17000 clics déjà comptés : reste du quota réparti sur 15 min');
-  r = await page({ ...base, clicks: every(5, 0, 30), at: 30, hourClicks: 17000 });
-  check(/calculé pour 0.9 clics\/s/.test(r.ft) && /reste 850 clics/.test(r.ft), r.ft);
-
-  console.log('Auto, 5 clics/s puis 1 s de pause (le temps d’un achat) : toujours actif');
-  r = await page({ ...base, clicks: every(5, 0, 60), at: 61 });
-  check(/calculé pour 4.\d clics\/s/.test(r.ft) && r.best === 'doigt', r.ft);
-
-  console.log('Auto, 5 clics/s puis 4 s sans clic : cadence à peine entamée (4.7/s), conseil inchangé');
-  r = await page({ ...base, clicks: every(5, 0, 60), at: 63.8 });
-  check(/calculé pour 4.7 clics\/s/.test(r.ft) && r.best === 'doigt', r.ft);
-
-  console.log('Auto, 5 clics/s puis 9 s sans clic : passif');
-  r = await page({ ...base, clicks: every(5, 0, 60), at: 68.8 });
-  check(r.best === 'satellite' && /clics arrêtés depuis 9 s/.test(r.ft), r.ft);
-
-  console.log('Auto, reprise à 3 clics/s pendant 4 s après un arrêt de 20 s : cadence de la nouvelle série');
-  r = await page({ ...base, clicks: [...every(5, 0, 30), ...every(3, 50, 54)], at: 54 });
-  check(/calculé pour 3 clics\/s/.test(r.ft), r.ft);
-
-  console.log('Auto, 1 clic/s : arrêt détecté après 8 s sans clic, pas avant');
-  r = await page({ ...base, clicks: every(1, 0, 20), at: 26.5 });
-  const r2 = await page({ ...base, clicks: every(1, 0, 20), at: 27.5 });
-  check(/calculé pour/.test(r.ft) && /clics arrêtés/.test(r2.ft), r.ft + ' || ' + r2.ft);
-
-  console.log('Auto, clics arrêtés depuis 3 min : retour au passif');
-  r = await page({ ...base, clicks: every(5, 0, 60), at: 240 });
-  check(r.best === 'satellite' && /aucun clic récent/.test(r.ft), r.ft);
+  console.log('Auto, clics de plus de 3 h : oubliés, conseil passif');
+  r = await page({ ...base, hist: { 200: 5000 } });
+  check(r.best === 'satellite' && /aucun clic sur les 3 dernières heures/.test(r.ft), r.ft);
 
   console.log('Auto, 18000 clics déjà comptés sur l’heure : conseil passif et alerte');
   r = await page({ ...base, clicks: every(5, 0, 30), at: 30, hourClicks: 18000 });
   check(r.best === 'satellite' && /18000 clics atteints/.test(r.ft) && !/calculé pour/.test(r.ft), r.ft);
+
+  console.log('Actif 5/s mais 17150 clics comptés sur l’heure : reste du quota réparti sur 15 min');
+  r = await page({ ...base, mode: 'actif', cps: 5, clicks: every(5, 0, 30), at: 30, hourClicks: 17000 });
+  check(/ramenée à 0.94 : reste 850 clics/.test(r.ft), r.ft);
+
+  console.log('Rafale à l’écran : consigne de cliquer dans l’en-tête');
+  r = await page({ ...base, chip: '⚡ Rafale de clics : chaque clic ×10 encore 13 s' });
+  check(/⚡ Rafale : cliquer ! \(×10, 13 s\)/.test(r.text), 'en-tête : ' + r.text.slice(0, 40));
 
   console.log('Frénésie de 40 s comptée (Commission plus tôt)');
   r = await page({ owned: { ...o, hamster: 26, bot: 21, fax: 16, satellite: 3 }, wallet: 2628957, perClick: '5 803 visites', mode: 'passif', chip: '🔥 Frénésie fiscale : production ×3 encore 40 s' });

@@ -16,11 +16,11 @@ Il lit ce que le jeu affiche. **Aucun clic, aucun achat, aucun appel au serveur 
 
 | Mode | Cadence de clic prise en compte |
 |---|---|
-| **Auto** (défaut) | moyenne de la série de clics TAXER en cours sur la dernière minute (une pause de quelques secondes la fait à peine baisser) ; après 8 s sans clic, conseil passif |
+| **Auto** (défaut) | moyenne des clics TAXER sur le temps de jeu observé des 3 dernières heures, comptée sur 30 min au moins : des séries de clics espacées donnent une cadence stable, la même pendant et entre les séries ; aucun clic sur 3 h : conseil passif |
 | Passif | aucune : seule la production automatique compte |
 | Actif | fixée à la main (5 clics/s par défaut) |
 
-Dans tous les cas, la cadence retenue reste sous 760 clics par minute (12.7/s), et le reste du quota de 18000 clics par heure se répartit sur 15 min quand il ne suffit plus. Le compteur horaire est gardé dans le navigateur ; les clics faits avant l'ouverture du panneau ne sont pas connus.
+Dans tous les cas, la cadence retenue reste sous 760 clics par minute (12.7/s), et le reste du quota de 18000 clics par heure se répartit sur 15 min quand il ne suffit plus. Les clics sont comptés minute par minute dans le navigateur ; les minutes où le panneau était fermé ne comptent ni dans les clics ni dans la durée de la moyenne.
 
 ## Installation
 
