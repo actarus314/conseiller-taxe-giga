@@ -3,7 +3,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.20'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.21'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (build 2026-11-03h : Décret porté à +100000 par clic).
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -216,7 +216,7 @@
     border:3px solid var(--tagInk);border-radius:14px;box-shadow:5px 5px 0 var(--tagInk);font:14px/1.4 "Space Grotesk",system-ui,sans-serif}
   #tagAdv header{display:flex;align-items:center;gap:6px;padding:7px 8px 7px 10px;border-bottom:2px solid var(--tagInk);font-weight:700;user-select:none;cursor:move;touch-action:none;white-space:nowrap}
   #tagAdv header .id{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:14.5px}
-  #tagAdv header .ctl{margin-left:auto;flex:none}
+  #tagAdv header .ctl{flex:none}
   #tagAdv .flash{padding:5px 12px;background:#ffd23f;border-bottom:2px solid var(--tagInk);font-weight:700;font-size:13px}
   #tagAdv .flash[hidden]{display:none}
   #tagAdv header .v{font:500 10px/1 "IBM Plex Mono",ui-monospace,Menlo,monospace;color:#555;margin-left:2px;text-decoration:underline;cursor:pointer}
@@ -224,7 +224,7 @@
   #tagAdv header button{all:unset;cursor:pointer;padding:0 3px;font-size:16px}
   #tagAdv .modes{display:flex;gap:8px;padding:6px 12px 0;align-items:center}
   #tagAdv .modes[hidden]{display:none}
-  #tagAdv .seg{flex:none;display:inline-flex;border:2px solid var(--tagInk);border-radius:7px;overflow:hidden}
+  #tagAdv .seg{flex:none;margin:0 auto;display:inline-flex;border:2px solid var(--tagInk);border-radius:7px;overflow:hidden}
   #tagAdv .seg button{all:unset;cursor:pointer;padding:1px 5px;font-weight:700;font-size:11.5px;line-height:1.4}
   #tagAdv .seg button+button{border-left:2px solid var(--tagInk)}
   #tagAdv .seg button[aria-pressed="true"]{background:var(--tagInk);color:var(--tagPaper)}
