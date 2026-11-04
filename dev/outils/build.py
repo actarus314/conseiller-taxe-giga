@@ -6,7 +6,7 @@
 - index.html         : page d'installation, depuis dev/page-install.html
 Usage : python3 dev/outils/build.py <version>   (ex. 2.1)
 """
-import html, pathlib, re, sys, urllib.parse
+import subprocess, html, pathlib, re, sys, urllib.parse
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 version = sys.argv[1] if len(sys.argv) > 1 else '0.0'
@@ -28,10 +28,13 @@ header = f"""// ==UserScript==
 """
 (ROOT / 'conseiller.user.js').write_text(header + src, encoding='utf-8')
 
-# favori : commentaires (lignes entières et fins de ligne) et indentation retirés, puis encodage d'adresse ;
-# une fin de ligne n'est retirée que si le commentaire ne contient ni guillemet ni accent grave (pas de chaîne coupée)
-lines = [re.sub(r'\s+// [^\'"`]*$', '', re.sub(r'^\s+', '', l)) for l in src.split('\n') if not re.match(r'^\s*//', l)]
-code = '\n'.join(l for l in lines if l)
+# favori figé : code compressé par terser (dev/tests, version épinglée : `npm ci` dans dev/tests), puis encodage d'adresse
+TERSER = ROOT / 'dev' / 'tests' / 'node_modules' / 'terser'
+if not TERSER.exists():
+    sys.exit('terser absent : lancer `npm ci` dans dev/tests, puis relancer la construction')
+JS = "const t = require(process.argv[1]); let s = ''; process.stdin.on('data', d => s += d).on('end', async () => " \
+     "process.stdout.write((await t.minify(s, { compress: { passes: 2 }, mangle: true, format: { comments: false } })).code));"
+code = subprocess.run(['node', '-e', JS, str(TERSER)], input=src, capture_output=True, text=True, check=True).stdout
 # caractères laissés en clair : ceux qu'une adresse admet tels quels (RFC 3986), hors % et # qui changeraient son sens
 bm = 'javascript:' + urllib.parse.quote(code, safe="()=>,;:'*!~-_./?@$&+")
 (ROOT / 'bookmarklet.txt').write_text(bm + '\n', encoding='utf-8')

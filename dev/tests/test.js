@@ -214,7 +214,9 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   }
   {
     const fige = fs.readFileSync(path.join(ROOT, 'bookmarklet.txt'), 'utf8').trim().length, auto = fs.readFileSync(path.join(ROOT, 'bookmarklet-auto.txt'), 'utf8').trim().length;
-    check(fige < 32000 && auto < 500, `taille des favoris : figé ${fige} caractères (plafond 32000), à jour ${auto} (plafond 500)`);
+    // plafond du favori figé : Firefox n'enregistre pas un favori de plus de 65536 caractères (URL_LENGTH_MAX de Places),
+    // Chrome accepte 2 Mo (kMaxURLChars) ; limite de Safari non trouvée. 60000 garde une marge sous Firefox.
+    check(fige < 60000 && auto < 500, `taille des favoris : figé ${fige} caractères (plafond 60000), à jour ${auto} (plafond 500)`);
   }
 
   console.log('Forme : nombres au point décimal sans séparateur, aucune info-bulle native, aucun « vous »');

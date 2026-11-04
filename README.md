@@ -40,7 +40,7 @@ Barème recopié du code du jeu (build 2026-11-04e). Une alerte rose apparaît s
 
 ## Développement
 
-- `conseiller.js` est la seule source ; `python3 dev/outils/build.py <version>` génère `conseiller.user.js`, `bookmarklet-auto.txt`, `bookmarklet.txt` et `index.html`.
+- `conseiller.js` est la seule source ; `python3 dev/outils/build.py <version>` génère `conseiller.user.js`, `bookmarklet-auto.txt`, `bookmarklet.txt` (code compressé par terser : `npm ci` dans `dev/tests` d'abord) et `index.html`.
 - Tests : `cd dev/tests && npm install && npm test`.
 - Simulateur des stratégies : `python3 dev/sim/modele.py <clics par seconde>`.
 - Captures : `dev/outils/captures.py` (mode d'emploi en tête du fichier).
