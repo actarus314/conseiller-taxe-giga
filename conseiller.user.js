@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Conseiller — Taxe au Giga
 // @namespace    https://github.com/actarus314/conseiller-taxe-giga
-// @version      2.21
+// @version      2.22
 // @description  Indique le meilleur bonus à acheter dans Taxe au Giga. Ne clique et n'achète rien.
 // @match        https://taxe-au-giga.fr/*
 // @grant        none
@@ -14,7 +14,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.21'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.22'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (build 2026-11-03h : Décret porté à +100000 par clic).
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -30,8 +30,8 @@
     ['mondial', 'Amendement mondial', 5e12, 0, 0, 0.15, 1],
   ].map(([id, name, base, rate = 0, click = 0, pct = 0, max = 0]) => ({ id, name, base, rate, click, pct, max }));
   const cost = (u, n) => Math.ceil(u.base * Math.pow(1.15, n));
-  // Limites du serveur : 760 clics comptés par minute, 18000 par heure (au-delà, les clics ne rapportent rien)
-  const LIM_MIN = 760, LIM_H = 18000, CPS_MAX = LIM_MIN / 60, HORIZON = 900; // horizon de 15 min pour répartir le reste du quota horaire
+  // Limites du serveur (build 2026-11-04l) : 1030 clics comptés par minute, 24000 par heure (au-delà, les clics ne rapportent rien)
+  const LIM_MIN = 1030, LIM_H = 24000, CPS_MAX = LIM_MIN / 60, HORIZON = 900; // horizon de 15 min pour répartir le reste du quota horaire
   // minutes tenues au plafond de clics/min avant que le serveur y voie un autoclic (clics alors ignorés autant de minutes)
   const AUTOCLIC = 10;
   // multiplicateurs des bonus de la Facture dorée : production ×3, clics ×10
@@ -352,7 +352,7 @@
     // bandeau jaune sous l'en-tête : Facture dorée à l’écran (elle n'y reste que 15 s), puis Rafale en cours
     const flash = st.goldUp ? '🧾 Facture dorée à cliquer !' : st.boost.rf ? `⚡ Rafale : cliquer ! (×${RAFALE}, ${st.boost.rf} s)` : '';
     put('flash', ui.flash, 'textContent', flash); put('flashHidden', ui.flash, 'hidden', !flash);
-    // Cadence retenue : la cadence voulue (moyenne mesurée en Auto, réglée en Actif), dans la limite de 760/min,
+    // Cadence retenue : la cadence voulue (moyenne mesurée en Auto, réglée en Actif), dans la limite par minute (LIM_MIN),
     // et du reste du quota horaire réparti sur 15 min quand il ne suffit plus.
     const cad = cadence(), left = Math.max(0, LIM_H - cad.hour), capped = left === 0;
     const want = mode === 'actif' ? cpsPlan : mode === 'auto' ? cad.avg : 0;

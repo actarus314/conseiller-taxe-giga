@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.22 — 04/11/2026
+Limites de clics du serveur relevées par le jeu (build 2026-11-04l) : 1030 par minute (17.2/s) et 24000 par heure, au lieu de 760 et 18000 ; détection d'autoclic inchangée (10 min au plafond). Barème et puissance de clic inchangés.
+
 ## v2.21 — 04/11/2026
 Sélecteur de mode centré dans l'en-tête : 15 px d'écart avec le numéro de version comme avec – et ✕ (6 px avant).
 

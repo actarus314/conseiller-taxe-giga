@@ -1,5 +1,5 @@
 {
- "build": "2026-11-03n",
+ "build": "2026-11-04m",
  "regles": {
   "prix": "const cost = u => Math.ceil(u.base * Math.pow(1.15, owned[u.id]));",
   "production": "const rate = () => SHOP.reduce((s, u) => s + (u.rate || 0) * owned[u.id], 0);",
@@ -9,7 +9,7 @@
   "rafale (clics)": "n = power() * (rafaleOn ? 10 : 1)",
   "durées des bonus dorés": "frenzyUntil = Date.now() + 60000; showBanner('🔥 Frénésie fiscale !', 'Votre production est multipliée par 3 pendant 60 secondes.', true, false); } else if (w.kind === 'rafale') { rafaleUntil = Date.now() + 13000;",
   "déblocage": "const visible = SHOP.filter(u => myCount >= u.unlock || owned[u.id] > 0);",
-  "limites de clics": "au-delà de 760 clics par minute ou 18 000 par heure",
+  "limites de clics": "au-delà de 1 030 clics par minute ou 24 000 par heure",
   "hors ligne": "Fenêtre fermée, ils continuent à 25 %</b>, pendant 8 h au plus",
   "sauvegarde": "const SAVE = 'taxe-giga-partie-v1';",
   "contenu sauvegardé": "JSON.stringify({ myCount, wallet, owned, t: Date.now() })",

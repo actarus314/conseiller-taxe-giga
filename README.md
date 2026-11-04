@@ -20,7 +20,7 @@ Il lit ce que le jeu affiche. **Aucun clic, aucun achat, aucun appel au serveur 
 | Passif | aucune : seule la production automatique compte |
 | Actif | fixée à la main (5 clics/s par défaut) |
 
-Dans tous les cas, la cadence retenue reste sous 760 clics par minute (12.7/s), et le reste du quota de 18000 clics par heure se répartit sur 15 min quand il ne suffit plus. Les clics sont comptés minute par minute dans le navigateur ; les minutes où le panneau était fermé ne comptent ni dans les clics ni dans la durée de la moyenne. Les clics du mode mini du jeu comptent aussi : toujours dans la fenêtre « image dans l'image » de Chrome et Edge, et dans la fenêtre séparée des autres navigateurs si elle s'ouvre panneau ouvert.
+Dans tous les cas, la cadence retenue reste sous 1030 clics par minute (17.2/s), et le reste du quota de 24000 clics par heure se répartit sur 15 min quand il ne suffit plus. Les clics sont comptés minute par minute dans le navigateur ; les minutes où le panneau était fermé ne comptent ni dans les clics ni dans la durée de la moyenne. Les clics du mode mini du jeu comptent aussi : toujours dans la fenêtre « image dans l'image » de Chrome et Edge, et dans la fenêtre séparée des autres navigateurs si elle s'ouvre panneau ouvert.
 
 ## Installation
 
@@ -36,7 +36,7 @@ Un clic sur le favori ouvre le panneau, un second le ferme. Le panneau se place 
 - Visites par clic : `floor(1 + Σ bonus de clic + (0.01 + Σ bonus en %) × production/s)`.
 - Choix : le bonus qui minimise *attente avant de pouvoir le payer* + *temps pour qu'il se rembourse*.
 
-Barème recopié du code du jeu (build 2026-11-04e). Une alerte rose apparaît si un prix ou la puissance de clic affichés ne correspondent plus.
+Barème recopié du code du jeu (build 2026-11-04m). Une alerte rose apparaît si un prix ou la puissance de clic affichés ne correspondent plus.
 
 ## Développement
 

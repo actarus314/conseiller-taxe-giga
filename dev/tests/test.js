@@ -122,18 +122,18 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
 
   console.log('Auto, minutes notées par une version antérieure (clics seuls, sans les minutes sans clic) : hors de la moyenne, dans le quota');
   r = await page({ ...base, hourClicks: 3600 });
-  check(/aucun clic dans la moyenne des 3 dernières heures/.test(r.ft) && /3600\/18000 clics sur l’heure/.test(r.ft), r.ft);
+  check(/aucun clic dans la moyenne des 3 dernières heures/.test(r.ft) && /3600\/24000 clics sur l’heure/.test(r.ft), r.ft);
 
   console.log('Auto, clics de plus de 3 h : oubliés, conseil passif');
   r = await page({ ...base, hist: { 200: 5000 } });
   check(r.best === 'satellite' && /aucun clic dans la moyenne des 3 dernières heures/.test(r.ft), r.ft);
 
-  console.log('Auto, 18000 clics déjà comptés sur l’heure : conseil passif et alerte');
-  r = await page({ ...base, clicks: every(5, 0, 30), at: 30, hourClicks: 18000 });
-  check(r.best === 'satellite' && r.alerts.some(t => /18000 clics atteints/.test(t)) && /Clics non comptés quota de l’heure atteint/.test(r.ft), r.ft);
+  console.log('Auto, 24000 clics déjà comptés sur l’heure : conseil passif et alerte');
+  r = await page({ ...base, clicks: every(5, 0, 30), at: 30, hourClicks: 24000 });
+  check(r.best === 'satellite' && r.alerts.some(t => /24000 clics atteints/.test(t)) && /Clics non comptés quota de l’heure atteint/.test(r.ft), r.ft);
 
-  console.log('Actif 5/s mais 17150 clics comptés sur l’heure : reste du quota réparti sur 15 min');
-  r = await page({ ...base, mode: 'actif', cps: 5, clicks: every(5, 0, 30), at: 30, hourClicks: 17000 });
+  console.log('Actif 5/s mais 23150 clics comptés sur l’heure : reste du quota réparti sur 15 min');
+  r = await page({ ...base, mode: 'actif', cps: 5, clicks: every(5, 0, 30), at: 30, hourClicks: 23000 });
   check(/ramenée à 0.94 : reste 850 clics/.test(r.ft), r.ft);
 
   for (const [m, lab] of [['pip-avant', 'image dans l’image ouverte avant le panneau'], ['pip-apres', 'image dans l’image ouverte après le panneau'], ['popup', 'fenêtre surgissante']]) {
