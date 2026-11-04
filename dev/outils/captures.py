@@ -33,7 +33,7 @@ def scene(p, name, owned, wallet, produced, mode, vp, clicks=0, hist=False, mobi
     pg.add_init_script(f"try{{localStorage.setItem('tagAdv-mode','{mode}')}}catch(e){{}}")
     if hist:  # 2 h de jeu observé : une série de 2 min à 5 clics/s toutes les 20 min (0.5 clic/s en moyenne)
         pg.add_init_script("try{const m0=Math.floor(Date.now()/6e4),h={};for(let a=1;a<=120;a++)h[m0-a]=a%20<2?300:0;"
-                           "localStorage.setItem('tagAdv-clics',JSON.stringify(h))}catch(e){}")
+                           "localStorage.setItem('tagAdv-clics',JSON.stringify(h));localStorage.setItem('tagAdv-vu',String(m0-120))}catch(e){}")
     pg.goto('http://127.0.0.1:8765/', wait_until='domcontentloaded', timeout=60000)
     pg.wait_for_function("document.querySelectorAll('#shop button.item').length > 5", timeout=30000)
     pg.evaluate("document.querySelectorAll('.banner, .toast, .bubble').forEach(e => e.remove())")

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Conseiller — Taxe au Giga
 // @namespace    https://github.com/actarus314/conseiller-taxe-giga
-// @version      2.18
+// @version      2.19
 // @description  Indique le meilleur bonus à acheter dans Taxe au Giga. Ne clique et n'achète rien.
 // @match        https://taxe-au-giga.fr/*
 // @grant        none
@@ -14,7 +14,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.18'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.19'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (build 2026-11-03h : Décret porté à +100000 par clic).
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -60,6 +60,8 @@
   };
   // nombres au point décimal, sans séparateur de milliers
   const fmt = n => n < 1e6 ? String(Math.round(n)) : n < 1e9 ? (n / 1e6).toFixed(2) + ' M' : n < 1e12 ? (n / 1e9).toFixed(2) + ' Md' : (n / 1e12).toFixed(2) + ' T';
+  // trois chiffres significatifs (suite des achats : un ordre de grandeur suffit, la place va au nom)
+  const fmt3 = n => n < 1e6 ? String(Math.round(n)) : ((v, u) => (v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : Math.round(v)) + ' ' + u)(...(n < 999.5e6 ? [n / 1e6, 'M'] : n < 999.5e9 ? [n / 1e9, 'Md'] : [n / 1e12, 'T']));
   const dec1 = n => n.toFixed(1).replace(/\.0$/, '');
   const cpsTxt = n => n < 1 ? n.toFixed(2) : dec1(n); // cadence : deux décimales sous 1 clic/s
   const pad = n => String(n).padStart(2, '0');
@@ -228,23 +230,26 @@
   #tagAdv header .v{font:500 11px/1 "IBM Plex Mono",ui-monospace,Menlo,monospace;color:#555;margin-left:4px;text-decoration:underline;cursor:pointer}
   #tagAdv header .v:focus-visible{outline:2px solid var(--tagInk);outline-offset:2px}
   #tagAdv header button{all:unset;cursor:pointer;padding:0 4px;font-size:16px}
-  #tagAdv .modes{display:flex;gap:6px;padding:8px 12px 0;flex-wrap:wrap;align-items:center}
-  #tagAdv .modes button{all:unset;cursor:pointer;border:2px solid var(--tagInk);border-radius:8px;padding:3px 10px;font-weight:700;font-size:13px}
-  #tagAdv .modes button[aria-pressed="true"]{background:var(--tagInk);color:var(--tagPaper)}
+  #tagAdv .modes{display:flex;gap:8px;padding:6px 12px;flex-wrap:wrap;align-items:center;border-bottom:2px solid var(--tagInk)}
+  #tagAdv .seg{display:inline-flex;border:2px solid var(--tagInk);border-radius:8px;overflow:hidden}
+  #tagAdv .seg button{all:unset;cursor:pointer;padding:2px 10px;font-weight:700;font-size:12px;line-height:1.4}
+  #tagAdv .seg button+button{border-left:2px solid var(--tagInk)}
+  #tagAdv .seg button[aria-pressed="true"]{background:var(--tagInk);color:var(--tagPaper)}
+  #tagAdv .seg button:focus-visible{outline:2px solid var(--tagInk);outline-offset:-4px}
   #tagAdv .modes label{font-size:12px;display:flex;gap:4px;align-items:center;margin-left:auto}
   #tagAdv .modes label[hidden]{display:none}
-  #tagAdv .modes input{width:46px;font:inherit;border:2px solid var(--tagInk);border-radius:6px;padding:1px 4px;background:#fff;color:var(--tagInk)}
+  #tagAdv .modes input{width:40px;font:inherit;font-size:12px;line-height:1.4;border:2px solid var(--tagInk);border-radius:6px;padding:1px 4px;background:#fff;color:var(--tagInk)}
   #tagAdv .now{padding:10px 12px;font-size:16px}
   #tagAdv .now b{display:block;font-size:18px}
   #tagAdv .now.go{background:var(--tagGo)}
   #tagAdv .now small{display:block;font-size:12.5px;color:#555;margin-top:2px}
-  #tagAdv ol{margin:0;padding:6px 12px 10px;font-size:13px;list-style:none;counter-reset:n}
-  #tagAdv ol li{display:grid;grid-template-columns:1.1em minmax(0,1fr) 2.5em 5.4em 4.1em;gap:6px;align-items:baseline;margin:2px 0;counter-increment:n}
-  #tagAdv ol li::before{content:counter(n) ".";color:#666}
+  #tagAdv ol{margin:0;padding:6px 12px 10px;font-size:13px;list-style:none}
+  #tagAdv ol li{display:grid;grid-template-columns:minmax(0,1fr) 2.4em 4.3em 3.1em;gap:6px;align-items:baseline;margin:2px 0}
   #tagAdv ol .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   #tagAdv ol .k{color:#555;font-variant-numeric:tabular-nums;text-align:right}
   #tagAdv ol .p,#tagAdv ol .h{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
   #tagAdv ol .h{color:#666}
+  #tagAdv ol .h.go{background:var(--tagGo);color:var(--tagInk);font-weight:700;border-radius:4px;padding:0 3px}
   #tagAdv .ft{padding:6px 12px 8px;border-top:2px dashed var(--tagInk);font-size:12px;color:#555;display:flex;flex-direction:column;gap:5px}
   #tagAdv .kpi{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
   #tagAdv .kpi span{display:flex;flex-direction:column;min-width:0}
@@ -267,7 +272,7 @@
   document.head.appendChild(css);
   const box = document.createElement('div'); box.id = 'tagAdv';
   box.innerHTML = `<header><span><span class="t">🧮 Conseiller</span> <a class="v" href="https://github.com/actarus314/conseiller-taxe-giga" target="_blank" rel="noopener">v${VERSION}</a></span><span><button data-a="min" aria-label="Réduire">–</button><button data-a="x" aria-label="Fermer">✕</button></span></header>
-    <div class="modes"><button data-m="auto">Auto</button><button data-m="passif">Passif</button><button data-m="actif">Actif</button>
+    <div class="modes"><span class="seg" role="group" aria-label="Mode de conseil"><button data-m="auto">Auto</button><button data-m="passif">Passif</button><button data-m="actif">Actif</button></span>
       <label data-cps>clics/s prévus <input id="tagAdvCps" type="number" step="0.5"></label></div>
     <div class="warn" hidden></div><div class="now"></div><ol></ol>
     <div class="ft"><div class="kpi"></div><div class="al"></div><button data-a="det" aria-expanded="false">▸ détails</button><div class="det" hidden></div></div>`;
@@ -360,8 +365,9 @@
       ? `Acheter maintenant<b>${first.it.u.name}</b>💰 ${fmt(first.c)} · devient ×${first.n}`
       : (isFinite(first.t) ? `Prochain achat dans ${dur(first.t)} (${clock(first.t)})` : 'Prochain achat après quelques clics') + `<b>${first.it.u.name}</b>💰 ${fmt(first.c)} · devient ×${first.n}<small>ne rien acheter d’autre d’ici là</small>`);
     put('ol', ui.ol, 'innerHTML', out.slice(1).map(o =>
-      // une ligne par achat : nom (coupé par « … » s'il est trop long), nombre possédé après achat, prix, heure
-      `<li><span class="n">${o.it.u.name}</span><span class="k">×${o.n}</span><span class="p">${fmt(o.c)}</span><span class="h">${o.t < 1 ? 'aussitôt' : clock(o.t)}</span></li>`).join(''));
+      // une ligne par achat, dans l'ordre : nom (coupé par « … » s'il est trop long), nombre possédé après achat, prix, heure
+      // (marquée quand l'achat est possible tout de suite après le précédent)
+      `<li><span class="n">${o.it.u.name}</span><span class="k">×${o.n}</span><span class="p">${fmt3(o.c)}</span><span class="h${o.t < 1 ? ' go' : ''}">${clock(o.t)}</span></li>`).join(''));
     // Bas du panneau : chiffres clés toujours visibles, alertes seulement quand elles comptent, détail replié.
     // Production : réelle (parc possédé, ×3 pendant une Frénésie). Clics : à la cadence retenue (moyenne mesurée en Auto,
     // réglée en Actif). Le plan suppose leur somme, nommée comme telle dans le détail.

@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.19 — 04/11/2026
+Suite des achats : plus de numéros ; prix à trois chiffres (le conseil du haut garde le prix exact) ; l'heure partout, en pastille verte quand l'achat est possible aussitôt après le précédent. Les noms ont la place de tenir presque tous en entier. Modes Auto, Passif et Actif réunis en un sélecteur compact, sur une ligne séparée du conseil par un filet.
+
 ## v2.18 — 04/11/2026
 Suite des achats en colonnes alignées, une ligne par achat : nom (coupé par « … » s'il est trop long), nombre possédé après achat, prix, heure (« aussitôt » au lieu de « tout de suite »). Conseil en attente : « devient ×n » ajouté, « ne rien acheter d'autre d'ici là » sur sa propre ligne.
 
