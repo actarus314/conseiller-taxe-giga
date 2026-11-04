@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.20 — 04/11/2026
+Sélecteur de mode dans l'en-tête, sur une seule ligne avec le titre et la version ; Facture dorée et Rafale signalées par un bandeau jaune sous l'en-tête. Cadence prévue du mode Actif : champ élargi, au point décimal (la virgule reste acceptée à la saisie), flèches haut et bas par pas de 0.5.
+
 ## v2.19 — 04/11/2026
 Suite des achats : plus de numéros ; prix à trois chiffres (le conseil du haut garde le prix exact) ; l'heure partout, en pastille verte quand l'achat est possible aussitôt après le précédent. Les noms ont la place de tenir presque tous en entier. Modes Auto, Passif et Actif réunis en un sélecteur compact, sur une ligne séparée du conseil par un filet.
 

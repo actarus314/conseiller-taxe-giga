@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Conseiller — Taxe au Giga
 // @namespace    https://github.com/actarus314/conseiller-taxe-giga
-// @version      2.19
+// @version      2.20
 // @description  Indique le meilleur bonus à acheter dans Taxe au Giga. Ne clique et n'achète rien.
 // @match        https://taxe-au-giga.fr/*
 // @grant        none
@@ -14,7 +14,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.19'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.20'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (build 2026-11-03h : Décret porté à +100000 par clic).
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -225,20 +225,23 @@
   #tagAdv,.tagAdvBest{--tagInk:#1a1a1a;--tagPaper:#fffbe6;--tagGo:#19d3a2}
   #tagAdv{position:fixed;right:12px;z-index:60;width:min(340px,calc(100vw - 24px));background:var(--tagPaper);color:var(--tagInk);
     border:3px solid var(--tagInk);border-radius:14px;box-shadow:5px 5px 0 var(--tagInk);font:14px/1.4 "Space Grotesk",system-ui,sans-serif}
-  #tagAdv header{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;border-bottom:2px solid var(--tagInk);font-weight:700;user-select:none;cursor:move;touch-action:none}
-  #tagAdv.gold header{background:#ffd23f}
-  #tagAdv header .v{font:500 11px/1 "IBM Plex Mono",ui-monospace,Menlo,monospace;color:#555;margin-left:4px;text-decoration:underline;cursor:pointer}
+  #tagAdv header{display:flex;align-items:center;gap:6px;padding:7px 8px 7px 10px;border-bottom:2px solid var(--tagInk);font-weight:700;user-select:none;cursor:move;touch-action:none;white-space:nowrap}
+  #tagAdv header .id{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:14.5px}
+  #tagAdv header .ctl{margin-left:auto;flex:none}
+  #tagAdv .flash{padding:5px 12px;background:#ffd23f;border-bottom:2px solid var(--tagInk);font-weight:700;font-size:13px}
+  #tagAdv .flash[hidden]{display:none}
+  #tagAdv header .v{font:500 10px/1 "IBM Plex Mono",ui-monospace,Menlo,monospace;color:#555;margin-left:2px;text-decoration:underline;cursor:pointer}
   #tagAdv header .v:focus-visible{outline:2px solid var(--tagInk);outline-offset:2px}
-  #tagAdv header button{all:unset;cursor:pointer;padding:0 4px;font-size:16px}
-  #tagAdv .modes{display:flex;gap:8px;padding:6px 12px;flex-wrap:wrap;align-items:center;border-bottom:2px solid var(--tagInk)}
-  #tagAdv .seg{display:inline-flex;border:2px solid var(--tagInk);border-radius:8px;overflow:hidden}
-  #tagAdv .seg button{all:unset;cursor:pointer;padding:2px 10px;font-weight:700;font-size:12px;line-height:1.4}
+  #tagAdv header button{all:unset;cursor:pointer;padding:0 3px;font-size:16px}
+  #tagAdv .modes{display:flex;gap:8px;padding:6px 12px 0;align-items:center}
+  #tagAdv .modes[hidden]{display:none}
+  #tagAdv .seg{flex:none;display:inline-flex;border:2px solid var(--tagInk);border-radius:7px;overflow:hidden}
+  #tagAdv .seg button{all:unset;cursor:pointer;padding:1px 5px;font-weight:700;font-size:11.5px;line-height:1.4}
   #tagAdv .seg button+button{border-left:2px solid var(--tagInk)}
   #tagAdv .seg button[aria-pressed="true"]{background:var(--tagInk);color:var(--tagPaper)}
   #tagAdv .seg button:focus-visible{outline:2px solid var(--tagInk);outline-offset:-4px}
-  #tagAdv .modes label{font-size:12px;display:flex;gap:4px;align-items:center;margin-left:auto}
-  #tagAdv .modes label[hidden]{display:none}
-  #tagAdv .modes input{width:40px;font:inherit;font-size:12px;line-height:1.4;border:2px solid var(--tagInk);border-radius:6px;padding:1px 4px;background:#fff;color:var(--tagInk)}
+  #tagAdv .modes label{font-size:12px;display:flex;gap:6px;align-items:center}
+  #tagAdv .modes input{width:44px;font:inherit;font-size:12px;line-height:1.4;text-align:center;border:2px solid var(--tagInk);border-radius:6px;padding:1px 4px;background:#fff;color:var(--tagInk)}
   #tagAdv .now{padding:10px 12px;font-size:16px}
   #tagAdv .now b{display:block;font-size:18px}
   #tagAdv .now.go{background:var(--tagGo)}
@@ -271,20 +274,27 @@
     border-radius:8px;padding:1px 8px;font:700 12px/1.4 "Space Grotesk",system-ui,sans-serif;pointer-events:none}`;
   document.head.appendChild(css);
   const box = document.createElement('div'); box.id = 'tagAdv';
-  box.innerHTML = `<header><span><span class="t">🧮 Conseiller</span> <a class="v" href="https://github.com/actarus314/conseiller-taxe-giga" target="_blank" rel="noopener">v${VERSION}</a></span><span><button data-a="min" aria-label="Réduire">–</button><button data-a="x" aria-label="Fermer">✕</button></span></header>
-    <div class="modes"><span class="seg" role="group" aria-label="Mode de conseil"><button data-m="auto">Auto</button><button data-m="passif">Passif</button><button data-m="actif">Actif</button></span>
-      <label data-cps>clics/s prévus <input id="tagAdvCps" type="number" step="0.5"></label></div>
+  box.innerHTML = `<header><span class="id"><span class="t">🧮 Conseiller</span> <a class="v" href="https://github.com/actarus314/conseiller-taxe-giga" target="_blank" rel="noopener">v${VERSION}</a></span>
+      <span class="seg" role="group" aria-label="Mode de conseil"><button data-m="auto">Auto</button><button data-m="passif">Passif</button><button data-m="actif">Actif</button></span>
+      <span class="ctl"><button data-a="min" aria-label="Réduire">–</button><button data-a="x" aria-label="Fermer">✕</button></span></header>
+    <div class="flash" hidden></div>
+    <div class="modes" data-cps><label>Cadence prévue <input id="tagAdvCps" type="text" inputmode="decimal" autocomplete="off"> clics/s</label></div>
     <div class="warn" hidden></div><div class="now"></div><ol></ol>
     <div class="ft"><div class="kpi"></div><div class="al"></div><button data-a="det" aria-expanded="false">▸ détails</button><div class="det" hidden></div></div>`;
   document.body.appendChild(box);
   // téléphone : panneau réduit au conseil, la boutique reste visible
   if (innerWidth < PHONE) box.classList.add('min');
-  const ui = { title: box.querySelector('header .t'), now: box.querySelector('.now'), warn: box.querySelector('.warn'), ol: box.querySelector('ol'), kpi: box.querySelector('.kpi'), al: box.querySelector('.al'), det: box.querySelector('.det'), detBtn: box.querySelector('[data-a="det"]') };
+  const ui = { flash: box.querySelector('.flash'), now: box.querySelector('.now'), warn: box.querySelector('.warn'), ol: box.querySelector('ol'), kpi: box.querySelector('.kpi'), al: box.querySelector('.al'), det: box.querySelector('.det'), detBtn: box.querySelector('[data-a="det"]') };
   // N'écrit dans le DOM que ce qui change : innerHTML recrée tous les nœuds même à contenu identique (recalcul de style et de mise en page à chaque tick)
   const shown = {};
   const put = (k, el, prop, v) => { if (shown[k] !== v) { el[prop] = v; shown[k] = v; } };
-  const cpsIn = box.querySelector('#tagAdvCps'); cpsIn.min = CPS_MIN; cpsIn.max = CPS_MAX; cpsIn.value = cpsPlan;
-  cpsIn.addEventListener('change', () => { cpsPlan = clampCps(cpsIn.value); cpsIn.value = cpsPlan; store('cps', cpsPlan); tick(); });
+  // cadence prévue (mode Actif) : champ texte, pour afficher le point décimal quelle que soit la langue du navigateur ;
+  // la virgule est acceptée à la saisie, les flèches haut et bas ajoutent ou retirent 0.5
+  const cpsIn = box.querySelector('#tagAdvCps'), showCps = () => { cpsIn.value = dec1(cpsPlan); };
+  const setCps = v => { cpsPlan = clampCps(String(v).replace(',', '.')); showCps(); store('cps', cpsPlan); tick(); };
+  showCps();
+  cpsIn.addEventListener('change', () => setCps(cpsIn.value));
+  cpsIn.addEventListener('keydown', e => { if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); setCps(cpsPlan + (e.key === 'ArrowUp' ? 0.5 : -0.5)); } });
   const setMode = m => { mode = m; store('mode', m); box.querySelectorAll('[data-m]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.m === m))); box.querySelector('[data-cps]').hidden = m !== 'actif'; tick(); };
   box.addEventListener('click', e => {
     const a = e.target.dataset.a;
@@ -339,8 +349,9 @@
   function tick() {
     const st = last = read();
     place();
-    box.classList.toggle('gold', st.goldUp || !!st.boost.rf); // la Facture dorée ne reste que 15 s à l’écran
-    put('title', ui.title, 'textContent', st.goldUp ? '🧾 Facture dorée à cliquer !' : st.boost.rf ? `⚡ Rafale : cliquer ! (×${RAFALE}, ${st.boost.rf} s)` : '🧮 Conseiller');
+    // bandeau jaune sous l'en-tête : Facture dorée à l’écran (elle n'y reste que 15 s), puis Rafale en cours
+    const flash = st.goldUp ? '🧾 Facture dorée à cliquer !' : st.boost.rf ? `⚡ Rafale : cliquer ! (×${RAFALE}, ${st.boost.rf} s)` : '';
+    put('flash', ui.flash, 'textContent', flash); put('flashHidden', ui.flash, 'hidden', !flash);
     // Cadence retenue : la cadence voulue (moyenne mesurée en Auto, réglée en Actif), dans la limite de 760/min,
     // et du reste du quota horaire réparti sur 15 min quand il ne suffit plus.
     const cad = cadence(), left = Math.max(0, LIM_H - cad.hour), capped = left === 0;
