@@ -41,7 +41,7 @@ small{color:var(--muted)}
 <main>
   <header style="display:grid;gap:10px">
     <h1>🧮 Conseiller</h1>
-    <p class="lead">Panneau posé sur la page du jeu : le bonus à acheter surligné en vert, le compte à rebours jusqu'au prochain achat et les sept suivants. Le conseil suit la cadence des clics sur TAXER et repasse en passif dès qu'ils s'arrêtent.</p>
+    <p class="lead">Panneau posé sur la page du jeu : le bonus à acheter surligné en vert, le compte à rebours jusqu'au prochain achat et les sept suivants. Le conseil suit la cadence moyenne des clics sur TAXER des 3 dernières heures : stable pendant et entre les séries de clics.</p>
     <small>Version __VERSION__ · <a href="https://github.com/actarus314/conseiller-taxe-giga" style="color:inherit">code source</a></small>
   </header>
 
@@ -52,7 +52,7 @@ small{color:var(--muted)}
     <ol>
       <li><b>Glisser</b> le bouton vert dans la barre de favoris (un clic ici ne fait rien : il ne marche que sur le jeu).</li>
       <li>Ouvrir <a href="https://taxe-au-giga.fr/" style="color:inherit">taxe-au-giga.fr</a>.</li>
-      <li>Cliquer le favori : le panneau apparaît en bas à droite, au-dessus du bouton TAXER flottant, déplaçable par son en-tête. Un second clic le ferme.</li>
+      <li>Cliquer le favori : le panneau apparaît en bas à droite, ou à gauche ou en haut quand il couvrirait le bouton TAXER ; glissé par son en-tête, il garde la place choisie. Un second clic le ferme.</li>
     </ol>
     <div class="row">
       <button type="button" id="copy">Copier le code du favori</button>
@@ -66,7 +66,7 @@ small{color:var(--muted)}
   <section class="card" aria-labelledby="t2">
     <h2 id="t2">Modes</h2>
     <dl class="facts">
-      <dt>Auto</dt><dd>par défaut. Cadence moyenne de la série de clics TAXER en cours sur la dernière minute ; une pause de quelques secondes la fait à peine baisser. Après 8 s sans clic, conseil passif.</dd>
+      <dt>Auto</dt><dd>par défaut. Moyenne des clics TAXER sur le temps de jeu observé des 3 dernières heures, comptée sur 30 min au moins ; aucun clic sur 3 h : conseil passif. Les clics du mode mini du jeu comptent aussi : toujours dans la fenêtre « image dans l'image » de Chrome et Edge, et dans la fenêtre séparée des autres navigateurs si elle s'ouvre panneau ouvert.</dd>
       <dt>Passif</dt><dd>production automatique seule ; les bonus de clic ne sont jamais conseillés.</dd>
       <dt>Actif</dt><dd>cadence fixée à la main (5 clics/s par défaut).</dd>
       <dt>Limites</dt><dd>le serveur ne compte que 760 clics par minute et 18000 par heure. La cadence retenue reste sous 12.7/s, et le reste du quota horaire se répartit sur 15 min quand il ne suffit plus. Un rythme tenu au plafond 10 min est pris pour un autoclic : clics ignorés 10 min.</dd>
@@ -77,12 +77,12 @@ small{color:var(--muted)}
     <h2 id="t3">Ce qu'il fait, ce qu'il ne fait pas</h2>
     <dl class="facts">
       <dt>Lit</dt><dd>la cagnotte, le nombre possédé, le prix et la puissance de clic affichés par le jeu, quatre fois par seconde.</dd>
-      <dt>Calcule</dt><dd>le bonus qui minimise l'attente avant de le payer plus le temps pour qu'il se rembourse. Les bonus de la Facture dorée en cours sont comptés : Frénésie (production ×3, 60 s) et Rafale (clics ×10, 13 s).</dd>
+      <dt>Calcule</dt><dd>le bonus qui minimise l'attente avant de le payer plus le temps pour qu'il se rembourse. Les bonus de la Facture dorée en cours sont comptés : Frénésie (production ×3, 60 s) et Rafale (clics ×10, 13 s), signalée par un en-tête jaune « cliquer ! ».</dd>
       <dt>Signale</dt><dd>en vert le bonus à acheter ; dans le titre de l'onglet, <code>🟢 Commission…</code> quand l'achat est possible ; en jaune, une Facture dorée à l'écran.</dd>
       <dt>Alerte</dt><dd>en rose si un prix ou la puissance de clic ne correspondent plus au barème connu.</dd>
       <dt>Ne fait pas</dt><dd>aucun clic, aucun achat, aucun appel au serveur du jeu.</dd>
     </dl>
-    <small>Barème lu dans le code du jeu le 03/11/2026 (build 2026-11-03n) : prix = base × 1.15<sup>possédés</sup>, arrondi au supérieur ; visites par clic = 1 + bonus de clic + (1 % + bonus en %) de la production par seconde.</small>
+    <small>Barème lu dans le code du jeu le 04/11/2026 (build 2026-11-04e) : prix = base × 1.15<sup>possédés</sup>, arrondi au supérieur ; visites par clic = 1 + bonus de clic + (1 % + bonus en %) de la production par seconde.</small>
   </section>
 </main>
 

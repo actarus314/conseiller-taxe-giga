@@ -61,7 +61,7 @@
   const clock = s => !isFinite(s) ? '—' : hhmm.format(Date.now() + s * 1000);
   const store = (k, v) => { try { if (v === undefined) return localStorage.getItem('tagAdv-' + k); localStorage.setItem('tagAdv-' + k, v); } catch (e) { return null; } };
 
-  // Réglages : Auto (cadence mesurée, par défaut), Passif (aucun clic) ou Actif (cadence fixée)
+  // Réglages : Auto (moyenne mesurée, par défaut), Passif (aucun clic) ou Actif (cadence fixée)
   let mode = ['auto', 'passif', 'actif'].includes(store('mode')) ? store('mode') : 'auto';
   let cpsPlan = clampCps(store('cps'));
 
@@ -252,8 +252,7 @@
     if (e.target.dataset.m) setMode(e.target.dataset.m);
   });
 
-  // Position : au-dessus du bouton TAXER flottant (bas droite), ou là où on a déplacé le panneau
-  let dragged = false;
+  let dragged = false; // déplacé à la main : il garde sa place
   // Position : en bas à droite, au-dessus du bouton TAXER flottant. S'il y couvrirait le grand bouton TAXER à l'écran
   // (à 1280 px de large, il est dans la colonne de droite ; sur téléphone, en bas de l'écran d'accueil) : en bas à
   // gauche, sinon en haut sous l'en-tête du jeu. Revue à chaque rafraîchissement (défilement, taille du panneau) ;
