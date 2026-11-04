@@ -49,6 +49,8 @@
   };
   // nombres au point décimal, sans séparateur de milliers
   const fmt = n => n < 1e6 ? String(Math.round(n)) : n < 1e9 ? (n / 1e6).toFixed(2) + ' M' : n < 1e12 ? (n / 1e9).toFixed(2) + ' Md' : (n / 1e12).toFixed(2) + ' T';
+  // trois chiffres significatifs (suite des achats : un ordre de grandeur suffit, la place va au nom)
+  const fmt3 = n => n < 1e6 ? String(Math.round(n)) : ((v, u) => (v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : Math.round(v)) + ' ' + u)(...(n < 999.5e6 ? [n / 1e6, 'M'] : n < 999.5e9 ? [n / 1e9, 'Md'] : [n / 1e12, 'T']));
   const dec1 = n => n.toFixed(1).replace(/\.0$/, '');
   const cpsTxt = n => n < 1 ? n.toFixed(2) : dec1(n); // cadence : deux décimales sous 1 clic/s
   const pad = n => String(n).padStart(2, '0');
@@ -227,9 +229,8 @@
   #tagAdv .now b{display:block;font-size:18px}
   #tagAdv .now.go{background:var(--tagGo)}
   #tagAdv .now small{display:block;font-size:12.5px;color:#555;margin-top:2px}
-  #tagAdv ol{margin:0;padding:6px 12px 10px;font-size:13px;list-style:none;counter-reset:n}
-  #tagAdv ol li{display:grid;grid-template-columns:1.1em minmax(0,1fr) 2.5em 5.4em 4.1em;gap:6px;align-items:baseline;margin:2px 0;counter-increment:n}
-  #tagAdv ol li::before{content:counter(n) ".";color:#666}
+  #tagAdv ol{margin:0;padding:6px 12px 10px;font-size:13px;list-style:none}
+  #tagAdv ol li{display:grid;grid-template-columns:minmax(0,1fr) 2.4em 4.3em 3.1em;gap:6px;align-items:baseline;margin:2px 0}
   #tagAdv ol .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   #tagAdv ol .k{color:#555;font-variant-numeric:tabular-nums;text-align:right}
   #tagAdv ol .p,#tagAdv ol .h{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
@@ -349,8 +350,8 @@
       ? `Acheter maintenant<b>${first.it.u.name}</b>💰 ${fmt(first.c)} · devient ×${first.n}`
       : (isFinite(first.t) ? `Prochain achat dans ${dur(first.t)} (${clock(first.t)})` : 'Prochain achat après quelques clics') + `<b>${first.it.u.name}</b>💰 ${fmt(first.c)} · devient ×${first.n}<small>ne rien acheter d’autre d’ici là</small>`);
     put('ol', ui.ol, 'innerHTML', out.slice(1).map(o =>
-      // une ligne par achat : nom (coupé par « … » s'il est trop long), nombre possédé après achat, prix, heure
-      `<li><span class="n">${o.it.u.name}</span><span class="k">×${o.n}</span><span class="p">${fmt(o.c)}</span><span class="h">${o.t < 1 ? 'aussitôt' : clock(o.t)}</span></li>`).join(''));
+      // une ligne par achat, dans l'ordre : nom (coupé par « … » s'il est trop long), nombre possédé après achat, prix, heure
+      `<li><span class="n">${o.it.u.name}</span><span class="k">×${o.n}</span><span class="p">${fmt3(o.c)}</span><span class="h">${clock(o.t)}</span></li>`).join(''));
     // Bas du panneau : chiffres clés toujours visibles, alertes seulement quand elles comptent, détail replié.
     // Production : réelle (parc possédé, ×3 pendant une Frénésie). Clics : à la cadence retenue (moyenne mesurée en Auto,
     // réglée en Actif). Le plan suppose leur somme, nommée comme telle dans le détail.
