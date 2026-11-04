@@ -63,7 +63,7 @@ async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, cli
   for (let i = 0; i < 20; i++) refresh.f();
   const idleMutations = mo.takeRecords().length; mo.disconnect();
   const r = {
-    now: d.querySelector('#tagAdv .now').textContent, list: [...d.querySelectorAll('#tagAdv li')].map(l => l.textContent),
+    now: d.querySelector('#tagAdv .now').textContent, list: [...d.querySelectorAll('#tagAdv li')].map(l => [...l.children].map(c => c.textContent).join(' ')),
     ft: [...d.querySelectorAll('#tagAdv .kpi span, #tagAdv .al p, #tagAdv .det p')].map(e => e.textContent).join(' · '),
     alerts: [...d.querySelectorAll('#tagAdv .al p')].map(e => e.textContent), detHidden: d.querySelector('#tagAdv .det').hidden, warn: d.querySelector('#tagAdv .warn').hidden ? '' : d.querySelector('#tagAdv .warn').textContent,
     best: d.querySelector('.tagAdvBest')?.dataset.id, adv: d.querySelector('.tagAdvBest')?.dataset.adv,

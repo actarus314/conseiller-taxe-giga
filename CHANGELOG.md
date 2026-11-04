@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.18 — 04/11/2026
+Suite des achats en colonnes alignées, une ligne par achat : nom (coupé par « … » s'il est trop long), nombre possédé après achat, prix, heure (« aussitôt » au lieu de « tout de suite »). Conseil en attente : « devient ×n » ajouté, « ne rien acheter d'autre d'ici là » sur sa propre ligne.
+
 ## v2.17 — 04/11/2026
 Bas du panneau : le « revenu » mêlait production réelle et clics supposés. Il est remplacé par la production automatique (réelle, ×3 pendant une Frénésie), l'apport des clics à la cadence retenue (moyenne en Auto, prévue en Actif, ×10 pendant une Rafale) et la cagnotte, sur trois colonnes fixes qui ne se déforment plus ; le revenu supposé par le plan est nommé dans « détails ». Favori figé compressé par terser : 22428 caractères au lieu de 31969 ; plafond des tests porté à 60000, sous la limite de Firefox (65536 caractères ; Chrome : 2 Mo).
 

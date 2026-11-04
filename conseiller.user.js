@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Conseiller — Taxe au Giga
 // @namespace    https://github.com/actarus314/conseiller-taxe-giga
-// @version      2.17
+// @version      2.18
 // @description  Indique le meilleur bonus à acheter dans Taxe au Giga. Ne clique et n'achète rien.
 // @match        https://taxe-au-giga.fr/*
 // @grant        none
@@ -14,7 +14,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.17'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.18'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (build 2026-11-03h : Décret porté à +100000 par clic).
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -237,8 +237,14 @@
   #tagAdv .now{padding:10px 12px;font-size:16px}
   #tagAdv .now b{display:block;font-size:18px}
   #tagAdv .now.go{background:var(--tagGo)}
-  #tagAdv ol{margin:0;padding:6px 12px 10px 32px;font-size:13px}
-  #tagAdv ol li{margin:2px 0}
+  #tagAdv .now small{display:block;font-size:12.5px;color:#555;margin-top:2px}
+  #tagAdv ol{margin:0;padding:6px 12px 10px;font-size:13px;list-style:none;counter-reset:n}
+  #tagAdv ol li{display:grid;grid-template-columns:1.1em minmax(0,1fr) 2.5em 5.4em 4.1em;gap:6px;align-items:baseline;margin:2px 0;counter-increment:n}
+  #tagAdv ol li::before{content:counter(n) ".";color:#666}
+  #tagAdv ol .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #tagAdv ol .k{color:#555;font-variant-numeric:tabular-nums;text-align:right}
+  #tagAdv ol .p,#tagAdv ol .h{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+  #tagAdv ol .h{color:#666}
   #tagAdv .ft{padding:6px 12px 8px;border-top:2px dashed var(--tagInk);font-size:12px;color:#555;display:flex;flex-direction:column;gap:5px}
   #tagAdv .kpi{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
   #tagAdv .kpi span{display:flex;flex-direction:column;min-width:0}
@@ -352,9 +358,10 @@
     put('nowClass', ui.now, 'className', 'now' + (ready ? ' go' : ''));
     put('now', ui.now, 'innerHTML', ready
       ? `Acheter maintenant<b>${first.it.u.name}</b>💰 ${fmt(first.c)} · devient ×${first.n}`
-      : (isFinite(first.t) ? `Prochain achat dans ${dur(first.t)} (${clock(first.t)})` : 'Prochain achat après quelques clics') + `<b>${first.it.u.name}</b>💰 ${fmt(first.c)} · ne rien acheter d’autre d’ici là`);
+      : (isFinite(first.t) ? `Prochain achat dans ${dur(first.t)} (${clock(first.t)})` : 'Prochain achat après quelques clics') + `<b>${first.it.u.name}</b>💰 ${fmt(first.c)} · devient ×${first.n}<small>ne rien acheter d’autre d’ici là</small>`);
     put('ol', ui.ol, 'innerHTML', out.slice(1).map(o =>
-      `<li>${o.it.u.name} ×${o.n} · 💰 ${fmt(o.c)} · ${o.t < 1 ? 'tout de suite' : clock(o.t)}</li>`).join(''));
+      // une ligne par achat : nom (coupé par « … » s'il est trop long), nombre possédé après achat, prix, heure
+      `<li><span class="n">${o.it.u.name}</span><span class="k">×${o.n}</span><span class="p">${fmt(o.c)}</span><span class="h">${o.t < 1 ? 'aussitôt' : clock(o.t)}</span></li>`).join(''));
     // Bas du panneau : chiffres clés toujours visibles, alertes seulement quand elles comptent, détail replié.
     // Production : réelle (parc possédé, ×3 pendant une Frénésie). Clics : à la cadence retenue (moyenne mesurée en Auto,
     // réglée en Actif). Le plan suppose leur somme, nommée comme telle dans le détail.
