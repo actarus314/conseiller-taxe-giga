@@ -3,7 +3,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.14'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.15'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (build 2026-11-03h : Décret porté à +100000 par clic).
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -74,6 +74,9 @@
   const WIN = 60e3, STOP = 8e3, recent = [];
   const MOY_MIN = 180, MOY_PLANCHER = 30; // fenêtre de la moyenne et durée minimale comptée, en minutes
   let perMin = {}; try { perMin = JSON.parse(store('clics') || '{}') || {}; } catch (e) { perMin = {}; }
+  // début de l'observation minute par minute (v2.14) : les minutes plus anciennes, notées par les versions qui ne
+  // gardaient que les minutes avec clics, comptent pour le quota horaire mais pas pour la moyenne
+  let since = parseInt(store('vu'), 10); if (!Number.isFinite(since)) { since = Math.floor(Date.now() / 60e3); store('vu', String(since)); }
   const onClick = e => {
     if (!e.isTrusted || !e.target.closest || !e.target.closest('#taxBtn, #stickyTax, #mTax')) return;
     const t = Date.now(); recent.push(t); const m = Math.floor(t / 60e3); perMin[m] = (perMin[m] || 0) + 1;
@@ -96,7 +99,8 @@
     let hour = 0, tot = 0, seen = 0;
     for (const k in perMin) {
       if (k <= m0 - MOY_MIN) { delete perMin[k]; continue; }
-      tot += perMin[k]; seen++; if (k > m0 - 60) hour += perMin[k];
+      if (k > m0 - 60) hour += perMin[k];
+      if (k >= since) { tot += perMin[k]; seen++; }
     }
     const obs = (seen - 1) * 60 + (now % 60e3) / 1000; // la minute en cours compte pour ce qui en est écoulé
     const avg = tot / Math.max(obs, MOY_PLANCHER * 60), minute = perMin[m0];
@@ -323,8 +327,8 @@
     const parts = [`Revenu ${fmt(income(st.own, cps))}/s` + (cps ? ` (dont clics ${fmt(clickPow(st.own) * cps)})` : ''), `cagnotte 💰 ${fmt(st.wallet)}`];
     if (st.boost.fz) parts.push(`🔥 Frénésie : revenu ${fmt(rateAt(st.own, cps, st.boost, 0))}/s pendant ${st.boost.fz} s (production ×${FRENESIE})`);
     if (st.boost.rf) parts.push(cps ? `⚡ Rafale : revenu ${fmt(rateAt(st.own, cps, st.boost, 0))}/s pendant ${st.boost.rf} s (clics ×${RAFALE})` : `⚡ Rafale : chaque clic ×${RAFALE} pendant ${st.boost.rf} s, à condition de cliquer`);
-    if (capped && want) parts.push(`⚠️ ${LIM_H} clics atteints sur l’heure : les clics ne comptent plus, conseil passif`);
-    else if (mode === 'auto') parts.push(cps ? `conseil calculé pour ${cpsTxt(cps)} clic/s, moyenne de ${cad.tot} clics sur ${durMin(Math.max(cad.obs, MOY_PLANCHER * 60))}` + (cad.obs < MOY_PLANCHER * 60 ? ' (durée minimale comptée)' : ' de jeu observé') + (why ? ` (cadence ${why})` : '') : 'aucun clic sur les 3 dernières heures : conseil passif');
+    if (capped && mode !== 'passif') parts.push(`⚠️ ${LIM_H} clics atteints sur l’heure : les clics ne comptent plus, conseil passif`);
+    else if (mode === 'auto') parts.push(cps ? `conseil calculé pour ${cpsTxt(cps)} clic/s, moyenne de ${cad.tot} clics sur ${durMin(Math.max(cad.obs, MOY_PLANCHER * 60))}` + (cad.obs < MOY_PLANCHER * 60 ? ' (durée minimale comptée)' : ' de jeu observé') + (why ? ` (cadence ${why})` : '') : 'aucun clic dans la moyenne des 3 dernières heures : conseil passif');
     else if (why) parts.push(`cadence ${why}`);
     if (mode !== 'passif' || cad.hour) parts.push(`clics : ` + (cad.rate ? `série en cours ${dec1(cad.rate)}/s, ` : '') + `${cad.hour}/${LIM_H} sur l’heure, ${cad.minute}/${LIM_MIN} cette minute`);
     if (!capped && cad.hour > LIM_H - 2000) parts.push(`⚠️ bientôt ${LIM_H} clics sur l’heure : au-delà, ils ne comptent plus`);

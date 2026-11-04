@@ -88,7 +88,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           FIN: ${{ needs.veille.outputs.fin }}
         run: |
-          # garde-fous contre une boucle : heure de fin connue, délai réel depuis la fin du contrôle, 4 passages par heure au plus
+          # garde-fous contre une boucle : heure de fin connue, délai réel depuis la fin du contrôle, 6 passages par heure au plus (délai de 15 min, plus les passages lancés par un envoi)
           if [ -z "$FIN" ]; then echo "::warning::Heure de fin de la veille inconnue : pas de relance."; exit 0; fi
           ecart=$(( $(date +%s) - FIN ))
           echo "Écart depuis la fin de la veille : ${ecart} s"
@@ -97,7 +97,7 @@ jobs:
             exit 0
           fi
           n=$(gh run list -R "$GITHUB_REPOSITORY" --workflow veille.yml --created ">$(date -u -d '-60 min' +%FT%TZ)" --json databaseId --jq length)
-          if [ "$n" -gt 4 ]; then echo "::warning::$n passages en une heure : pas de relance."; exit 0; fi
+          if [ "$n" -gt 6 ]; then echo "::warning::$n passages en une heure : pas de relance."; exit 0; fi
           # erreur passagère de GitHub (HTTP 500 le 04/11/2026 à 09:43 UTC) : 4 essais, 30 s d'écart
           for essai in 1 2 3 4; do
             if gh workflow run veille.yml --ref main -R "$GITHUB_REPOSITORY"; then exit 0; fi

@@ -37,6 +37,7 @@ async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, cli
     for (const [ago, n] of Object.entries(hist || {})) pm[m0 - ago] = n;
     if (hourClicks) pm[m0 - 5] = (pm[m0 - 5] || 0) + hourClicks;
     w.localStorage.setItem('tagAdv-clics', JSON.stringify(pm));
+    if (hist) w.localStorage.setItem('tagAdv-vu', String(m0 - Math.max(...Object.keys(hist).map(Number)))); // historique observé par la v2.14
   }
   // mode mini du jeu : petite fenêtre avec son propre bouton TAXER (#mTax)
   const mw = mini && new JSDOM('<button id="mTax">TAXER !</button>').window;
@@ -89,7 +90,7 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
 
   console.log('Auto sans clic : conseil passif');
   r = await page({ ...base });
-  check(r.best === 'satellite' && /aucun clic sur les 3 dernières heures/.test(r.ft), r.ft);
+  check(r.best === 'satellite' && /aucun clic dans la moyenne des 3 dernières heures/.test(r.ft), r.ft);
 
   // historique : minutes écoulées → clics comptés dans cette minute (0 = minute observée sans clic)
   const minutes = (from, to, f) => Object.fromEntries(Array.from({ length: to - from + 1 }, (_, i) => [from + i, f(from + i)]));
@@ -115,9 +116,13 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   r = await page({ ...base, clicks: every(5, 0, 60), at: 60 });
   check(/calculé pour 0.17 clic\/s/.test(r.ft) && /Revenu 23136\/s/.test(r.ft), r.ft);
 
+  console.log('Auto, minutes notées par une version antérieure (clics seuls, sans les minutes sans clic) : hors de la moyenne, dans le quota');
+  r = await page({ ...base, hourClicks: 3600 });
+  check(/aucun clic dans la moyenne des 3 dernières heures/.test(r.ft) && /3600\/18000 sur l’heure/.test(r.ft), r.ft);
+
   console.log('Auto, clics de plus de 3 h : oubliés, conseil passif');
   r = await page({ ...base, hist: { 200: 5000 } });
-  check(r.best === 'satellite' && /aucun clic sur les 3 dernières heures/.test(r.ft), r.ft);
+  check(r.best === 'satellite' && /aucun clic dans la moyenne des 3 dernières heures/.test(r.ft), r.ft);
 
   console.log('Auto, 18000 clics déjà comptés sur l’heure : conseil passif et alerte');
   r = await page({ ...base, clicks: every(5, 0, 30), at: 30, hourClicks: 18000 });

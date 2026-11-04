@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.15 — 04/11/2026
+Mode Auto : moyenne comptée sur les seules minutes notées depuis cette version. Les versions antérieures ne gardaient que les minutes avec clics : prises pour du jeu observé, elles gonflaient la moyenne (2.2 clic/s affiché pour environ 1 clic/s réel). Ces minutes restent dans le quota horaire ; l'alerte des 18000 clics par heure s'affiche aussi quand la moyenne est nulle. Veille : 6 passages par heure au plus (délai de 15 min, plus les passages lancés par un envoi).
+
 ## v2.14 — 04/11/2026
 Mode Auto : cadence moyenne des clics sur le temps de jeu observé des 3 dernières heures (30 min comptées au moins), au lieu de celle de la série en cours ; des séries espacées (passif la plupart du temps, quelques séries par heure) donnent un conseil stable, sans pousser des bonus de clic pendant une série (simulation sur une partie réelle : jusqu'à 21 % de visites en moins sur 24 h avec l'ancien conseil). Clics du mode mini du jeu (build 2026-11-04e) comptés. Rafale de la Facture dorée : en-tête jaune « cliquer ! ». Panneau placé hors du grand bouton TAXER, qu'il couvrait à 1280 et 1440 px de large et sur téléphone. Veille : page demandée compressée (102 Ko au lieu de 327 Ko), relance réessayée sur une erreur passagère de GitHub. Page d'installation alignée sur ces changements.
 
