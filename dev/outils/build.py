@@ -28,10 +28,12 @@ header = f"""// ==UserScript==
 """
 (ROOT / 'conseiller.user.js').write_text(header + src, encoding='utf-8')
 
-# favori : commentaires de ligne et indentation retirés, puis encodage d'adresse
-lines = [re.sub(r'^\s+', '', l) for l in src.split('\n') if not re.match(r'^\s*//', l)]
+# favori : commentaires (lignes entières et fins de ligne) et indentation retirés, puis encodage d'adresse ;
+# une fin de ligne n'est retirée que si le commentaire ne contient ni guillemet ni accent grave (pas de chaîne coupée)
+lines = [re.sub(r'\s+// [^\'"`]*$', '', re.sub(r'^\s+', '', l)) for l in src.split('\n') if not re.match(r'^\s*//', l)]
 code = '\n'.join(l for l in lines if l)
-bm = 'javascript:' + urllib.parse.quote(code, safe="()=>,;:'*!~-_.")
+# caractères laissés en clair : ceux qu'une adresse admet tels quels (RFC 3986), hors % et # qui changeraient son sens
+bm = 'javascript:' + urllib.parse.quote(code, safe="()=>,;:'*!~-_./?@$&+")
 (ROOT / 'bookmarklet.txt').write_text(bm + '\n', encoding='utf-8')
 
 # favori à jour : le paramètre change chaque minute, ce qui contourne le cache de 10 min de Pages

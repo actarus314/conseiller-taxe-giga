@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.16 — 04/11/2026
+Bas du panneau lisible : revenu, cagnotte et cadence retenue en chiffres clés ; alertes (Frénésie, Rafale, limites de clics) sur fond coloré, affichées seulement quand elles comptent ; moyenne, série en cours et décompte des clics repliés sous « détails » (état retenu).
+
 ## v2.15 — 04/11/2026
 Mode Auto : moyenne comptée sur les seules minutes notées depuis cette version. Les versions antérieures ne gardaient que les minutes avec clics : prises pour du jeu observé, elles gonflaient la moyenne (2.2 clic/s affiché pour environ 1 clic/s réel). Ces minutes restent dans le quota horaire ; l'alerte des 18000 clics par heure s'affiche aussi quand la moyenne est nulle. Veille : 6 passages par heure au plus (délai de 15 min, plus les passages lancés par un envoi).
 
