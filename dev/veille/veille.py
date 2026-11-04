@@ -11,7 +11,7 @@ Sortie : rapport Markdown sur la sortie standard, empreinte du constat dans $GIT
 Code de retour : 0 conforme, 1 écart, 2 page du jeu inaccessible.
 Usage : python3 dev/veille/veille.py [--fichier page.html] [--maj-reference]
 """
-import hashlib, json, os, pathlib, re, sys, urllib.request
+import hashlib, json, os, pathlib, re, sys, urllib.request, zlib
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 REF = ROOT / 'dev' / 'veille' / 'reference.json'
@@ -42,9 +42,13 @@ REGLES = {
 def page():
     if '--fichier' in sys.argv:
         return pathlib.Path(sys.argv[sys.argv.index('--fichier') + 1]).read_text(encoding='utf-8')
-    req = urllib.request.Request(URL, headers={'User-Agent': 'conseiller-taxe-giga-veille (+https://github.com/actarus314/conseiller-taxe-giga)'})
+    req = urllib.request.Request(URL, headers={'User-Agent': 'conseiller-taxe-giga-veille (+https://github.com/actarus314/conseiller-taxe-giga)',
+                                               'Accept-Encoding': 'gzip'})  # page compressée : 2.4 fois moins de données pour le site
     with urllib.request.urlopen(req, timeout=30) as r:
         data = r.read(MAX_PAGE + 1)  # plafond : une page énorme ne bloque pas la veille
+        if r.headers.get('Content-Encoding') == 'gzip':
+            # décompression plafonnée elle aussi : une archive piégée ne peut pas gonfler sans limite
+            data = zlib.decompressobj(16 + zlib.MAX_WBITS).decompress(data, MAX_PAGE + 1)
     if len(data) > MAX_PAGE:
         raise ValueError(f'page de plus de {MAX_PAGE} octets')
     return data.decode('utf-8', 'replace')
