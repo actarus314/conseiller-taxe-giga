@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Conseiller — Taxe au Giga
 // @namespace    https://github.com/actarus314/conseiller-taxe-giga
-// @version      2.13
+// @version      2.14
 // @description  Indique le meilleur bonus à acheter dans Taxe au Giga. Ne clique et n'achète rien.
 // @match        https://taxe-au-giga.fr/*
 // @grant        none
@@ -14,7 +14,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.13'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.14'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (build 2026-11-03h : Décret porté à +100000 par clic).
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -61,10 +61,12 @@
   // nombres au point décimal, sans séparateur de milliers
   const fmt = n => n < 1e6 ? String(Math.round(n)) : n < 1e9 ? (n / 1e6).toFixed(2) + ' M' : n < 1e12 ? (n / 1e9).toFixed(2) + ' Md' : (n / 1e12).toFixed(2) + ' T';
   const dec1 = n => n.toFixed(1).replace(/\.0$/, '');
+  const cpsTxt = n => n < 1 ? n.toFixed(2) : dec1(n); // cadence : deux décimales sous 1 clic/s
   const pad = n => String(n).padStart(2, '0');
   // compte à rebours à la seconde jusqu'à 1 h, puis heures et minutes
   const dur = s => { if (!isFinite(s)) return 'après quelques clics'; if (s < 1) return 'moins d’1 s'; const k = Math.ceil(s);
     return k < 60 ? k + ' s' : k < 3600 ? Math.floor(k / 60) + ' min ' + pad(k % 60) + ' s' : Math.floor(k / 3600) + ' h ' + pad(Math.floor(k % 3600 / 60)); };
+  const durMin = s => s < 3600 ? Math.round(s / 60) + ' min' : Math.floor(s / 3600) + ' h ' + pad(Math.floor(s % 3600 / 60));
   // créé une fois : toLocaleTimeString(options) en recrée un à chaque appel (72 µs)
   const hhmm = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' });
   const clock = s => !isFinite(s) ? '—' : hhmm.format(Date.now() + s * 1000);
@@ -74,29 +76,48 @@
   let mode = ['auto', 'passif', 'actif'].includes(store('mode')) ? store('mode') : 'auto';
   let cpsPlan = clampCps(store('cps'));
 
-  // Mesure des clics réels sur TAXER (bouton principal et bouton flottant).
-  // Cadence : moyenne des clics de la série en cours sur la dernière minute (3 s de mesure au moins),
-  // pour qu'une pause de quelques secondes (le temps d'un achat) la fasse à peine baisser.
-  // Arrêt : 8 s sans clic ; une nouvelle série repart alors de zéro.
-  // Compteur horaire : par minute, gardé dans le navigateur pour survivre à un rechargement.
+  // Mesure des clics réels sur TAXER (bouton principal, bouton flottant et bouton du mode mini).
+  // Mode Auto : moyenne des clics sur le temps de jeu observé des 3 dernières heures (minutes où le panneau
+  // tournait), comptée sur 30 min au moins : des séries de clics espacées donnent une cadence stable, valable
+  // pendant et entre les séries, qui est celle qui rembourse un bonus de clic.
+  // Série en cours (affichage seul) : clics de la dernière minute, interrompue après 8 s sans clic.
+  // Compteur par minute (0 = minute observée sans clic), gardé dans le navigateur pour survivre à un rechargement.
   const WIN = 60e3, STOP = 8e3, recent = [];
+  const MOY_MIN = 180, MOY_PLANCHER = 30; // fenêtre de la moyenne et durée minimale comptée, en minutes
   let perMin = {}; try { perMin = JSON.parse(store('clics') || '{}') || {}; } catch (e) { perMin = {}; }
   const onClick = e => {
-    if (!e.isTrusted || !e.target.closest || !e.target.closest('#taxBtn, #stickyTax')) return;
+    if (!e.isTrusted || !e.target.closest || !e.target.closest('#taxBtn, #stickyTax, #mTax')) return;
     const t = Date.now(); recent.push(t); const m = Math.floor(t / 60e3); perMin[m] = (perMin[m] || 0) + 1;
   };
   document.addEventListener('click', onClick, true);
+  // Mode mini du jeu : TAXER dans une petite fenêtre, « image dans l'image » (Chrome, Edge), sinon fenêtre surgissante
+  // nommée taxe-giga-mini. La première est retrouvée même ouverte avant le panneau ; la seconde seulement si elle
+  // s'ouvre panneau ouvert (window.open est alors observé, sans rien changer à son résultat).
+  const minis = new Set();
+  const watchMini = w => { try { if (w && !minis.has(w)) { w.document.addEventListener('click', onClick, true); minis.add(w); } } catch (e) { /* fenêtre fermée */ } };
+  const DPIP = window.documentPictureInPicture, onPip = e => watchMini(e.window);
+  if (DPIP) { DPIP.addEventListener('enter', onPip); watchMini(DPIP.window); }
+  const winOpen = window.open;
+  const openSpy = function (...a) { const w = winOpen.apply(this, a); if (a[1] === 'taxe-giga-mini') watchMini(w); return w; };
+  window.open = openSpy;
   function cadence() {
     const now = Date.now(), m0 = Math.floor(now / 60e3);
     while (recent.length && recent[0] < now - WIN) recent.shift();
-    for (const k in perMin) if (k <= m0 - 60) delete perMin[k];
-    const hour = Object.values(perMin).reduce((a, b) => a + b, 0), minute = perMin[m0] || 0;
-    if (!recent.length) return { rate: 0, idle: Infinity, hour, minute };
-    const idle = now - recent[recent.length - 1];
-    if (idle > STOP) return { rate: 0, idle, hour, minute };
+    if (!(m0 in perMin)) perMin[m0] = 0; // minute observée
+    let hour = 0, tot = 0, seen = 0;
+    for (const k in perMin) {
+      if (k <= m0 - MOY_MIN) { delete perMin[k]; continue; }
+      tot += perMin[k]; seen++; if (k > m0 - 60) hour += perMin[k];
+    }
+    const obs = (seen - 1) * 60 + (now % 60e3) / 1000; // la minute en cours compte pour ce qui en est écoulé
+    const avg = tot / Math.max(obs, MOY_PLANCHER * 60), minute = perMin[m0];
+    const out = { avg, obs, tot, rate: 0, idle: Infinity, hour, minute };
+    if (!recent.length) return out;
+    out.idle = now - recent[recent.length - 1];
+    if (out.idle > STOP) return out;
     let i = recent.length - 1; while (i > 0 && recent[i] - recent[i - 1] <= STOP) i--; // début de la série en cours
-    const n = recent.length - i, span = Math.max(3000, now - recent[i]);
-    return { rate: n / (span / 1000), idle, hour, minute };
+    out.rate = (recent.length - i) / (Math.max(3000, now - recent[i]) / 1000);
+    return out;
   }
   const ivSave = setInterval(() => store('clics', JSON.stringify(perMin)), SAVE_EVERY);
 
@@ -244,11 +265,26 @@
 
   // Position : au-dessus du bouton TAXER flottant (bas droite), ou là où on a déplacé le panneau
   let dragged = false;
+  // Position : en bas à droite, au-dessus du bouton TAXER flottant. S'il y couvrirait le grand bouton TAXER à l'écran
+  // (à 1280 px de large, il est dans la colonne de droite ; sur téléphone, en bas de l'écran d'accueil) : en bas à
+  // gauche, sinon en haut sous l'en-tête du jeu. Revue à chaque rafraîchissement (défilement, taille du panneau) ;
+  // le DOM n'est réécrit que si elle change.
+  const setStyle = (k, v) => { if (box.style[k] !== v) box.style[k] = v; };
   function place() {
     if (dragged) return;
-    const st = $('#stickyTax'), h = st ? st.offsetHeight : 64;
-    box.style.top = 'auto';
-    box.style.bottom = `calc(${24 + h + 18}px + env(safe-area-inset-bottom, 0px))`;
+    const st = $('#stickyTax'), h = st ? st.offsetHeight : 64, below = 24 + h + 18;
+    const w = box.offsetWidth, hh = box.offsetHeight, hdr = document.querySelector('header'), up = Math.round((hdr ? hdr.getBoundingClientRect().bottom : 64) + 8);
+    let pos = { side: 'right', top: null };
+    const tb = $('#taxBtn'), t = tb && tb.getBoundingClientRect();
+    if (t && t.width && t.bottom > 0 && t.top < innerHeight) {
+      const hits = (l, y) => l < t.right && l + w > t.left && y < t.bottom && y + hh > t.top;
+      const low = innerHeight - below - hh;
+      pos = [{ side: 'right', top: null, l: innerWidth - 12 - w, y: low }, { side: 'left', top: null, l: 12, y: low }, { side: 'right', top: up, l: innerWidth - 12 - w, y: up }]
+        .find(c => !hits(c.l, c.y)) || pos;
+    }
+    setStyle('top', pos.top == null ? 'auto' : pos.top + 'px');
+    setStyle('bottom', pos.top == null ? `calc(${below}px + env(safe-area-inset-bottom, 0px))` : 'auto');
+    setStyle('left', pos.side === 'left' ? '12px' : ''); setStyle('right', pos.side === 'left' ? 'auto' : '');
   }
   const hd = box.querySelector('header');
   // fin du glissement en cours (pointerup, pointercancel ou fermeture du panneau)
@@ -268,14 +304,15 @@
   const PFX = /^🟢 [^·]+ · /, baseTitle = () => document.title.replace(PFX, ''); let marked = null;
   function tick() {
     const st = last = read();
-    box.classList.toggle('gold', st.goldUp); // la Facture dorée ne reste que 15 s à l'écran
-    put('title', ui.title, 'textContent', st.goldUp ? '🧾 Facture dorée à cliquer !' : '🧮 Conseiller');
-    // Cadence retenue : la cadence voulue (mesurée en Auto, réglée en Actif), dans la limite de 760/min,
+    place();
+    box.classList.toggle('gold', st.goldUp || !!st.boost.rf); // la Facture dorée ne reste que 15 s à l'écran
+    put('title', ui.title, 'textContent', st.goldUp ? '🧾 Facture dorée à cliquer !' : st.boost.rf ? `⚡ Rafale : cliquer ! (×${RAFALE}, ${st.boost.rf} s)` : '🧮 Conseiller');
+    // Cadence retenue : la cadence voulue (moyenne mesurée en Auto, réglée en Actif), dans la limite de 760/min,
     // et du reste du quota horaire réparti sur 15 min quand il ne suffit plus.
     const cad = cadence(), left = Math.max(0, LIM_H - cad.hour), capped = left === 0;
-    const want = mode === 'actif' ? cpsPlan : mode === 'auto' ? cad.rate : 0; // clics arrêtés : conseil passif
+    const want = mode === 'actif' ? cpsPlan : mode === 'auto' ? cad.avg : 0;
     const cps = Math.min(want, CPS_MAX, left / HORIZON);
-    const why = !want || cps >= want - 0.05 ? '' : capped ? '' : cps < Math.min(want, CPS_MAX) - 0.05 ? `ramenée à ${dec1(cps)} : reste ${left} clics sur le quota de l’heure` : `ramenée à ${dec1(CPS_MAX)}, plafond de ${LIM_MIN} clics par minute`;
+    const why = !want || cps >= want - 0.05 ? '' : capped ? '' : cps < Math.min(want, CPS_MAX) - 0.05 ? `ramenée à ${cpsTxt(cps)} : reste ${left} clics sur le quota de l’heure` : `ramenée à ${dec1(CPS_MAX)}, plafond de ${LIM_MIN} clics par minute`;
     if (!Number.isFinite(st.wallet) || !$('#shop')) { put('now', ui.now, 'innerHTML', 'Boutique introuvable : recharger la page du jeu.'); return; }
     if (!st.items.length) { put('now', ui.now, 'innerHTML', 'Aucun bonus débloqué : cliquer sur TAXER.'); return; }
     put('warnHidden', ui.warn, 'hidden', !st.drift.length);
@@ -299,9 +336,9 @@
     if (st.boost.fz) parts.push(`🔥 Frénésie : revenu ${fmt(rateAt(st.own, cps, st.boost, 0))}/s pendant ${st.boost.fz} s (production ×${FRENESIE})`);
     if (st.boost.rf) parts.push(cps ? `⚡ Rafale : revenu ${fmt(rateAt(st.own, cps, st.boost, 0))}/s pendant ${st.boost.rf} s (clics ×${RAFALE})` : `⚡ Rafale : chaque clic ×${RAFALE} pendant ${st.boost.rf} s, à condition de cliquer`);
     if (capped && want) parts.push(`⚠️ ${LIM_H} clics atteints sur l’heure : les clics ne comptent plus, conseil passif`);
-    else if (mode === 'auto') parts.push(cps ? `conseil calculé pour ${dec1(cps)} clics/s` + (why ? ` (cadence ${dec1(cad.rate)}/s ${why})` : ' (cadence mesurée)') : (isFinite(cad.idle) ? `clics arrêtés depuis ${Math.round(cad.idle / 1000)} s : conseil passif` : 'aucun clic récent : conseil passif'));
+    else if (mode === 'auto') parts.push(cps ? `conseil calculé pour ${cpsTxt(cps)} clic/s, moyenne de ${cad.tot} clics sur ${durMin(Math.max(cad.obs, MOY_PLANCHER * 60))}` + (cad.obs < MOY_PLANCHER * 60 ? ' (durée minimale comptée)' : ' de jeu observé') + (why ? ` (cadence ${why})` : '') : 'aucun clic sur les 3 dernières heures : conseil passif');
     else if (why) parts.push(`cadence ${why}`);
-    if (mode !== 'passif' || cad.hour) parts.push(`clics : ${dec1(cad.rate)}/s, ${cad.hour}/${LIM_H} sur l’heure, ${cad.minute}/${LIM_MIN} cette minute`);
+    if (mode !== 'passif' || cad.hour) parts.push(`clics : ` + (cad.rate ? `série en cours ${dec1(cad.rate)}/s, ` : '') + `${cad.hour}/${LIM_H} sur l’heure, ${cad.minute}/${LIM_MIN} cette minute`);
     if (!capped && cad.hour > LIM_H - 2000) parts.push(`⚠️ bientôt ${LIM_H} clics sur l’heure : au-delà, ils ne comptent plus`);
     if (cad.minute > LIM_MIN - 60) parts.push(`⚠️ près de ${LIM_MIN} clics cette minute : au-delà, ils ne comptent plus, et un rythme tenu au plafond ${AUTOCLIC} min est pris pour un autoclic (clics ignorés ${AUTOCLIC} min)`);
     put('ft', ui.ft, 'textContent', parts.join(' · '));
@@ -312,9 +349,12 @@
   function stop() {
     clearInterval(iv); clearInterval(ivSave); store('clics', JSON.stringify(perMin)); box.remove(); css.remove(); document.title = baseTitle();
     document.removeEventListener('click', onClick, true); removeEventListener('resize', place);
+    if (DPIP) DPIP.removeEventListener('enter', onPip);
+    if (window.open === openSpy) window.open = winOpen;
+    for (const w of minis) try { w.document.removeEventListener('click', onClick, true); } catch (e) { /* fenêtre fermée */ }
     unmark(); if (endDrag) endDrag();
     delete window.__tagAdv;
   }
   // état lu au dernier rafraîchissement (diagnostic depuis la console, et tests)
-  window.__tagAdv = { stop, state: () => last && { wallet: last.wallet, own: { ...last.own }, boost: { ...last.boost }, cadence: cadence() } };
+  window.__tagAdv = { stop, state: () => last && { wallet: last.wallet, own: { ...last.own }, boost: { ...last.boost }, cadence: cadence(), minis: minis.size } };
 })();

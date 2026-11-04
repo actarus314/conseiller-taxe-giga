@@ -98,4 +98,10 @@ jobs:
           fi
           n=$(gh run list -R "$GITHUB_REPOSITORY" --workflow veille.yml --created ">$(date -u -d '-60 min' +%FT%TZ)" --json databaseId --jq length)
           if [ "$n" -gt 4 ]; then echo "::warning::$n passages en une heure : pas de relance."; exit 0; fi
-          gh workflow run veille.yml --ref main -R "$GITHUB_REPOSITORY"
+          # erreur passagère de GitHub (HTTP 500 le 04/11/2026 à 09:43 UTC) : 4 essais, 30 s d'écart
+          for essai in 1 2 3 4; do
+            if gh workflow run veille.yml --ref main -R "$GITHUB_REPOSITORY"; then exit 0; fi
+            echo "::warning::Relance refusée par GitHub (essai $essai sur 4)"
+            if [ "$essai" -lt 4 ]; then sleep 30; fi
+          done
+          exit 1

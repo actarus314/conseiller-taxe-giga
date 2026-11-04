@@ -3,7 +3,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.13'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.14'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (build 2026-11-03h : Décret porté à +100000 par clic).
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -65,7 +65,7 @@
   let mode = ['auto', 'passif', 'actif'].includes(store('mode')) ? store('mode') : 'auto';
   let cpsPlan = clampCps(store('cps'));
 
-  // Mesure des clics réels sur TAXER (bouton principal et bouton flottant).
+  // Mesure des clics réels sur TAXER (bouton principal, bouton flottant et bouton du mode mini).
   // Mode Auto : moyenne des clics sur le temps de jeu observé des 3 dernières heures (minutes où le panneau
   // tournait), comptée sur 30 min au moins : des séries de clics espacées donnent une cadence stable, valable
   // pendant et entre les séries, qui est celle qui rembourse un bonus de clic.
@@ -75,10 +75,20 @@
   const MOY_MIN = 180, MOY_PLANCHER = 30; // fenêtre de la moyenne et durée minimale comptée, en minutes
   let perMin = {}; try { perMin = JSON.parse(store('clics') || '{}') || {}; } catch (e) { perMin = {}; }
   const onClick = e => {
-    if (!e.isTrusted || !e.target.closest || !e.target.closest('#taxBtn, #stickyTax')) return;
+    if (!e.isTrusted || !e.target.closest || !e.target.closest('#taxBtn, #stickyTax, #mTax')) return;
     const t = Date.now(); recent.push(t); const m = Math.floor(t / 60e3); perMin[m] = (perMin[m] || 0) + 1;
   };
   document.addEventListener('click', onClick, true);
+  // Mode mini du jeu : TAXER dans une petite fenêtre, « image dans l'image » (Chrome, Edge), sinon fenêtre surgissante
+  // nommée taxe-giga-mini. La première est retrouvée même ouverte avant le panneau ; la seconde seulement si elle
+  // s'ouvre panneau ouvert (window.open est alors observé, sans rien changer à son résultat).
+  const minis = new Set();
+  const watchMini = w => { try { if (w && !minis.has(w)) { w.document.addEventListener('click', onClick, true); minis.add(w); } } catch (e) { /* fenêtre fermée */ } };
+  const DPIP = window.documentPictureInPicture, onPip = e => watchMini(e.window);
+  if (DPIP) { DPIP.addEventListener('enter', onPip); watchMini(DPIP.window); }
+  const winOpen = window.open;
+  const openSpy = function (...a) { const w = winOpen.apply(this, a); if (a[1] === 'taxe-giga-mini') watchMini(w); return w; };
+  window.open = openSpy;
   function cadence() {
     const now = Date.now(), m0 = Math.floor(now / 60e3);
     while (recent.length && recent[0] < now - WIN) recent.shift();
@@ -244,11 +254,26 @@
 
   // Position : au-dessus du bouton TAXER flottant (bas droite), ou là où on a déplacé le panneau
   let dragged = false;
+  // Position : en bas à droite, au-dessus du bouton TAXER flottant. S'il y couvrirait le grand bouton TAXER à l'écran
+  // (à 1280 px de large, il est dans la colonne de droite ; sur téléphone, en bas de l'écran d'accueil) : en bas à
+  // gauche, sinon en haut sous l'en-tête du jeu. Revue à chaque rafraîchissement (défilement, taille du panneau) ;
+  // le DOM n'est réécrit que si elle change.
+  const setStyle = (k, v) => { if (box.style[k] !== v) box.style[k] = v; };
   function place() {
     if (dragged) return;
-    const st = $('#stickyTax'), h = st ? st.offsetHeight : 64;
-    box.style.top = 'auto';
-    box.style.bottom = `calc(${24 + h + 18}px + env(safe-area-inset-bottom, 0px))`;
+    const st = $('#stickyTax'), h = st ? st.offsetHeight : 64, below = 24 + h + 18;
+    const w = box.offsetWidth, hh = box.offsetHeight, hdr = document.querySelector('header'), up = Math.round((hdr ? hdr.getBoundingClientRect().bottom : 64) + 8);
+    let pos = { side: 'right', top: null };
+    const tb = $('#taxBtn'), t = tb && tb.getBoundingClientRect();
+    if (t && t.width && t.bottom > 0 && t.top < innerHeight) {
+      const hits = (l, y) => l < t.right && l + w > t.left && y < t.bottom && y + hh > t.top;
+      const low = innerHeight - below - hh;
+      pos = [{ side: 'right', top: null, l: innerWidth - 12 - w, y: low }, { side: 'left', top: null, l: 12, y: low }, { side: 'right', top: up, l: innerWidth - 12 - w, y: up }]
+        .find(c => !hits(c.l, c.y)) || pos;
+    }
+    setStyle('top', pos.top == null ? 'auto' : pos.top + 'px');
+    setStyle('bottom', pos.top == null ? `calc(${below}px + env(safe-area-inset-bottom, 0px))` : 'auto');
+    setStyle('left', pos.side === 'left' ? '12px' : ''); setStyle('right', pos.side === 'left' ? 'auto' : '');
   }
   const hd = box.querySelector('header');
   // fin du glissement en cours (pointerup, pointercancel ou fermeture du panneau)
@@ -268,6 +293,7 @@
   const PFX = /^🟢 [^·]+ · /, baseTitle = () => document.title.replace(PFX, ''); let marked = null;
   function tick() {
     const st = last = read();
+    place();
     box.classList.toggle('gold', st.goldUp || !!st.boost.rf); // la Facture dorée ne reste que 15 s à l'écran
     put('title', ui.title, 'textContent', st.goldUp ? '🧾 Facture dorée à cliquer !' : st.boost.rf ? `⚡ Rafale : cliquer ! (×${RAFALE}, ${st.boost.rf} s)` : '🧮 Conseiller');
     // Cadence retenue : la cadence voulue (moyenne mesurée en Auto, réglée en Actif), dans la limite de 760/min,
@@ -312,9 +338,12 @@
   function stop() {
     clearInterval(iv); clearInterval(ivSave); store('clics', JSON.stringify(perMin)); box.remove(); css.remove(); document.title = baseTitle();
     document.removeEventListener('click', onClick, true); removeEventListener('resize', place);
+    if (DPIP) DPIP.removeEventListener('enter', onPip);
+    if (window.open === openSpy) window.open = winOpen;
+    for (const w of minis) try { w.document.removeEventListener('click', onClick, true); } catch (e) { /* fenêtre fermée */ }
     unmark(); if (endDrag) endDrag();
     delete window.__tagAdv;
   }
   // état lu au dernier rafraîchissement (diagnostic depuis la console, et tests)
-  window.__tagAdv = { stop, state: () => last && { wallet: last.wallet, own: { ...last.own }, boost: { ...last.boost }, cadence: cadence() } };
+  window.__tagAdv = { stop, state: () => last && { wallet: last.wallet, own: { ...last.own }, boost: { ...last.boost }, cadence: cadence(), minis: minis.size } };
 })();

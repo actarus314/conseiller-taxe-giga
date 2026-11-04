@@ -8,9 +8,9 @@ Il lit ce que le jeu affiche. **Aucun clic, aucun achat, aucun appel au serveur 
 
 ![Conseil en mode Passif : Satellite à acheter, suite des achats prévue](captures/passif.png)
 
-| Mode Auto pendant des clics | Téléphone |
+| Mode Auto, pendant une série de clics | Téléphone |
 |---|---|
-| ![Mode Auto à 4 clics/s mesurés : Tampon à acheter](captures/auto-clics.png) | ![Panneau réduit sur téléphone](captures/mobile.png) |
+| ![Mode Auto à 0.51 clic/s en moyenne sur 2 h : Tampon à acheter](captures/auto-clics.png) | ![Panneau réduit sur téléphone](captures/mobile.png) |
 
 ## Modes
 
@@ -20,7 +20,7 @@ Il lit ce que le jeu affiche. **Aucun clic, aucun achat, aucun appel au serveur 
 | Passif | aucune : seule la production automatique compte |
 | Actif | fixée à la main (5 clics/s par défaut) |
 
-Dans tous les cas, la cadence retenue reste sous 760 clics par minute (12.7/s), et le reste du quota de 18000 clics par heure se répartit sur 15 min quand il ne suffit plus. Les clics sont comptés minute par minute dans le navigateur ; les minutes où le panneau était fermé ne comptent ni dans les clics ni dans la durée de la moyenne.
+Dans tous les cas, la cadence retenue reste sous 760 clics par minute (12.7/s), et le reste du quota de 18000 clics par heure se répartit sur 15 min quand il ne suffit plus. Les clics sont comptés minute par minute dans le navigateur ; les minutes où le panneau était fermé ne comptent ni dans les clics ni dans la durée de la moyenne. Les clics du mode mini du jeu comptent aussi : toujours dans la fenêtre « image dans l'image » de Chrome et Edge, et dans la fenêtre séparée des autres navigateurs si elle s'ouvre panneau ouvert.
 
 ## Installation
 
@@ -28,7 +28,7 @@ Dans tous les cas, la cadence retenue reste sous 760 clics par minute (12.7/s), 
 - **Favori à jour** (conseillé) : glisser le bouton vert de la [page d'installation](https://actarus314.github.io/conseiller-taxe-giga/) dans la barre de favoris, ou créer un favori dont l'adresse est le contenu de [`bookmarklet-auto.txt`](bookmarklet-auto.txt). Il charge `conseiller.js` depuis GitHub Pages à chaque clic : une nouvelle version arrive quelques minutes après sa publication (déploiement de Pages, puis une minute de cache au plus).
 - **Favori figé** : le contenu de [`bookmarklet.txt`](bookmarklet.txt), avec le code entier dans l'adresse ; rien n'est chargé à distance, mais il faut le refaire à chaque nouvelle version.
 
-Un clic sur le favori ouvre le panneau, un second le ferme. Sur téléphone, le panneau s'ouvre réduit au conseil ; le bouton « – » le déplie.
+Un clic sur le favori ouvre le panneau, un second le ferme. Le panneau se place de lui-même hors du grand bouton TAXER ; glissé par son en-tête, il garde la place choisie. Sur téléphone, le panneau s'ouvre réduit au conseil ; le bouton « – » le déplie.
 
 ## Modèle
 

@@ -19,7 +19,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 let fails = 0;
 const check = (ok, msg) => { console.log((ok ? '  ok   ' : '  ÉCHEC ') + msg); if (!ok) fails++; };
 
-async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, clicks = [], hourClicks = 0, hist = null, at = 0, done = [], gold = false, save = null }) {
+async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, clicks = [], hourClicks = 0, hist = null, mini = null, at = 0, done = [], gold = false, save = null }) {
   const items = Object.entries(owned).map(([id, n]) => {
     const c = Math.ceil(B[id] * 1.15 ** n), d = done.includes(id);
     return `<button class="item" data-id="${id}" ${d || wallet < c ? 'disabled' : ''}><span class="ic"><b class="own">${d ? '✓' : '×' + n}</b><small class="price">${d ? 'acquis' : '💰 ' + big(c)}</small></span></button>`;
@@ -38,12 +38,21 @@ async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, cli
     if (hourClicks) pm[m0 - 5] = (pm[m0 - 5] || 0) + hourClicks;
     w.localStorage.setItem('tagAdv-clics', JSON.stringify(pm));
   }
+  // mode mini du jeu : petite fenêtre avec son propre bouton TAXER (#mTax)
+  const mw = mini && new JSDOM('<button id="mTax">TAXER !</button>').window;
+  let tgt = d.getElementById('taxBtn');
+  const stubOpen = () => mw;
+  if (mini === 'popup') w.open = stubOpen;
+  if (mini && mini.startsWith('pip')) { w.documentPictureInPicture = new w.EventTarget(); if (mini === 'pip-avant') w.documentPictureInPicture.window = mw; }
   w.eval(SRC);
+  if (mini === 'popup') w.open('', 'taxe-giga-mini', 'popup');
+  if (mini === 'pip-apres') { const ev = new w.Event('enter'); ev.window = mw; w.documentPictureInPicture.dispatchEvent(ev); }
+  if (mini) tgt = mw.document.getElementById('mTax');
   // clics « de confiance » sur TAXER, à des instants donnés (secondes)
   for (const s of clicks) {
     now = 1793700000000 + s * 1000;
     const e = new w.MouseEvent('click', { bubbles: true }), ei = utils.implForWrapper(e); ei.isTrusted = true;
-    utils.implForWrapper(d.getElementById('taxBtn'))._dispatch(ei);
+    utils.implForWrapper(tgt)._dispatch(ei);
   }
   now = 1793700000000 + at * 1000;
   const refresh = [...timers.values()].reduce((a, b) => (b.ms < a.ms ? b : a)); refresh.f(); // un tour de mise à jour du panneau
@@ -57,7 +66,7 @@ async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, cli
     best: d.querySelector('.tagAdvBest')?.dataset.id, adv: d.querySelector('.tagAdvBest')?.dataset.adv,
     idleMutations, repo: d.querySelector('#tagAdv header a.v')?.getAttribute('href'), state: w.eval('window.__tagAdv.state()'), text: d.querySelector('#tagAdv').textContent, z: parseInt(w.getComputedStyle(d.querySelector('#tagAdv')).zIndex, 10), titles: d.querySelectorAll('#tagAdv [title]').length, docTitle: d.title,
   };
-  w.eval('window.__tagAdv.stop()'); r.stopped = !d.querySelector('#tagAdv') && !d.querySelector('.tagAdvBest') && !d.querySelector('[data-adv]'); r.timers = timers.size; w.close();
+  w.eval('window.__tagAdv.stop()'); r.openRestored = mini !== 'popup' || w.open === stubOpen; r.stopped = !d.querySelector('#tagAdv') && !d.querySelector('.tagAdvBest') && !d.querySelector('[data-adv]'); r.timers = timers.size; w.close();
   return r;
 }
 const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) }, (_, i) => from + i / n);
@@ -117,6 +126,12 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   console.log('Actif 5/s mais 17150 clics comptés sur l’heure : reste du quota réparti sur 15 min');
   r = await page({ ...base, mode: 'actif', cps: 5, clicks: every(5, 0, 30), at: 30, hourClicks: 17000 });
   check(/ramenée à 0.94 : reste 850 clics/.test(r.ft), r.ft);
+
+  for (const [m, lab] of [['pip-avant', 'image dans l’image ouverte avant le panneau'], ['pip-apres', 'image dans l’image ouverte après le panneau'], ['popup', 'fenêtre surgissante']]) {
+    console.log(`Mode mini du jeu (${lab}) : clics de sa petite fenêtre comptés`);
+    r = await page({ ...base, mini: m, clicks: every(5, 0, 30), at: 30 });
+    check(r.state.cadence.tot === 150 && /série en cours 5\/s/.test(r.ft) && r.openRestored, `${r.state.cadence.tot} clics comptés · window.open rendu : ${r.openRestored} | ${r.ft.slice(-90)}`);
+  }
 
   console.log('Rafale à l’écran : consigne de cliquer dans l’en-tête');
   r = await page({ ...base, chip: '⚡ Rafale de clics : chaque clic ×10 encore 13 s' });
