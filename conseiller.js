@@ -3,7 +3,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.16'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.17'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (build 2026-11-03h : Décret porté à +100000 par clic).
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -154,7 +154,7 @@
     // bonus de la Facture dorée en cours, lus dans le bandeau du jeu : Frénésie (production ×3) ou Rafale (clics ×10)
     const chip = $('#buffChip'), ct = chip && !chip.hidden ? chip.textContent : '', left = (ct.match(/(\d+)\s*s\b/) || [])[1];
     const boost = { fz: /Frénésie/.test(ct) && left ? +left : 0, rf: /Rafale/.test(ct) && left ? +left : 0 };
-    const gold = $('#goldBill'); // Facture dorée à l'écran
+    const gold = $('#goldBill'); // Facture dorée à l’écran
     return { items, own, drift, wallet: walletNow(own, boost), boost, goldUp: !!gold && !gold.hidden };
   }
 
@@ -229,12 +229,12 @@
   #tagAdv ol{margin:0;padding:6px 12px 10px 32px;font-size:13px}
   #tagAdv ol li{margin:2px 0}
   #tagAdv .ft{padding:6px 12px 8px;border-top:2px dashed var(--tagInk);font-size:12px;color:#555;display:flex;flex-direction:column;gap:5px}
-  #tagAdv .ft .top{display:flex;align-items:center;gap:8px}
-  #tagAdv .kpi{display:flex;gap:14px;flex-wrap:wrap;flex:1}
-  #tagAdv .kpi span{display:flex;flex-direction:column}
+  #tagAdv .kpi{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  #tagAdv .kpi span{display:flex;flex-direction:column;min-width:0}
   #tagAdv .kpi small{font:600 9.5px/1.2 "IBM Plex Mono",ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.05em;color:#666}
-  #tagAdv .kpi b{font:700 13px/1.3 "Space Grotesk",system-ui,sans-serif;color:var(--tagInk);white-space:nowrap}
-  #tagAdv .ft button{all:unset;display:inline-block;flex:none;cursor:pointer;border:2px solid var(--tagInk);border-radius:6px;padding:1px 7px;font-weight:700;font-size:12px;color:var(--tagInk)}
+  #tagAdv .kpi b{font:700 13px/1.3 "Space Grotesk",system-ui,sans-serif;color:var(--tagInk);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #tagAdv .kpi i{font-style:normal;font-size:11px;color:#666;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #tagAdv .ft button{all:unset;display:block;cursor:pointer;font-size:11.5px;color:#555;text-decoration:underline;text-underline-offset:2px}
   #tagAdv .ft button[hidden]{display:none}
   #tagAdv .ft button:focus-visible{outline:2px solid var(--tagInk);outline-offset:2px}
   #tagAdv .al,#tagAdv .det{display:grid;gap:3px}
@@ -253,7 +253,7 @@
     <div class="modes"><button data-m="auto">Auto</button><button data-m="passif">Passif</button><button data-m="actif">Actif</button>
       <label data-cps>clics/s prévus <input id="tagAdvCps" type="number" step="0.5"></label></div>
     <div class="warn" hidden></div><div class="now"></div><ol></ol>
-    <div class="ft"><div class="top"><div class="kpi"></div><button data-a="det" aria-expanded="false">détails</button></div><div class="al"></div><div class="det" hidden></div></div>`;
+    <div class="ft"><div class="kpi"></div><div class="al"></div><button data-a="det" aria-expanded="false">▸ détails</button><div class="det" hidden></div></div>`;
   document.body.appendChild(box);
   // téléphone : panneau réduit au conseil, la boutique reste visible
   if (innerWidth < PHONE) box.classList.add('min');
@@ -273,7 +273,7 @@
 
   // Détail du bas (cadence, quota de clics) : replié par défaut, l'état choisi est retenu
   let detOpen = store('det') === '1';
-  const showDet = () => { ui.det.hidden = !detOpen; ui.detBtn.setAttribute('aria-expanded', String(detOpen)); ui.detBtn.textContent = detOpen ? 'masquer' : 'détails'; };
+  const showDet = () => { ui.det.hidden = !detOpen; ui.detBtn.setAttribute('aria-expanded', String(detOpen)); ui.detBtn.textContent = detOpen ? '▾ détails' : '▸ détails'; };
   showDet();
 
   let dragged = false; // déplacé à la main : il garde sa place
@@ -317,7 +317,7 @@
   function tick() {
     const st = last = read();
     place();
-    box.classList.toggle('gold', st.goldUp || !!st.boost.rf); // la Facture dorée ne reste que 15 s à l'écran
+    box.classList.toggle('gold', st.goldUp || !!st.boost.rf); // la Facture dorée ne reste que 15 s à l’écran
     put('title', ui.title, 'textContent', st.goldUp ? '🧾 Facture dorée à cliquer !' : st.boost.rf ? `⚡ Rafale : cliquer ! (×${RAFALE}, ${st.boost.rf} s)` : '🧮 Conseiller');
     // Cadence retenue : la cadence voulue (moyenne mesurée en Auto, réglée en Actif), dans la limite de 760/min,
     // et du reste du quota horaire réparti sur 15 min quand il ne suffit plus.
@@ -344,25 +344,29 @@
       : (isFinite(first.t) ? `Prochain achat dans ${dur(first.t)} (${clock(first.t)})` : 'Prochain achat après quelques clics') + `<b>${first.it.u.name}</b>💰 ${fmt(first.c)} · ne rien acheter d’autre d’ici là`);
     put('ol', ui.ol, 'innerHTML', out.slice(1).map(o =>
       `<li>${o.it.u.name} ×${o.n} · 💰 ${fmt(o.c)} · ${o.t < 1 ? 'tout de suite' : clock(o.t)}</li>`).join(''));
-    // Bas du panneau : chiffres clés toujours visibles, alertes seulement quand elles comptent, détail replié
-    const kpi = [['Revenu', fmt(income(st.own, cps)) + '/s'], ['Cagnotte', '💰 ' + fmt(st.wallet)]];
-    if (mode !== 'passif') kpi.push([mode === 'auto' ? 'Clics, moyenne' : 'Clics prévus', cpsTxt(cps) + '/s']);
-    put('kpi', ui.kpi, 'innerHTML', kpi.map(([k, v]) => `<span><small>${k}</small> <b>${v}</b></span>`).join(''));
+    // Bas du panneau : chiffres clés toujours visibles, alertes seulement quand elles comptent, détail replié.
+    // Production : réelle (parc possédé, ×3 pendant une Frénésie). Clics : à la cadence retenue (moyenne mesurée en Auto,
+    // réglée en Actif). Le plan suppose leur somme, nommée comme telle dans le détail.
+    const prod = prodRate(st.own) * (st.boost.fz ? FRENESIE : 1), clk = clickPow(st.own) * cps * (st.boost.rf ? RAFALE : 1);
+    const kpi = [['Production', fmt(prod) + '/s', st.boost.fz ? `Frénésie ×${FRENESIE}` : 'automatique'],
+      mode === 'passif' || capped ? ['Clics', 'non comptés', mode === 'passif' ? 'mode Passif' : 'quota de l’heure atteint']
+        : ['Clics', '+' + fmt(clk) + '/s', `${mode === 'auto' ? 'moyenne' : 'prévus'} ${cpsTxt(cps)}/s` + (st.boost.rf ? ` ×${RAFALE}` : '')],
+      ['Cagnotte', '💰 ' + fmt(st.wallet), '']];
+    put('kpi', ui.kpi, 'innerHTML', kpi.map(([k, v, sub]) => `<span><small>${k}</small> <b>${v}</b>${sub ? ` <i>${sub}</i>` : ''}</span>`).join(''));
     const al = [], det = [];
-    if (st.boost.fz) al.push(`🔥 Frénésie : revenu ${fmt(rateAt(st.own, cps, st.boost, 0))}/s pendant ${st.boost.fz} s (production ×${FRENESIE})`);
-    if (st.boost.rf) al.push(cps ? `⚡ Rafale : revenu ${fmt(rateAt(st.own, cps, st.boost, 0))}/s pendant ${st.boost.rf} s (clics ×${RAFALE})` : `⚡ Rafale : chaque clic ×${RAFALE} pendant ${st.boost.rf} s, à condition de cliquer`);
+    if (st.boost.fz) al.push(`🔥 Frénésie encore ${st.boost.fz} s : production ×${FRENESIE}`);
+    if (st.boost.rf) al.push(`⚡ Rafale encore ${st.boost.rf} s : chaque clic ×${RAFALE}` + (cps ? '' : ', à condition de cliquer'));
     const lim = [];
     if (capped && mode !== 'passif') lim.push(`${LIM_H} clics atteints sur l’heure : les clics ne comptent plus, conseil passif`);
     else if (why) lim.push(`cadence ${why}`);
     if (!capped && cad.hour > LIM_H - 2000) lim.push(`bientôt ${LIM_H} clics sur l’heure : au-delà, ils ne comptent plus`);
     if (cad.minute > LIM_MIN - 60) lim.push(`près de ${LIM_MIN} clics cette minute : au-delà, ils ne comptent plus, et un rythme tenu au plafond ${AUTOCLIC} min est pris pour un autoclic (clics ignorés ${AUTOCLIC} min)`);
-    if (cps) det.push(`dont clics ${fmt(clickPow(st.own) * cps)}/s`);
+    det.push(`plan calculé sur ${fmt(prod + clk)}/s : production` + (cps ? ` + clics à ${cpsTxt(cps)}/s` : ' seule'));
     if (mode === 'auto') det.push(cad.tot ? `moyenne de ${cad.tot} clics sur ${durMin(Math.max(cad.obs, MOY_PLANCHER * 60))}` + (cad.obs < MOY_PLANCHER * 60 ? ' (durée minimale comptée)' : ' de jeu observé') : 'aucun clic dans la moyenne des 3 dernières heures : conseil passif');
     if (cad.rate) det.push(`série en cours ${dec1(cad.rate)}/s`);
     if (mode !== 'passif' || cad.hour) det.push(`${cad.hour}/${LIM_H} clics sur l’heure · ${cad.minute}/${LIM_MIN} cette minute`);
     put('al', ui.al, 'innerHTML', al.map(t => `<p>${t}</p>`).join('') + lim.map(t => `<p class="lim">⚠️ ${t}</p>`).join(''));
     put('det', ui.det, 'innerHTML', det.map(t => `<p>${t}</p>`).join(''));
-    put('detBtnHidden', ui.detBtn, 'hidden', !det.length);
     const t = (ready ? '🟢 ' + first.it.u.name + ' · ' : '') + baseTitle(); if (document.title !== t) document.title = t;
   }
   setMode(mode);

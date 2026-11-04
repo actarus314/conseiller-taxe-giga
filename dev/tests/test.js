@@ -83,12 +83,12 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   let r = await page({ ...base, mode: 'passif' });
   check(r.best === 'satellite' && /Acheter maintenant/.test(r.now), r.now);
   check(/Fax.*×16/.test(r.list[0]) && /Ferme de bots ×21/.test(r.list[1]) && /Hamster-routeur ×26/.test(r.list[2]), 'suite : ' + r.list.slice(0, 3).join(' | '));
-  check(/Revenu 22174\/s/.test(r.ft), r.ft);
+  check(/Production 22174\/s automatique/.test(r.ft) && /Clics non comptés mode Passif/.test(r.ft) && /plan calculé sur 22174\/s : production seule/.test(r.ft), r.ft);
   check(r.stopped && r.timers === 0, 'arrêt propre : panneau, marque et minuteries retirés (minuteries restantes : ' + r.timers + ')');
 
   console.log('Actif 5/s : revenu 51024/s comme le simulateur, Doigts en premier');
   r = await page({ ...base, mode: 'actif', cps: 5 });
-  check(r.best === 'doigt' && /Revenu 51024\/s/.test(r.ft) && /dont clics 28850\/s/.test(r.ft), r.ft);
+  check(r.best === 'doigt' && /Clics \+28850\/s prévus 5\/s/.test(r.ft) && /plan calculé sur 51024\/s : production \+ clics à 5\/s/.test(r.ft), r.ft);
 
   console.log('Auto sans clic : conseil passif');
   r = await page({ ...base });
@@ -99,24 +99,24 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
 
   console.log('Auto, 3 h de jeu observé à 30 clics par minute : conseil à 0.50 clic/s (revenu 25059/s)');
   r = await page({ ...base, hist: minutes(1, 179, () => 30) });
-  check(/Clics, moyenne 0.50\/s/.test(r.ft) && /moyenne de 5370 clics sur 2 h 59 de jeu observé/.test(r.ft) && /Revenu 25059\/s/.test(r.ft), r.ft);
+  check(/moyenne 0.50\/s/.test(r.ft) && /moyenne de 5370 clics sur 2 h 59 de jeu observé/.test(r.ft) && /plan calculé sur 25059\/s/.test(r.ft), r.ft);
 
   console.log('Auto, séries de 2 min à 5 clics/s trois fois par heure : même conseil pendant et entre les séries');
   {
     const h = minutes(1, 120, m => m % 20 < 2 ? 300 : 0);
     const entre = await page({ ...base, hist: h });
     const pendant = await page({ ...base, hist: h, clicks: every(5, 0, 30), at: 30 });
-    check(/Clics, moyenne 0.50\/s/.test(entre.ft) && /Clics, moyenne 0.52\/s/.test(pendant.ft) && /série en cours 5\/s/.test(pendant.ft) && entre.best === pendant.best,
+    check(/moyenne 0.50\/s/.test(entre.ft) && /moyenne 0.52\/s/.test(pendant.ft) && /série en cours 5\/s/.test(pendant.ft) && entre.best === pendant.best,
       'entre : ' + entre.best + ' | pendant : ' + pendant.best + ' | ' + pendant.ft);
   }
 
   console.log('Auto, 10 min observées avec 600 clics : moyenne comptée sur 30 min au moins (0.33 clic/s)');
   r = await page({ ...base, hist: minutes(1, 10, () => 60) });
-  check(/Clics, moyenne 0.33\/s/.test(r.ft) && /moyenne de 600 clics sur 30 min \(durée minimale comptée\)/.test(r.ft), r.ft);
+  check(/moyenne 0.33\/s/.test(r.ft) && /moyenne de 600 clics sur 30 min \(durée minimale comptée\)/.test(r.ft), r.ft);
 
   console.log('Auto, une seule série de 60 s à 5 clics/s sur un panneau qui vient de s’ouvrir : 0.17 clic/s, pas 5');
   r = await page({ ...base, clicks: every(5, 0, 60), at: 60 });
-  check(/Clics, moyenne 0.17\/s/.test(r.ft) && /Revenu 23136\/s/.test(r.ft), r.ft);
+  check(/moyenne 0.17\/s/.test(r.ft) && /plan calculé sur 23136\/s/.test(r.ft), r.ft);
 
   console.log('Auto, minutes notées par une version antérieure (clics seuls, sans les minutes sans clic) : hors de la moyenne, dans le quota');
   r = await page({ ...base, hourClicks: 3600 });
@@ -128,7 +128,7 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
 
   console.log('Auto, 18000 clics déjà comptés sur l’heure : conseil passif et alerte');
   r = await page({ ...base, clicks: every(5, 0, 30), at: 30, hourClicks: 18000 });
-  check(r.best === 'satellite' && r.alerts.some(t => /18000 clics atteints/.test(t)) && /Clics, moyenne 0.00\/s/.test(r.ft), r.ft);
+  check(r.best === 'satellite' && r.alerts.some(t => /18000 clics atteints/.test(t)) && /Clics non comptés quota de l’heure atteint/.test(r.ft), r.ft);
 
   console.log('Actif 5/s mais 17150 clics comptés sur l’heure : reste du quota réparti sur 15 min');
   r = await page({ ...base, mode: 'actif', cps: 5, clicks: every(5, 0, 30), at: 30, hourClicks: 17000 });
@@ -154,15 +154,15 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
 
   console.log('Frénésie de 40 s comptée (Commission plus tôt)');
   r = await page({ owned: { ...o, hamster: 26, bot: 21, fax: 16, satellite: 3 }, wallet: 2628957, perClick: '5 803 visites', mode: 'passif', chip: '🔥 Frénésie fiscale : production ×3 encore 40 s' });
-  check(r.best === 'commission' && /Prochain achat dans 3 s/.test(r.now) && /Frénésie : revenu 76266\/s pendant 40 s/.test(r.ft), r.now + ' | ' + r.ft);
+  check(r.best === 'commission' && /Prochain achat dans 3 s/.test(r.now) && /Production 76266\/s Frénésie ×3/.test(r.ft) && r.alerts.some(t => /Frénésie encore 40 s/.test(t)), r.now + ' | ' + r.ft);
 
   console.log('Rafale de 13 s en mode Actif 5/s : clics ×10 dans le revenu et les délais');
   r = await page({ ...base, mode: 'actif', cps: 5, wallet: 2e6, chip: '⚡ Rafale de clics : chaque clic ×10 encore 13 s' });
-  check(/Rafale : revenu 310674\/s pendant 13 s/.test(r.ft), r.ft);
+  check(/plan calculé sur 310674\/s/.test(r.ft) && /×10/.test(r.ft) && r.alerts.some(t => /Rafale encore 13 s/.test(t)), r.ft);
 
   console.log('Rafale en mode Passif : signalée sans être comptée');
   r = await page({ ...base, mode: 'passif', chip: '⚡ Rafale de clics : chaque clic ×10 encore 13 s' });
-  check(/chaque clic ×10 pendant 13 s, à condition de cliquer/.test(r.ft), r.ft);
+  check(/Rafale encore 13 s : chaque clic ×10, à condition de cliquer/.test(r.ft), r.ft);
 
   console.log('Facture dorée à l’écran : signalée dans l’en-tête, panneau sous elle (z-index < 70)');
   r = await page({ ...base, gold: true });
@@ -180,7 +180,7 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
 
   console.log('Main de l’État achetée (✓ « acquis ») : comptée dans la puissance de clic (497107), jamais reproposée');
   r = await page({ owned: { ...o2, mainetat: 1 }, done: ['mainetat'], wallet: 43557887, perClick: '497 107 visites', mode: 'actif', cps: 5 });
-  check(!r.warn && /dont clics 2.49 M/.test(r.ft) && !r.list.some(l => /Main de l/.test(l)), r.ft + ' | alerte : ' + (r.warn || 'aucune'));
+  check(!r.warn && /Clics \+2.49 M\/s/.test(r.ft) && !r.list.some(l => /Main de l/.test(l)), r.ft + ' | alerte : ' + (r.warn || 'aucune'));
 
   console.log('Cagnotte en milliards : valeur fine tirée de la sauvegarde du jeu, compte à rebours à la seconde');
   // affichage « 1,14 Md » (arrondi à 10 M près) ; sauvegarde exacte 1144900000 ; Datacenter ×1 : 60000/s, prochain à 1.15 Md

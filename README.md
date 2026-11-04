@@ -28,7 +28,7 @@ Dans tous les cas, la cadence retenue reste sous 760 clics par minute (12.7/s), 
 - **Favori à jour** (conseillé) : glisser le bouton vert de la [page d'installation](https://actarus314.github.io/conseiller-taxe-giga/) dans la barre de favoris, ou créer un favori dont l'adresse est le contenu de [`bookmarklet-auto.txt`](bookmarklet-auto.txt). Il charge `conseiller.js` depuis GitHub Pages à chaque clic : une nouvelle version arrive quelques minutes après sa publication (déploiement de Pages, puis une minute de cache au plus).
 - **Favori figé** : le contenu de [`bookmarklet.txt`](bookmarklet.txt), avec le code entier dans l'adresse ; rien n'est chargé à distance, mais il faut le refaire à chaque nouvelle version.
 
-Un clic sur le favori ouvre le panneau, un second le ferme. Le panneau se place de lui-même hors du grand bouton TAXER ; glissé par son en-tête, il garde la place choisie. En bas : revenu, cagnotte et cadence de clic retenue ; les alertes (Frénésie, Rafale, limites de clics) s'affichent d'elles-mêmes, « détails » déplie la moyenne et le décompte des clics. Sur téléphone, le panneau s'ouvre réduit au conseil ; le bouton « – » le déplie.
+Un clic sur le favori ouvre le panneau, un second le ferme. Le panneau se place de lui-même hors du grand bouton TAXER ; glissé par son en-tête, il garde la place choisie. En bas : production automatique (réelle), apport des clics à la cadence retenue (moyenne mesurée en Auto, prévue en Actif) et cagnotte ; les alertes (Frénésie, Rafale, limites de clics) s'affichent d'elles-mêmes, « détails » déplie le revenu sur lequel le plan est calculé (production + clics), la moyenne et le décompte des clics. Sur téléphone, le panneau s'ouvre réduit au conseil ; le bouton « – » le déplie.
 
 ## Modèle
 
