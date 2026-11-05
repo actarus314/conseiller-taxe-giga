@@ -200,6 +200,14 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
     check(ferme.detHidden && !charge.detHidden && !chevron.detHidden, `fermés puis Actif : ${ferme.detHidden ? 'fermés' : 'ouverts'} | chargement en Actif : ${charge.detHidden ? 'fermés' : 'ouverts'} | clic sur le chevron : ${chevron.detHidden ? 'fermés' : 'ouverts'}`);
   }
 
+  console.log('En direct : cadence des 5 dernières secondes (passage de 5 à 8 clics/s vu en 5 s, pause de 4 s visible)');
+  {
+    const acc = await page({ ...base, clicks: [...every(5, 0, 20), ...every(8, 20, 30)], at: 30 });
+    const pause = await page({ ...base, clicks: every(5, 0, 30), at: 34 });
+    check(/En direct \+\S+ 8 clics\/s/.test(acc.ft) && /En direct \+\S+ 1 clic\/s/.test(pause.ft),
+      [acc, pause].map(x => (x.ft.match(/En direct[^·]*/) || ['—'])[0]).join(' | '));
+  }
+
   console.log('Rafale à l’écran : consigne de cliquer dans l’en-tête');
   r = await page({ ...base, chip: '⚡ Rafale de clics : chaque clic ×10 encore 13 s' });
   check(/⚡ Rafale : cliquer ! \(×10, 13 s\)/.test(r.text), 'en-tête : ' + r.text.slice(0, 40));

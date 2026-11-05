@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.30 — 05/11/2026
+Colonne « En direct » : cadence sur les 5 dernières secondes (fenêtre glissante) au lieu de la moyenne depuis le début de la série : un changement de rythme se voit en quelques secondes, une pause fait baisser le chiffre aussitôt. Sans effet sur le conseil.
+
 ## v2.29 — 05/11/2026
 Détails : ouverts d'office en Actif seulement tant qu'aucun choix n'a été fait ; ensuite, le choix (ouverts ou fermés) est retenu, y compris en repassant en Actif. Bouton des détails : chevron dessiné, à la taille de son carré, qui se retourne à l'ouverture.
 

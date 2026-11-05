@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Conseiller — Taxe au Giga
 // @namespace    https://github.com/actarus314/conseiller-taxe-giga
-// @version      2.29
+// @version      2.30
 // @description  Indique le meilleur bonus à acheter dans Taxe au Giga. Ne clique et n'achète rien.
 // @match        https://taxe-au-giga.fr/*
 // @grant        none
@@ -14,7 +14,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.29'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.30'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (build 2026-11-03h : Décret porté à +100000 par clic).
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -85,9 +85,10 @@
   // Présence : minutes où le panneau tournait, sauf au-delà d'1 h sans aucun clic (nuit, réunion : absence, pas jeu passif).
   // Des séries espacées donnent ainsi une cadence stable, la même pendant et entre les séries, et retrouvée dès le retour
   // d'une absence. Seuil d'1 h choisi par simulation (dev/sim/presence.py) : le plus robuste des seuils essayés.
-  // Série en cours (colonne « En direct » seulement) : clics de la dernière minute, interrompue après 5 s sans clic.
+  // Série en cours (colonne « En direct » seulement) : cadence sur les 5 dernières secondes (fenêtre glissante, ou depuis le
+  // premier clic de la série s'il date de moins de 5 s, 1 s au moins) ; série interrompue après 5 s sans clic.
   // Compteur par minute (0 = minute observée sans clic), gardé dans le navigateur pour survivre à un rechargement.
-  const WIN = 60e3, STOP = 5e3, recent = [];
+  const WIN = 60e3, STOP = 5e3, LIVE = 5e3, recent = [];
   const MOY_MIN = 180, MOY_PLANCHER = 30, PAUSE = 60, JOUR = 1440; // en minutes : présence moyennée, durée minimale comptée, pause vue comme une absence, recherche
   let perMin = {}; try { perMin = JSON.parse(store('clics') || '{}') || {}; } catch (e) { perMin = {}; }
   // début de l'observation minute par minute (v2.14) : les minutes plus anciennes, notées par les versions qui ne
@@ -135,7 +136,8 @@
     out.idle = now - recent[recent.length - 1];
     if (out.idle > STOP) return out;
     let i = recent.length - 1; while (i > 0 && recent[i] - recent[i - 1] <= STOP) i--; // début de la série en cours
-    out.rate = (recent.length - i) / (Math.max(3000, now - recent[i]) / 1000);
+    const from = Math.max(recent[i], now - LIVE); let n = 0; for (let j = recent.length - 1; j >= i && recent[j] >= from; j--) n++;
+    out.rate = n / (Math.max(1000, now - from) / 1000);
     return out;
   }
   const ivSave = setInterval(() => store('clics', JSON.stringify(perMin)), SAVE_EVERY);
@@ -415,7 +417,7 @@
     const live = mode !== 'passif' && !capped && cad.rate > 0;
     const kpi = [['Production', fmt(prod) + '/s', st.boost.fz || st.boost.ev ? `×${dec1(prodMul(st.boost, 0))} ${st.boost.fz ? 'Frénésie' : 'événement'}` : 'automatique'],
       mode === 'passif' || capped ? ['Clics', 'non comptés', mode === 'passif' ? 'mode Passif' : 'quota de l’heure atteint']
-        : live ? ['En direct', '+' + fmt(clickPow(st.own) * cad.rate * (st.boost.rf ? RAFALE : 1)) + '/s', `${dec1(cad.rate)} clics/s` + (st.boost.rf ? ` ×${RAFALE}` : ''), 'live']
+        : live ? ['En direct', '+' + fmt(clickPow(st.own) * cad.rate * (st.boost.rf ? RAFALE : 1)) + '/s', `${dec1(cad.rate)} ${cad.rate >= 2 ? 'clics' : 'clic'}/s` + (st.boost.rf ? ` ×${RAFALE}` : ''), 'live']
         : ['Clics', '+' + fmt(clk) + '/s', `${mode === 'auto' ? 'moyenne' : 'prévus'} ${cpsTxt(cps)}/s` + (st.boost.rf ? ` ×${RAFALE}` : '')],
       ['Cagnotte', '💰 ' + fmt(st.wallet), '']];
     put('kpi', ui.kpi, 'innerHTML', kpi.map(([k, v, sub, cl]) => `<span${cl ? ` class="${cl}"` : ''}><small>${k}</small> <b>${v}</b>${sub ? ` <i>${sub}</i>` : ''}</span>`).join(''));
