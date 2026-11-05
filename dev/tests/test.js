@@ -19,7 +19,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 let fails = 0;
 const check = (ok, msg) => { console.log((ok ? '  ok   ' : '  ÉCHEC ') + msg); if (!ok) fails++; };
 
-async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, clicks = [], hourClicks = 0, hist = null, ev = null, mini = null, det = false, detClosed = false, clickDet = false, cpsInput = null, clickMode = null, raw = null, at = 0, done = [], gold = false, save = null }) {
+async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, clicks = [], hourClicks = 0, hist = null, ev = null, mini = null, det = false, detClosed = false, clickDet = false, cpsInput = null, clickMode = null, raw = null, son = false, chipLater = null, at = 0, done = [], gold = false, save = null }) {
   const items = Object.entries(owned).map(([id, n]) => {
     const c = Math.ceil(B[id] * 1.15 ** n), d = done.includes(id);
     return `<button class="item" data-id="${id}" ${d || wallet < c ? 'disabled' : ''}><span class="ic"><b class="own">${d ? '✓' : '×' + n}</b><small class="price">${d ? 'acquis' : '💰 ' + big(c)}</small></span></button>`;
@@ -31,6 +31,13 @@ async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, cli
   const timers = new Map(); let timerId = 0; // minuteries simulées : un « tour de mise à jour » se joue d'un appel, sans attendre 650 ms réelles
   w.setInterval = (f, ms) => { timers.set(++timerId, { f, ms }); return timerId; }; w.clearInterval = id => { timers.delete(id); };
   for (const [k, v] of Object.entries(raw || {})) w.localStorage.setItem(k, v); // stockage brut, éventuellement corrompu
+  if (son) w.localStorage.setItem('tagAdv-son', '1');
+  // moteur audio factice : compte les notes jouées
+  let notes = 0;
+  w.AudioContext = class { constructor() { this.currentTime = 0; this.state = 'running'; this.destination = {}; }
+    createOscillator() { return { frequency: {}, connect() {}, start() { notes++; }, stop() {} }; }
+    createGain() { return { gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {} }; }
+    resume() {} close() {} };
   if (det) w.localStorage.setItem('tagAdv-det', '1');
   if (detClosed) w.localStorage.setItem('tagAdv-det', '0');
   if (ev) w.localStorage.setItem('tagAdv-ev', JSON.stringify({ nm: ev.nm, mult: ev.mult, to: now + ev.left * 1000 }));
@@ -60,6 +67,7 @@ async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, cli
     utils.implForWrapper(tgt)._dispatch(ei);
   }
   now = 1793700000000 + at * 1000;
+  if (chipLater) { const c = d.getElementById('buffChip'); c.textContent = chipLater; c.hidden = false; }
   if (clickDet) d.querySelector('#tagAdv [data-a="det"] path').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   if (clickMode) d.querySelector(`#tagAdv [data-m="${clickMode}"]`).click();
   if (cpsInput != null) { const ci = d.getElementById('tagAdvCps'); ci.value = cpsInput; ci.dispatchEvent(new w.Event('change')); }
@@ -75,7 +83,7 @@ async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, cli
     best: d.querySelector('.tagAdvBest')?.dataset.id, adv: d.querySelector('.tagAdvBest')?.dataset.adv,
     idleMutations, repo: d.querySelector('#tagAdv header a.v')?.getAttribute('href'), state: w.eval('window.__tagAdv.state()'), text: d.querySelector('#tagAdv').textContent, z: parseInt(w.getComputedStyle(d.querySelector('#tagAdv')).zIndex, 10), titles: d.querySelectorAll('#tagAdv [title]').length, docTitle: d.title,
   };
-  w.eval('window.__tagAdv.stop()'); r.openRestored = mini !== 'popup' || w.open === stubOpen; r.stopped = !d.querySelector('#tagAdv') && !d.querySelector('.tagAdvBest') && !d.querySelector('[data-adv]'); r.timers = timers.size; w.close();
+  r.notes = notes; w.eval('window.__tagAdv.stop()'); r.openRestored = mini !== 'popup' || w.open === stubOpen; r.stopped = !d.querySelector('#tagAdv') && !d.querySelector('.tagAdvBest') && !d.querySelector('[data-adv]'); r.timers = timers.size; w.close();
   return r;
 }
 const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) }, (_, i) => from + i / n);
@@ -233,6 +241,16 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   console.log('Cadence prévue : 0 donne le minimum (0.1), pas la valeur par défaut');
   r = await page({ ...base, mode: 'actif', cpsInput: '0' });
   check(r.cpsVal === '0.1', 'saisi « 0 » → ' + r.cpsVal);
+
+  console.log('Son : Facture dorée (4 notes) si activé, rien sinon ; événement en cours à l’ouverture : rien ; événement qui démarre : 3 notes');
+  {
+    const facture = await page({ ...base, son: true, gold: true });
+    const coupe = await page({ ...base, gold: true });
+    const dejaLa = await page({ ...base, son: true, chip: '📣 Jour de mobilisation : production ×2 jusqu’à 20 h · encore 7 h 40' });
+    const debut = await page({ ...base, son: true, chipLater: '📣 Jour de mobilisation : production ×2 jusqu’à 20 h · encore 7 h 59' });
+    check(facture.notes === 4 && coupe.notes === 0 && dejaLa.notes === 0 && debut.notes === 3,
+      `facture ${facture.notes} · son coupé ${coupe.notes} · événement déjà en cours ${dejaLa.notes} · événement qui démarre ${debut.notes}`);
+  }
 
   console.log('Rafale à l’écran : consigne de cliquer dans l’en-tête');
   r = await page({ ...base, chip: '⚡ Rafale de clics : chaque clic ×10 encore 13 s' });

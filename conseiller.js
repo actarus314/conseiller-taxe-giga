@@ -3,7 +3,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.32'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.33'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (Décret porté à +100000 par clic au build 2026-11-03h), identique au build 2026-11-04n.
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -281,6 +281,7 @@
   #tagAdv .seg button:focus-visible{outline:2px solid var(--tagInk);outline-offset:-4px}
   #tagAdv .det label{display:flex;gap:6px;align-items:center;color:var(--tagInk)}
   #tagAdv .det label[hidden]{display:none}
+  #tagAdv .det input[type=checkbox]{all:revert;margin:0;accent-color:var(--tagInk)}
   #tagAdv .det input{width:44px;font:inherit;font-size:12px;line-height:1.4;text-align:center;border:2px solid var(--tagInk);border-radius:6px;padding:1px 4px;background:#fff;color:var(--tagInk)}
   #tagAdv .now{padding:10px 12px;font-size:16px}
   #tagAdv .now b{display:block;font-size:18px}
@@ -322,7 +323,7 @@
       <span class="ctl"><button data-a="min" aria-label="Réduire">–</button><button data-a="x" aria-label="Fermer">✕</button></span></header>
     <div class="flash" hidden></div>
     <div class="warn" hidden></div><div class="now"></div><ol></ol>
-    <div class="ft"><div class="top"><div class="kpi"></div><button data-a="det" aria-expanded="false" aria-label="Détails"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 4.2 6 8.2 10 4.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div><div class="al"></div><div class="det" hidden><label data-cps>Cadence prévue (Actif) <input id="tagAdvCps" type="text" inputmode="decimal" autocomplete="off"> clics/s</label><div class="dtx"></div></div></div>`;
+    <div class="ft"><div class="top"><div class="kpi"></div><button data-a="det" aria-expanded="false" aria-label="Détails"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 4.2 6 8.2 10 4.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div><div class="al"></div><div class="det" hidden><label><input id="tagAdvSon" type="checkbox"> 🔔 Son : Facture dorée, début d’un événement</label><label data-cps>Cadence prévue (Actif) <input id="tagAdvCps" type="text" inputmode="decimal" autocomplete="off"> clics/s</label><div class="dtx"></div></div></div>`;
   document.body.appendChild(box);
   // téléphone : panneau réduit au conseil, la boutique reste visible
   if (innerWidth < PHONE) box.classList.add('min');
@@ -349,6 +350,35 @@
   // Détail du bas (cadence prévue en Actif, revenu supposé par le plan, moyenne) : replié par défaut, l'état choisi est retenu
   // sans choix de l'utilisateur, ouverts en Actif (réglage de la cadence prévue sous la main), fermés sinon
   let detOpen = store('det') == null ? mode === 'actif' : store('det') === '1';
+
+  // Signal sonore (désactivé par défaut, retenu) : apparition d'une Facture dorée (15 s pour la cliquer), début d'un événement du jeu.
+  // Sons synthétisés par le navigateur (Web Audio), sans fichier. Le navigateur n'autorise le son qu'après un geste :
+  // cocher la case suffit ; après un rechargement, le premier clic sur la page le rend possible.
+  let sonOn = store('son') === '1', actx = null;
+  const sonIn = box.querySelector('#tagAdvSon'); sonIn.checked = sonOn;
+  const audio = () => {
+    try {
+      if (!actx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null; actx = new AC(); }
+      if (actx.state === 'suspended') actx.resume();
+      return actx;
+    } catch (e) { return null; }
+  };
+  // notes (Hz) jouées l'une après l'autre : Facture dorée, aiguë et brève ; événement, trois notes montantes
+  const SON_FACTURE = [988, 1319, 988, 1319], SON_EVENEMENT = [523, 659, 784];
+  const beep = notes => {
+    const c = sonOn && audio(); if (!c) return;
+    let t = c.currentTime + 0.02;
+    for (const f of notes) {
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.3, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+      o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + 0.32); t += 0.16;
+    }
+  };
+  const unlock = () => { if (sonOn) audio(); };
+  document.addEventListener('pointerdown', unlock, true);
+  sonIn.addEventListener('change', () => { sonOn = sonIn.checked; store('son', sonOn ? '1' : '0'); if (sonOn) beep(SON_FACTURE); });
+  let goldWas = false, evWas = null;
   const showDet = () => { ui.det.hidden = !detOpen; ui.detBtn.setAttribute('aria-expanded', String(detOpen)); }; // le chevron tourne avec aria-expanded
   showDet();
 
@@ -403,6 +433,10 @@
   }
   function tickBody() {
     const st = last = read();
+    // signaux sonores sur les apparitions seulement (pas au chargement du panneau pour un événement déjà en cours)
+    if (st.goldUp && !goldWas) beep(SON_FACTURE); goldWas = st.goldUp;
+    const evKey = st.boost.ev ? st.boost.evn + '×' + st.boost.evm : '';
+    if (evWas !== null && evKey && evKey !== evWas) beep(SON_EVENEMENT); evWas = evKey;
     // bandeau jaune sous l'en-tête : Facture dorée à l’écran (elle n'y reste que 15 s), puis Rafale en cours
     const flash = st.goldUp ? '🧾 Facture dorée à cliquer !' : st.boost.rf ? `⚡ Rafale : cliquer ! (×${RAFALE}, ${st.boost.rf} s)` : '';
     put('flash', ui.flash, 'textContent', flash); put('flashHidden', ui.flash, 'hidden', !flash);
@@ -465,6 +499,7 @@
   let iv = 0;
   function stop() {
     stopped = true; perMinDirty = true; save();
+    document.removeEventListener('pointerdown', unlock, true); try { if (actx) actx.close(); } catch (e) { /* déjà fermé */ }
     clearInterval(iv); clearInterval(ivSave); box.remove(); css.remove(); document.title = baseTitle();
     document.removeEventListener('click', onClick, true); removeEventListener('resize', place);
     if (DPIP) DPIP.removeEventListener('enter', onPip);
