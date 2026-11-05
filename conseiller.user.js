@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Conseiller — Taxe au Giga
 // @namespace    https://github.com/actarus314/conseiller-taxe-giga
-// @version      2.22
+// @version      2.23
 // @description  Indique le meilleur bonus à acheter dans Taxe au Giga. Ne clique et n'achète rien.
 // @match        https://taxe-au-giga.fr/*
 // @grant        none
@@ -14,7 +14,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.22'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.23'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (build 2026-11-03h : Décret porté à +100000 par clic).
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -267,6 +267,7 @@
   #tagAdv .al p,#tagAdv .det p{margin:0}
   #tagAdv .al p{padding:3px 7px;border-radius:6px;background:#fff3b0;color:var(--tagInk)}
   #tagAdv .al p.lim{background:#ffb3d6}
+  #tagAdv .al p.live{background:#d3f5ea}
   #tagAdv .warn{padding:6px 12px;background:#ffb3d6;font-size:12px}
   #tagAdv.min .modes,#tagAdv.min ol,#tagAdv.min .ft{display:none}
   .tagAdvBest{outline:5px solid var(--tagGo)!important;outline-offset:2px;position:relative}
@@ -398,9 +399,9 @@
     if (cad.minute > LIM_MIN - 60) lim.push(`près de ${LIM_MIN} clics cette minute : au-delà, ils ne comptent plus, et un rythme tenu au plafond ${AUTOCLIC} min est pris pour un autoclic (clics ignorés ${AUTOCLIC} min)`);
     det.push(`plan calculé sur ${fmt(prod + clk)}/s : production` + (cps ? ` + clics à ${cpsTxt(cps)}/s` : ' seule'));
     if (mode === 'auto') det.push(cad.tot ? `moyenne de ${cad.tot} clics sur ${durMin(Math.max(cad.obs, MOY_PLANCHER * 60))}` + (cad.obs < MOY_PLANCHER * 60 ? ' (durée minimale comptée)' : ' de jeu observé') : 'aucun clic dans la moyenne des 3 dernières heures : conseil passif');
-    if (cad.rate) det.push(`série en cours ${dec1(cad.rate)}/s`);
-    if (mode !== 'passif' || cad.hour) det.push(`${cad.hour}/${LIM_H} clics sur l’heure · ${cad.minute}/${LIM_MIN} cette minute`);
-    put('al', ui.al, 'innerHTML', al.map(t => `<p>${t}</p>`).join('') + lim.map(t => `<p class="lim">⚠️ ${t}</p>`).join(''));
+    // série de clics en cours (Auto, Actif) : ce qu'elle rapporte en ce moment, Rafale comprise ; disparaît 8 s après le dernier clic
+    const live = mode !== 'passif' && cad.rate ? `<p class="live">👆 En direct : ${dec1(cad.rate)} clics/s → +${fmt(clickPow(st.own) * cad.rate * (st.boost.rf ? RAFALE : 1))}/s</p>` : '';
+    put('al', ui.al, 'innerHTML', live + al.map(t => `<p>${t}</p>`).join('') + lim.map(t => `<p class="lim">⚠️ ${t}</p>`).join(''));
     put('det', ui.det, 'innerHTML', det.map(t => `<p>${t}</p>`).join(''));
     const t = (ready ? '🟢 ' + first.it.u.name + ' · ' : '') + baseTitle(); if (document.title !== t) document.title = t;
   }

@@ -108,7 +108,7 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
     const h = minutes(1, 120, m => m % 20 < 2 ? 300 : 0);
     const entre = await page({ ...base, hist: h });
     const pendant = await page({ ...base, hist: h, clicks: every(5, 0, 30), at: 30 });
-    check(/moyenne 0.50\/s/.test(entre.ft) && /moyenne 0.52\/s/.test(pendant.ft) && /série en cours 5\/s/.test(pendant.ft) && entre.best === pendant.best,
+    check(/moyenne 0.50\/s/.test(entre.ft) && /moyenne 0.52\/s/.test(pendant.ft) && /En direct : 5 clics\/s/.test(pendant.ft) && entre.best === pendant.best,
       'entre : ' + entre.best + ' | pendant : ' + pendant.best + ' | ' + pendant.ft);
   }
 
@@ -122,7 +122,7 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
 
   console.log('Auto, minutes notées par une version antérieure (clics seuls, sans les minutes sans clic) : hors de la moyenne, dans le quota');
   r = await page({ ...base, hourClicks: 3600 });
-  check(/aucun clic dans la moyenne des 3 dernières heures/.test(r.ft) && /3600\/24000 clics sur l’heure/.test(r.ft), r.ft);
+  check(/aucun clic dans la moyenne des 3 dernières heures/.test(r.ft) && r.state.cadence.hour === 3600, r.ft);
 
   console.log('Auto, clics de plus de 3 h : oubliés, conseil passif');
   r = await page({ ...base, hist: { 200: 5000 } });
@@ -139,7 +139,7 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   for (const [m, lab] of [['pip-avant', 'image dans l’image ouverte avant le panneau'], ['pip-apres', 'image dans l’image ouverte après le panneau'], ['popup', 'fenêtre surgissante']]) {
     console.log(`Mode mini du jeu (${lab}) : clics de sa petite fenêtre comptés`);
     r = await page({ ...base, mini: m, clicks: every(5, 0, 30), at: 30 });
-    check(r.state.cadence.tot === 150 && /série en cours 5\/s/.test(r.ft) && r.openRestored, `${r.state.cadence.tot} clics comptés · window.open rendu : ${r.openRestored} | ${r.ft.slice(-90)}`);
+    check(r.state.cadence.tot === 150 && /En direct : 5 clics\/s/.test(r.ft) && r.openRestored, `${r.state.cadence.tot} clics comptés · window.open rendu : ${r.openRestored} | ${r.ft.slice(-90)}`);
   }
 
   console.log('Bas du panneau : détail replié par défaut, alertes visibles ; Frénésie en alerte');
@@ -154,6 +154,16 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   r = await page({ ...base, mode: 'actif', cps: 5.8 });
   const r2 = await page({ ...base, mode: 'actif', cpsInput: '6,5' });
   check(r.cpsVal === '5.8' && r2.cpsVal === '6.5' && /prévus 6.5\/s/.test(r2.ft), `affiché ${r.cpsVal} | saisi « 6,5 » → ${r2.cpsVal}`);
+
+  console.log('En direct : production de la série de clics en cours (Auto, Actif), Rafale comprise ; rien en Passif ni après 8 s sans clic');
+  {
+    const auto = await page({ ...base, clicks: every(5, 0, 30), at: 30 });
+    const rafale = await page({ ...base, mode: 'actif', clicks: every(5, 0, 30), at: 30, chip: '⚡ Rafale de clics : chaque clic ×10 encore 13 s' });
+    const passif = await page({ ...base, mode: 'passif', clicks: every(5, 0, 30), at: 30 });
+    const fini = await page({ ...base, clicks: every(5, 0, 30), at: 39 });
+    check(/En direct : 5 clics\/s → \+28850\/s/.test(auto.ft) && /\+288500\/s/.test(rafale.ft) && !/En direct/.test(passif.ft) && !/En direct/.test(fini.ft),
+      [auto, rafale, passif, fini].map(x => (x.ft.match(/En direct[^·]*/) || ['—'])[0]).join(' | '));
+  }
 
   console.log('Rafale à l’écran : consigne de cliquer dans l’en-tête');
   r = await page({ ...base, chip: '⚡ Rafale de clics : chaque clic ×10 encore 13 s' });
