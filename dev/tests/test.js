@@ -19,7 +19,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 let fails = 0;
 const check = (ok, msg) => { console.log((ok ? '  ok   ' : '  ÉCHEC ') + msg); if (!ok) fails++; };
 
-async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, clicks = [], hourClicks = 0, hist = null, mini = null, det = false, cpsInput = null, at = 0, done = [], gold = false, save = null }) {
+async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, clicks = [], hourClicks = 0, hist = null, ev = null, mini = null, det = false, cpsInput = null, at = 0, done = [], gold = false, save = null }) {
   const items = Object.entries(owned).map(([id, n]) => {
     const c = Math.ceil(B[id] * 1.15 ** n), d = done.includes(id);
     return `<button class="item" data-id="${id}" ${d || wallet < c ? 'disabled' : ''}><span class="ic"><b class="own">${d ? '✓' : '×' + n}</b><small class="price">${d ? 'acquis' : '💰 ' + big(c)}</small></span></button>`;
@@ -31,6 +31,7 @@ async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, cli
   const timers = new Map(); let timerId = 0; // minuteries simulées : un « tour de mise à jour » se joue d'un appel, sans attendre 650 ms réelles
   w.setInterval = (f, ms) => { timers.set(++timerId, { f, ms }); return timerId; }; w.clearInterval = id => { timers.delete(id); };
   if (det) w.localStorage.setItem('tagAdv-det', '1');
+  if (ev) w.localStorage.setItem('tagAdv-ev', JSON.stringify({ nm: ev.nm, mult: ev.mult, to: now + ev.left * 1000 }));
   w.localStorage.setItem('tagAdv-mode', mode); w.localStorage.setItem('tagAdv-cps', String(cps));
   if (save) { const sv = typeof save === 'number' ? { w: save, at } : save; w.localStorage.setItem('taxe-giga-partie-v1', JSON.stringify({ wallet: sv.w, owned: {}, myCount: 0, t: now + sv.at * 1000 })); }
   if (hourClicks || hist) {
@@ -170,13 +171,26 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
       [auto, rafale, passif, fini].map(x => (x.ft.match(/En direct[^·]*/) || ['—'])[0]).join(' | '));
   }
 
+  console.log('Événement du jeu lu sur son indicateur : production ×2 pendant sa durée, alerte, plan qui en tient compte');
+  {
+    r = await page({ ...base, mode: 'passif', chip: '📣 Jour de mobilisation : production ×2 jusqu’à 20 h · encore 7 h 40' });
+    check(/Production 44348\/s ×2 événement/.test(r.ft) && r.alerts.some(t => /Jour de mobilisation encore 7 h 40 : production ×2/.test(t)) && r.state.boost.ev === 27600 && /plan calculé sur 44348\/s/.test(r.ft),
+      r.ft.slice(0, 120) + ' | ' + r.alerts.join(' / ') + ' | durée ' + r.state.boost.ev);
+    console.log('Événement retenu quand l’indicateur montre une Frénésie (×4 = 1 + 2 + 2 − 1)');
+    r = await page({ ...base, mode: 'passif', ev: { nm: 'Jour de mobilisation', mult: 2, left: 3600 }, chip: '🔥 Frénésie fiscale : production ×4 encore 40 s' });
+    check(/Production 88696\/s ×4 Frénésie/.test(r.ft) && r.alerts.some(t => /Jour de mobilisation/.test(t)), r.ft.slice(0, 120));
+    console.log('Frénésie ×4 sans événement connu : multiplicateur déduit pour la durée de la Frénésie');
+    r = await page({ ...base, mode: 'passif', chip: '🔥 Frénésie fiscale : production ×4 encore 40 s' });
+    check(/Production 88696\/s ×4 Frénésie/.test(r.ft) && r.state.boost.ev === 40, r.ft.slice(0, 120));
+  }
+
   console.log('Rafale à l’écran : consigne de cliquer dans l’en-tête');
   r = await page({ ...base, chip: '⚡ Rafale de clics : chaque clic ×10 encore 13 s' });
   check(/⚡ Rafale : cliquer ! \(×10, 13 s\)/.test(r.text), 'en-tête : ' + r.text.slice(0, 40));
 
   console.log('Frénésie de 40 s comptée (Commission plus tôt)');
   r = await page({ owned: { ...o, hamster: 26, bot: 21, fax: 16, satellite: 3 }, wallet: 2628957, perClick: '5 803 visites', mode: 'passif', chip: '🔥 Frénésie fiscale : production ×3 encore 40 s' });
-  check(r.best === 'commission' && /Prochain achat dans 3 s/.test(r.now) && /Production 76266\/s Frénésie ×3/.test(r.ft) && r.alerts.some(t => /Frénésie encore 40 s/.test(t)), r.now + ' | ' + r.ft);
+  check(r.best === 'commission' && /Prochain achat dans 3 s/.test(r.now) && /Production 76266\/s ×3 Frénésie/.test(r.ft) && r.alerts.some(t => /Frénésie encore 40 s/.test(t)), r.now + ' | ' + r.ft);
 
   console.log('Rafale de 13 s en mode Actif 5/s : clics ×10 dans le revenu et les délais');
   r = await page({ ...base, mode: 'actif', cps: 5, wallet: 2e6, chip: '⚡ Rafale de clics : chaque clic ×10 encore 13 s' });

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Conseiller — Taxe au Giga
 // @namespace    https://github.com/actarus314/conseiller-taxe-giga
-// @version      2.24
+// @version      2.25
 // @description  Indique le meilleur bonus à acheter dans Taxe au Giga. Ne clique et n'achète rien.
 // @match        https://taxe-au-giga.fr/*
 // @grant        none
@@ -14,7 +14,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.24'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.25'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (build 2026-11-03h : Décret porté à +100000 par clic).
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -76,6 +76,8 @@
 
   // Réglages : Auto (moyenne mesurée, par défaut), Passif (aucun clic) ou Actif (cadence fixée)
   let mode = ['auto', 'passif', 'actif'].includes(store('mode')) ? store('mode') : 'auto';
+  // dernier événement du jeu lu sur son indicateur (nom, multiplicateur, fin), gardé pour les moments où l'indicateur montre autre chose
+  let evMem = null; try { evMem = JSON.parse(store('ev') || 'null'); } catch (e) { evMem = null; }
   let cpsPlan = clampCps(store('cps'));
 
   // Mesure des clics réels sur TAXER (bouton principal, bouton flottant et bouton du mode mini).
@@ -150,7 +152,7 @@
       const sv = JSON.parse(localStorage.getItem('taxe-giga-partie-v1') || 'null');
       if (sv && Number.isFinite(sv.wallet) && sv.t) {
         const since = recent.filter(t => t > sv.t).length; // clics comptés par le panneau depuis la sauvegarde
-        est = sv.wallet + prodRate(own) * (boost.fz ? FRENESIE : 1) * Math.max(0, Date.now() - sv.t) / 1000 + since * clickPow(own) * (boost.rf ? RAFALE : 1);
+        est = sv.wallet + prodRate(own) * prodMul(boost, 0) * Math.max(0, Date.now() - sv.t) / 1000 + since * clickPow(own) * (boost.rf ? RAFALE : 1);
       }
     } catch (e) {}
     return Number.isFinite(est) ? Math.min(hi, Math.max(lo, est)) : shown;
@@ -177,15 +179,25 @@
     if (pc && items.length && Math.abs(pc - clickPow(own)) > Math.max(2, pc * DRIFT)) drift.push('puissance de clic');
     // bonus de la Facture dorée en cours, lus dans le bandeau du jeu : Frénésie (production ×3) ou Rafale (clics ×10)
     const chip = $('#buffChip'), ct = chip && !chip.hidden ? chip.textContent : '', left = (ct.match(/(\d+)\s*s\b/) || [])[1];
-    const boost = { fz: /Frénésie/.test(ct) && left ? +left : 0, rf: /Rafale/.test(ct) && left ? +left : 0 };
+    const boost = { fz: /Frénésie/.test(ct) && left ? +left : 0, rf: /Rafale/.test(ct) && left ? +left : 0, ev: 0, evm: 1, evn: '' };
+    // Événement du jeu (build 2026-11-04n) : production ×mult pendant quelques heures, cumulée avec la Frénésie (1 + 2 + mult − 1).
+    // L'indicateur du jeu ne l'affiche que hors Frénésie et Rafale : sa fin est retenue, et pendant une Frénésie sans fin connue,
+    // le multiplicateur affiché (×4 au lieu de ×3) suffit à le déduire, pour la durée de la Frénésie.
+    const evm = /📣 (.+?) : production ×(\d+(?:[.,]\d+)?) jusqu.à .*?encore (?:(\d+) h (\d+)|(\d+) min)/.exec(ct);
+    if (evm) { evMem = { nm: evm[1], mult: parseFloat(evm[2].replace(',', '.')), to: Date.now() + (evm[3] ? (+evm[3] * 60 + +evm[4]) : +evm[5]) * 60e3 }; store('ev', JSON.stringify(evMem)); }
+    if (evMem && evMem.to > Date.now()) Object.assign(boost, { ev: Math.round((evMem.to - Date.now()) / 1000), evm: evMem.mult, evn: evMem.nm });
+    const fzm = boost.fz && /production ×(\d+(?:[.,]\d+)?)/.exec(ct), fzx = fzm ? parseFloat(fzm[1].replace(',', '.')) : FRENESIE;
+    if (boost.fz && fzx > FRENESIE && !boost.ev) Object.assign(boost, { ev: boost.fz, evm: fzx - FRENESIE + 1, evn: 'événement' });
     const gold = $('#goldBill'); // Facture dorée à l’écran
     return { items, own, drift, wallet: walletNow(own, boost), boost, goldUp: !!gold && !gold.hidden };
   }
 
   // Revenu à l'instant t (s) : Frénésie = production ×3 pendant fz s, Rafale = clics ×10 pendant rf s
-  const rateAt = (own, cps, b, t) => { const r = prodRate(own); return r * (t < b.fz ? FRENESIE : 1) + (cps > 0 ? clickPow(own, r) * cps * (t < b.rf ? RAFALE : 1) : 0); };
+  // multiplicateur de production à l'instant t (s) : Frénésie (+2) et événement du jeu (+mult − 1) s'additionnent
+  const prodMul = (b, t) => 1 + (t < b.fz ? FRENESIE - 1 : 0) + (t < (b.ev || 0) ? b.evm - 1 : 0);
+  const rateAt = (own, cps, b, t) => { const r = prodRate(own); return r * prodMul(b, t) + (cps > 0 ? clickPow(own, r) * cps * (t < b.rf ? RAFALE : 1) : 0); };
   // Morceaux de temps où le revenu est constant : [0, fin du 1er bonus], [.., fin du 2e], [.., ∞)
-  const pieces = b => [...new Set([b.fz, b.rf].filter(x => x > 0))].sort((x, y) => x - y).concat(Infinity);
+  const pieces = b => [...new Set([b.fz, b.rf, b.ev].filter(x => x > 0))].sort((x, y) => x - y).concat(Infinity);
   // Revenu de chaque morceau de temps, calculé une fois par étape du plan : [{ end, rate }]
   const segments = (own, cps, b) => { let start = 0; return pieces(b).map(end => { const seg = { end, rate: rateAt(own, cps, b, start) }; start = end; return seg; }); };
   // temps pour gagner `amount`
@@ -394,14 +406,15 @@
     // Bas du panneau : chiffres clés toujours visibles, alertes seulement quand elles comptent, détail replié.
     // Production : réelle (parc possédé, ×3 pendant une Frénésie). Clics : à la cadence retenue (moyenne mesurée en Auto,
     // réglée en Actif). Le plan suppose leur somme, nommée comme telle dans le détail.
-    const prod = prodRate(st.own) * (st.boost.fz ? FRENESIE : 1), clk = clickPow(st.own) * cps * (st.boost.rf ? RAFALE : 1);
-    const kpi = [['Production', fmt(prod) + '/s', st.boost.fz ? `Frénésie ×${FRENESIE}` : 'automatique'],
+    const prod = prodRate(st.own) * prodMul(st.boost, 0), clk = clickPow(st.own) * cps * (st.boost.rf ? RAFALE : 1);
+    const kpi = [['Production', fmt(prod) + '/s', st.boost.fz || st.boost.ev ? `×${dec1(prodMul(st.boost, 0))} ${st.boost.fz ? 'Frénésie' : 'événement'}` : 'automatique'],
       mode === 'passif' || capped ? ['Clics', 'non comptés', mode === 'passif' ? 'mode Passif' : 'quota de l’heure atteint']
         : ['Clics', '+' + fmt(clk) + '/s', `${mode === 'auto' ? 'moyenne' : 'prévus'} ${cpsTxt(cps)}/s` + (st.boost.rf ? ` ×${RAFALE}` : '')],
       ['Cagnotte', '💰 ' + fmt(st.wallet), '']];
     put('kpi', ui.kpi, 'innerHTML', kpi.map(([k, v, sub]) => `<span><small>${k}</small> <b>${v}</b>${sub ? ` <i>${sub}</i>` : ''}</span>`).join(''));
     const al = [], det = [];
-    if (st.boost.fz) al.push(`🔥 Frénésie encore ${st.boost.fz} s : production ×${FRENESIE}`);
+    if (st.boost.ev) al.push(`📣 ${st.boost.evn} encore ${dur(st.boost.ev)} : production ×${dec1(st.boost.evm)}`);
+    if (st.boost.fz) al.push(`🔥 Frénésie encore ${st.boost.fz} s : production ×${dec1(prodMul(st.boost, 0))}`);
     if (st.boost.rf) al.push(`⚡ Rafale encore ${st.boost.rf} s : chaque clic ×${RAFALE}` + (cps ? '' : ', à condition de cliquer'));
     const lim = [];
     if (capped && mode !== 'passif') lim.push(`${LIM_H} clics atteints sur l’heure : les clics ne comptent plus, conseil passif`);

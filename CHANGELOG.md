@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.25 — 05/11/2026
+Événements du jeu (build 2026-11-04n, premier le 05/11 de 12 h à 20 h : « Jour de mobilisation », production ×2) : lus sur l'indicateur du jeu, comptés dans la production, le plan et les délais pour leur durée, cumulés avec la Frénésie (×4 au lieu de ×3) ; signalés en alerte. Veille : l'indicateur des bonus est suivi (17 règles).
+
 ## v2.24 — 05/11/2026
 Mode Auto : moyenne sur les 3 dernières heures de présence, cherchées sur 24 h. Au-delà d'1 h sans clic, c'est une absence, écartée : au retour d'une nuit onglet ouvert, le conseil repart sur la cadence d'avant au lieu de partir de zéro pendant 3 h. Seuil choisi par simulation (dev/sim/presence.py) : le plus robuste parmi 30, 45, 60, 90 min et un seuil adaptatif.
 

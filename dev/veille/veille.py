@@ -35,6 +35,7 @@ REGLES = {
     'carte de bonus': r'b\.innerHTML = `<span class="ie">[^`]+`;',
     'affichage possédés et prix': r"b\.querySelector\('\.own'\)\.textContent = [^;]{1,400};\s*b\.querySelector\('\.price'\)\.textContent = [^;]{1,400};",
     'format des grands nombres': r"const big = n => [^;]{1,400};",
+    'indicateur des bonus': r"chip\.textContent = (?:now >= gameEv\.from \? )?`[^`]{1,300}`",
     'éléments lus': r'id="(?:wallet|shop|perClick|buffChip|goldBill|taxBtn|stickyTax)"',
 }
 

@@ -35,6 +35,7 @@ Un clic sur le favori ouvre le panneau, un second le ferme. Le panneau se place 
 - Prix d'un bonus : arrondi supérieur de `base × 1.15^possédés`.
 - Visites par clic : `floor(1 + Σ bonus de clic + (0.01 + Σ bonus en %) × production/s)`.
 - Choix : le bonus qui minimise *attente avant de pouvoir le payer* + *temps pour qu'il se rembourse*.
+- Bonus temporaires comptés pour leur durée : Frénésie (production +200 %), Rafale (clics ×10) et événements du jeu (production ×2 pendant quelques heures, par exemple), lus sur l'indicateur du jeu.
 
 Barème recopié du code du jeu (build 2026-11-04m). Une alerte rose apparaît si un prix ou la puissance de clic affichés ne correspondent plus.
 
