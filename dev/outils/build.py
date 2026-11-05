@@ -9,7 +9,10 @@ Usage : python3 dev/outils/build.py <version>   (ex. 2.1)
 import subprocess, html, pathlib, re, sys, urllib.parse
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-version = sys.argv[1] if len(sys.argv) > 1 else '0.0'
+# version obligatoire, au format 2.30 : sans elle, la source recevrait 0.0, que Tampermonkey ne mettrait jamais à jour
+if len(sys.argv) < 2 or not re.fullmatch(r'\d+\.\d+', sys.argv[1]):
+    sys.exit('Usage : python3 dev/outils/build.py <version>, au format 2.30')
+version = sys.argv[1]
 # la version affichée par le panneau est écrite dans la source, à partir du seul argument de ce script
 src = re.sub(r"const VERSION = '[^']*';", f"const VERSION = '{version}';", (ROOT / 'conseiller.js').read_text(encoding='utf-8'), count=1)
 (ROOT / 'conseiller.js').write_text(src, encoding='utf-8')
@@ -21,6 +24,7 @@ header = f"""// ==UserScript==
 // @description  Indique le meilleur bonus à acheter dans Taxe au Giga. Ne clique et n'achète rien.
 // @match        https://taxe-au-giga.fr/*
 // @grant        none
+// @noframes
 // @run-at       document-idle
 // @downloadURL  https://raw.githubusercontent.com/actarus314/conseiller-taxe-giga/main/conseiller.user.js
 // @updateURL    https://raw.githubusercontent.com/actarus314/conseiller-taxe-giga/main/conseiller.user.js
@@ -31,7 +35,7 @@ header = f"""// ==UserScript==
 # favori figé : code compressé par terser (dev/tests, version épinglée : `npm ci` dans dev/tests), puis encodage d'adresse
 TERSER = ROOT / 'dev' / 'tests' / 'node_modules' / 'terser'
 if not TERSER.exists():
-    sys.exit('terser absent : lancer `npm ci` dans dev/tests, puis relancer la construction')
+    sys.exit('terser absent : lancer `npm ci --ignore-scripts` dans dev/tests, puis relancer la construction')
 JS = "const t = require(process.argv[1]); let s = ''; process.stdin.on('data', d => s += d).on('end', async () => " \
      "process.stdout.write((await t.minify(s, { compress: { passes: 2 }, mangle: true, format: { comments: false } })).code));"
 code = subprocess.run(['node', '-e', JS, str(TERSER)], input=src, capture_output=True, text=True, check=True).stdout

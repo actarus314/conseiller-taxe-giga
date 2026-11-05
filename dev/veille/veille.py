@@ -8,7 +8,7 @@ Télécharge la page du jeu et vérifie trois choses :
 3. la page reçue est bien celle du jeu (pas une page de vérification anti-robot).
 
 Sortie : rapport Markdown sur la sortie standard, empreinte du constat dans $GITHUB_OUTPUT.
-Code de retour : 0 conforme, 1 écart, 2 page du jeu inaccessible.
+Code de retour : 0 conforme, 1 écart, 2 page du jeu inaccessible, 3 erreur d'analyse (page reçue, mais qui fait planter ce script).
 Usage : python3 dev/veille/veille.py [--fichier page.html] [--maj-reference]
 """
 import hashlib, json, os, pathlib, re, sys, urllib.request, zlib
@@ -72,10 +72,11 @@ def shop_jeu(html):
         return None
     b = html.find('];', a)
     out = {}
-    for m in re.finditer(r"\{ id: '(\w+)'.*?base: ([\d.e]+), unlock: ([\d.e]+)(.*?)\n", html[a:b]):
+    NB = r'(\d+(?:\.\d+)?(?:e[+-]?\d+)?)'  # 6e4, 1.5e11, 1e+6
+    for m in re.finditer(r"\{ id: '(\w+)'.*?base: " + NB + ", unlock: " + NB + r"(.*?)\n", html[a:b]):
         rest = m.group(4)
         def g(k, rest=rest):
-            return float((re.search(k + r': ([\d.e]+)', rest) or [0, 0])[1])
+            return float((re.search(k + ': ' + NB, rest) or [0, 0])[1])
         out[m.group(1)] = dict(base=float(m.group(2)), rate=g('rate'), click=g('click'), pct=g('pct'), max=g('max'))
     return out
 
@@ -104,7 +105,10 @@ def main():
     except Exception as e:
         print(f'## Page du jeu inaccessible\n\n{sur(str(e), 200)}')
         return finish('inaccessible', str(type(e).__name__), 2)
-    build = (re.search(r"const BUILD = '([^']+)'", html) or [None, None])[1]
+    build = (re.search(r"const BUILD = '([^']{1,80})'", html) or [None, None])[1]
+    # numéro de build validé avant d'entrer dans un rapport ou une issue (texte tiers : ni lien, ni mention, ni balise)
+    if build and not re.fullmatch(r'[\w.-]{1,40}', build):
+        build = None
     if 'const SHOP = [' not in html or not build:
         titre = (re.search(r'<title>([^<]*)', html) or [None, '?'])[1]
         print(f'## Page du jeu inaccessible\n\nPage reçue ({len(html)} octets), sans le code du jeu. Probablement une page de vérification anti-robot. Titre :\n{sur(titre.strip(), 120)}')
@@ -150,5 +154,14 @@ def finish(etat, detail, code):
     return code
 
 
+def principal():
+    # un plantage de l'analyse n'est pas un blocage d'accès : état « erreur » distinct, avec la cause dans le rapport
+    try:
+        return main()
+    except Exception as e:
+        print(f"## Erreur d'analyse de la page du jeu\n\n{sur(f'{type(e).__name__} : {e}', 300)}")
+        return finish('erreur', type(e).__name__, 3)
+
+
 if __name__ == '__main__':
-    sys.exit(main())
+    sys.exit(principal())

@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         Conseiller — Taxe au Giga
 // @namespace    https://github.com/actarus314/conseiller-taxe-giga
-// @version      2.30
+// @version      2.31
 // @description  Indique le meilleur bonus à acheter dans Taxe au Giga. Ne clique et n'achète rien.
 // @match        https://taxe-au-giga.fr/*
 // @grant        none
+// @noframes
 // @run-at       document-idle
 // @downloadURL  https://raw.githubusercontent.com/actarus314/conseiller-taxe-giga/main/conseiller.user.js
 // @updateURL    https://raw.githubusercontent.com/actarus314/conseiller-taxe-giga/main/conseiller.user.js
@@ -14,9 +15,9 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.30'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.31'; // écrite par dev/outils/build.py <version>
 
-  // Barème recopié du code du jeu le 03/11/2026 (build 2026-11-03h : Décret porté à +100000 par clic).
+  // Barème recopié du code du jeu le 03/11/2026 (Décret porté à +100000 par clic au build 2026-11-03h), identique au build 2026-11-04n.
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
   const P = [
     ['doigt', 'Doigt de fonctionnaire', 10, 0, 2], ['stagiaire', 'Stagiaire F5', 15, 0.5], ['chat', 'Chat sur le clavier', 100, 2],
@@ -43,7 +44,7 @@
   // écart relatif toléré entre le modèle et l'affichage du jeu (prix, puissance de clic)
   const DRIFT = 0.01;
   const CPS_MIN = 0.1, CPS_DEFAULT = 5;
-  const clampCps = v => Math.min(CPS_MAX, Math.max(CPS_MIN, parseFloat(v) || CPS_DEFAULT));
+  const clampCps = v => { const x = parseFloat(v); return Number.isFinite(x) ? Math.min(CPS_MAX, Math.max(CPS_MIN, x)) : CPS_DEFAULT; };
 
   // Production d'un parc : passive (rate) et par clic, comme clickPower() du jeu
   const prodRate = own => P.reduce((s, u) => s + u.rate * (own[u.id] || 0), 0);
@@ -72,12 +73,18 @@
   // créé une fois : toLocaleTimeString(options) en recrée un à chaque appel (72 µs)
   const hhmm = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' });
   const clock = s => !isFinite(s) ? '—' : hhmm.format(Date.now() + s * 1000);
+  // texte venu de la page du jeu (nom d'événement) avant de l'insérer dans du HTML
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const store = (k, v) => { try { if (v === undefined) return localStorage.getItem('tagAdv-' + k); localStorage.setItem('tagAdv-' + k, v); } catch (e) { return null; } };
 
   // Réglages : Auto (moyenne mesurée, par défaut), Passif (aucun clic) ou Actif (cadence fixée)
   let mode = ['auto', 'passif', 'actif'].includes(store('mode')) ? store('mode') : 'auto';
   // dernier événement du jeu lu sur son indicateur (nom, multiplicateur, fin), gardé pour les moments où l'indicateur montre autre chose
+  // validée au chargement : nom court, multiplicateur entre 1 et 100, fin à moins de 24 h
+  const evOk = e => !!e && typeof e.nm === 'string' && e.nm.length <= 60 && Number.isFinite(e.mult) && e.mult >= 1 && e.mult <= 100
+    && Number.isFinite(e.to) && e.to > Date.now() && e.to < Date.now() + 864e5;
   let evMem = null; try { evMem = JSON.parse(store('ev') || 'null'); } catch (e) { evMem = null; }
+  if (!evOk(evMem)) evMem = null;
   let cpsPlan = clampCps(store('cps'));
 
   // Mesure des clics réels sur TAXER (bouton principal, bouton flottant et bouton du mode mini).
@@ -90,43 +97,52 @@
   // Compteur par minute (0 = minute observée sans clic), gardé dans le navigateur pour survivre à un rechargement.
   const WIN = 60e3, STOP = 5e3, LIVE = 5e3, recent = [];
   const MOY_MIN = 180, MOY_PLANCHER = 30, PAUSE = 60, JOUR = 1440; // en minutes : présence moyennée, durée minimale comptée, pause vue comme une absence, recherche
-  let perMin = {}; try { perMin = JSON.parse(store('clics') || '{}') || {}; } catch (e) { perMin = {}; }
+  // validé au chargement : objet de minutes (entiers) vers des nombres de clics finis ; le reste est écarté
+  let perMin = {}; try { perMin = JSON.parse(store('clics') || '{}'); } catch (e) { perMin = {}; }
+  perMin = perMin && typeof perMin === 'object' && !Array.isArray(perMin)
+    ? Object.fromEntries(Object.entries(perMin).filter(([k, v]) => /^\d+$/.test(k) && Number.isFinite(v) && v >= 0)) : {};
+  let perMinDirty = false;
   // début de l'observation minute par minute (v2.14) : les minutes plus anciennes, notées par les versions qui ne
   // gardaient que les minutes avec clics, comptent pour le quota horaire mais pas pour la moyenne
   let since = parseInt(store('vu'), 10); if (!Number.isFinite(since)) { since = Math.floor(Date.now() / 60e3); store('vu', String(since)); }
   const onClick = e => {
     if (!e.isTrusted || !e.target.closest || !e.target.closest('#taxBtn, #stickyTax, #mTax')) return;
-    const t = Date.now(); recent.push(t); const m = Math.floor(t / 60e3); perMin[m] = (perMin[m] || 0) + 1;
+    const t = Date.now(); recent.push(t); const m = Math.floor(t / 60e3); perMin[m] = (perMin[m] || 0) + 1; perMinDirty = true;
   };
   document.addEventListener('click', onClick, true);
   // Mode mini du jeu : TAXER dans une petite fenêtre, « image dans l'image » (Chrome, Edge), sinon fenêtre surgissante
   // nommée taxe-giga-mini. La première est retrouvée même ouverte avant le panneau ; la seconde seulement si elle
   // s'ouvre panneau ouvert (window.open est alors observé, sans rien changer à son résultat).
   const minis = new Set();
-  const watchMini = w => { try { if (w && !minis.has(w)) { w.document.addEventListener('click', onClick, true); minis.add(w); } } catch (e) { /* fenêtre fermée */ } };
+  let stopped = false;
+  const watchMini = w => { try { if (!stopped && w && !minis.has(w)) { w.document.addEventListener('click', onClick, true); minis.add(w); w.addEventListener('pagehide', () => minis.delete(w)); } } catch (e) { /* fenêtre fermée */ } };
   const DPIP = window.documentPictureInPicture, onPip = e => watchMini(e.window);
   if (DPIP) { DPIP.addEventListener('enter', onPip); watchMini(DPIP.window); }
   const winOpen = window.open;
-  const openSpy = function (...a) { const w = winOpen.apply(this, a); if (a[1] === 'taxe-giga-mini') watchMini(w); return w; };
+  const openSpy = function (...a) { const w = winOpen.apply(this, a); if (a[1] === 'taxe-giga-mini') watchMini(w); return w; }; // inactive une fois le panneau arrêté
   window.open = openSpy;
   // minutes passées : recalculées une fois par minute (seule la minute en cours change entre deux)
   let past = null;
   function pastMinutes(m0) {
     const ks = Object.keys(perMin).map(Number).filter(k => k < m0).sort((x, y) => x - y), counted = [];
-    let last = null, hour = 0;
+    // avant le premier clic de la fenêtre, comme dans la simulation (dev/sim/presence.py) : la fenêtre s'ouvre comme un clic
+    let last = m0 - JOUR, hour = 0;
     for (const k of ks) {
-      if (k <= m0 - JOUR) { delete perMin[k]; continue; }
+      if (k <= m0 - JOUR) { delete perMin[k]; perMinDirty = true; continue; }
       const n = perMin[k]; if (k > m0 - 60) hour += n; if (n > 0) last = k;
-      if (k >= since && (n > 0 || (last !== null && k - last <= PAUSE))) counted.push(n);
+      if (k >= since && (n > 0 || k - last <= PAUSE)) counted.push(n);
     }
     return { m0, counted, last, hour };
   }
   function cadence() {
     const now = Date.now(), m0 = Math.floor(now / 60e3);
+    // horloge reculée (réglage à la main, grosse correction) : série et début d'observation repartent de maintenant
+    if (recent.length && recent[recent.length - 1] > now + 1000) { recent.length = 0; past = null; }
+    if (since > m0) { since = m0; store('vu', String(since)); }
     while (recent.length && recent[0] < now - WIN) recent.shift();
-    if (!(m0 in perMin)) perMin[m0] = 0; // minute observée
+    if (!(m0 in perMin)) { perMin[m0] = 0; perMinDirty = true; } // minute observée
     if (!past || past.m0 !== m0) past = pastMinutes(m0);
-    const cur = perMin[m0], curIn = m0 >= since && (cur > 0 || (past.last !== null && m0 - past.last <= PAUSE));
+    const cur = perMin[m0], curIn = m0 >= since && (cur > 0 || m0 - past.last <= PAUSE);
     const prev = past.counted.slice(-(MOY_MIN - (curIn ? 1 : 0)));
     const tot = prev.reduce((x, y) => x + y, 0) + (curIn ? cur : 0);
     const obs = prev.length * 60 + (curIn ? (now % 60e3) / 1000 : 0); // la minute en cours compte pour ce qui en est écoulé
@@ -140,7 +156,8 @@
     out.rate = n / (Math.max(1000, now - from) / 1000);
     return out;
   }
-  const ivSave = setInterval(() => store('clics', JSON.stringify(perMin)), SAVE_EVERY);
+  const save = () => { if (perMinDirty) { store('clics', JSON.stringify(perMin)); perMinDirty = false; } };
+  const ivSave = setInterval(save, SAVE_EVERY);
 
   // Cagnotte : l'affichage du jeu est arrondi (10000 près en M, 10 M près en Md, 10 Md près en billions). La sauvegarde du jeu
   // (exacte, réécrite toutes les 5 s), plus la production et les clics TAXER faits depuis son heure, donne
@@ -152,9 +169,11 @@
     let est = NaN;
     try {
       const sv = JSON.parse(localStorage.getItem('taxe-giga-partie-v1') || 'null');
-      if (sv && Number.isFinite(sv.wallet) && sv.t) {
-        const since = recent.filter(t => t > sv.t).length; // clics comptés par le panneau depuis la sauvegarde
-        est = sv.wallet + prodRate(own) * prodMul(boost, 0) * Math.max(0, Date.now() - sv.t) / 1000 + since * clickPow(own) * (boost.rf ? RAFALE : 1);
+      // sauvegarde antérieure à un achat (parc différent de celui affiché) : ignorée, l'affichage fait foi
+      const same = sv && sv.owned && typeof sv.owned === 'object' && Object.keys(own).every(id => (sv.owned[id] || 0) === own[id]);
+      if (same && Number.isFinite(sv.wallet) && sv.t) {
+        const clicks = recent.filter(t => t > sv.t).length; // clics comptés par le panneau depuis la sauvegarde
+        est = sv.wallet + prodRate(own) * prodMul(boost, 0) * Math.max(0, Date.now() - sv.t) / 1000 + clicks * clickPow(own) * (boost.rf ? RAFALE : 1);
       }
     } catch (e) {}
     return Number.isFinite(est) ? Math.min(hi, Math.max(lo, est)) : shown;
@@ -171,8 +190,8 @@
       const n = done ? 1 : parseInt(ownTxt.replace(/\D/g, ''), 10) || 0;
       own[u.id] = n;
       if (!done) {
-        const shown = num((b.querySelector('.price') || {}).textContent), c = cost(u, n);
-        if (shown && Math.abs(shown - c) / c > DRIFT) drift.push(u.name);
+        const price = num((b.querySelector('.price') || {}).textContent), c = cost(u, n);
+        if (price && Math.abs(price - c) / c > DRIFT) drift.push(u.name);
         items.push({ u, el: b });
       }
     }
@@ -181,12 +200,17 @@
     if (pc && items.length && Math.abs(pc - clickPow(own)) > Math.max(2, pc * DRIFT)) drift.push('puissance de clic');
     // bonus de la Facture dorée en cours, lus dans le bandeau du jeu : Frénésie (production ×3) ou Rafale (clics ×10)
     const chip = $('#buffChip'), ct = chip && !chip.hidden ? chip.textContent : '', left = (ct.match(/(\d+)\s*s\b/) || [])[1];
-    const boost = { fz: /Frénésie/.test(ct) && left ? +left : 0, rf: /Rafale/.test(ct) && left ? +left : 0, ev: 0, evm: 1, evn: '' };
+    const fzOn = /^\s*🔥 Frénésie/.test(ct), rfOn = /^\s*⚡ Rafale/.test(ct);
+    const boost = { fz: fzOn && left ? +left : 0, rf: rfOn && left ? +left : 0, ev: 0, evm: 1, evn: '' };
     // Événement du jeu (build 2026-11-04n) : production ×mult pendant quelques heures, cumulée avec la Frénésie (1 + 2 + mult − 1).
     // L'indicateur du jeu ne l'affiche que hors Frénésie et Rafale : sa fin est retenue, et pendant une Frénésie sans fin connue,
     // le multiplicateur affiché (×4 au lieu de ×3) suffit à le déduire, pour la durée de la Frénésie.
     const evm = /📣 (.+?) : production ×(\d+(?:[.,]\d+)?) jusqu.à .*?encore (?:(\d+) h (\d+)|(\d+) min)/.exec(ct);
-    if (evm) { evMem = { nm: evm[1], mult: parseFloat(evm[2].replace(',', '.')), to: Date.now() + (evm[3] ? (+evm[3] * 60 + +evm[4]) : +evm[5]) * 60e3 }; store('ev', JSON.stringify(evMem)); }
+    // fin lue à la minute, arrondie au-dessus par le jeu : on retire 30 s ; écrite seulement si le nom, le multiplicateur ou la fin (à 1 min près) change
+    if (evm) {
+      const e = { nm: evm[1].slice(0, 60), mult: parseFloat(evm[2].replace(',', '.')), to: Date.now() + (evm[3] ? (+evm[3] * 60 + +evm[4]) : +evm[5]) * 60e3 - 30e3 };
+      if (evOk(e) && (!evMem || evMem.nm !== e.nm || evMem.mult !== e.mult || Math.abs(evMem.to - e.to) > 60e3)) { evMem = e; store('ev', JSON.stringify(e)); }
+    } else if (!fzOn && !rfOn && evMem) { evMem = null; store('ev', 'null'); } // indicateur masqué ou sans événement : il n'y en a pas (ou plus)
     if (evMem && evMem.to > Date.now()) Object.assign(boost, { ev: Math.round((evMem.to - Date.now()) / 1000), evm: evMem.mult, evn: evMem.nm });
     const fzm = boost.fz && /production ×(\d+(?:[.,]\d+)?)/.exec(ct), fzx = fzm ? parseFloat(fzm[1].replace(',', '.')) : FRENESIE;
     if (boost.fz && fzx > FRENESIE && !boost.ev) Object.assign(boost, { ev: boost.fz, evm: fzx - FRENESIE + 1, evn: 'événement' });
@@ -194,11 +218,11 @@
     return { items, own, drift, wallet: walletNow(own, boost), boost, goldUp: !!gold && !gold.hidden };
   }
 
-  // Revenu à l'instant t (s) : Frénésie = production ×3 pendant fz s, Rafale = clics ×10 pendant rf s
+  // Revenu à l'instant t (s) : Frénésie = production ×3 pendant fz s, Rafale = clics ×10 pendant rf s, événement = production ×mult pendant ev s
   // multiplicateur de production à l'instant t (s) : Frénésie (+2) et événement du jeu (+mult − 1) s'additionnent
   const prodMul = (b, t) => 1 + (t < b.fz ? FRENESIE - 1 : 0) + (t < (b.ev || 0) ? b.evm - 1 : 0);
   const rateAt = (own, cps, b, t) => { const r = prodRate(own); return r * prodMul(b, t) + (cps > 0 ? clickPow(own, r) * cps * (t < b.rf ? RAFALE : 1) : 0); };
-  // Morceaux de temps où le revenu est constant : [0, fin du 1er bonus], [.., fin du 2e], [.., ∞)
+  // Morceaux de temps où le revenu est constant : [0, fin du 1er bonus], [.., fin du suivant]…, [.., ∞)
   const pieces = b => [...new Set([b.fz, b.rf, b.ev].filter(x => x > 0))].sort((x, y) => x - y).concat(Infinity);
   // Revenu de chaque morceau de temps, calculé une fois par étape du plan : [{ end, rate }]
   const segments = (own, cps, b) => { let start = 0; return pieces(b).map(end => { const seg = { end, rate: rateAt(own, cps, b, start) }; start = end; return seg; }); };
@@ -218,20 +242,25 @@
     for (const { end, rate } of segs) { const e = Math.min(end, T); if (e > t) sum += rate * (e - t); t = e; if (t >= T) break; }
     return sum;
   }
-  const after = (b, dt) => ({ fz: Math.max(0, b.fz - dt), rf: Math.max(0, b.rf - dt) });
-  // Choix : le bonus qui minimise (attente avant de pouvoir le payer + temps pour qu'il se rembourse).
+  const after = (b, dt) => ({ ...b, fz: Math.max(0, b.fz - dt), rf: Math.max(0, b.rf - dt), ev: Math.max(0, (b.ev || 0) - dt) });
+  // Choix : le bonus qui minimise (attente avant de pouvoir le payer + temps pour qu'il se rembourse). Le remboursement compte
+  // les bonus en cours sur leur durée (un bonus de production rapporte ×mult pendant un événement, ×3 pendant une Frénésie).
   function pick(items, own, w, cps, boost) {
-    let best = null, bs = Infinity; const r0 = income(own, cps), segs = segments(own, cps, boost);
+    let best = null, bs = Infinity; const segs = segments(own, cps, boost), ends = segs.map(g => g.end);
+    const r0 = prodRate(own), c0 = cps > 0 ? clickPow(own, r0) : 0;
     for (const it of items) {
       const n = own[it.u.id] || 0; if (it.u.max && n >= it.u.max) continue;
-      own[it.u.id] = n + 1; const g = income(own, cps) - r0; own[it.u.id] = n; if (g <= 0) continue;
-      const c = cost(it.u, n), wait = earnTime(c - w, segs), s = wait + c / g;
+      // gain du bonus, morceau par morceau : production en plus (×Frénésie, ×événement) et clics en plus (×Rafale)
+      own[it.u.id] = n + 1; const dC = cps > 0 ? clickPow(own, r0 + it.u.rate) - c0 : 0; own[it.u.id] = n;
+      let start = 0; const gain = ends.map(end => { const g = { end, rate: it.u.rate * prodMul(boost, start) + dC * cps * (start < boost.rf ? RAFALE : 1) }; start = end; return g; });
+      if (gain[gain.length - 1].rate <= 0) continue;
+      const c = cost(it.u, n), wait = earnTime(c - w, segs), s = wait + earnTime(c, gain);
       if (s < bs) { bs = s; best = { it, c, wait, segs }; }
     }
     return best;
   }
   function plan(st, cps, k) {
-    // boost : Frénésie / Rafale en cours
+    // boost : Frénésie, Rafale, événement en cours, décomptés achat après achat
     const own = { ...st.own }; let w = st.wallet, t = 0, boost = st.boost; const out = [];
     for (let i = 0; i < k; i++) {
       const best = pick(st.items, own, w, cps, boost); if (!best) break;
@@ -254,7 +283,6 @@
   #tagAdv header .id{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:14.5px}
   #tagAdv header .ctl{flex:none}
   #tagAdv .flash{padding:5px 12px;background:#ffd23f;border-bottom:2px solid var(--tagInk);font-weight:700;font-size:13px}
-  #tagAdv .flash[hidden]{display:none}
   #tagAdv header .v{font:500 10px/1 "IBM Plex Mono",ui-monospace,Menlo,monospace;color:#555;margin-left:2px;text-decoration:underline;cursor:pointer}
   #tagAdv header .v:focus-visible{outline:2px solid var(--tagInk);outline-offset:2px}
   #tagAdv header button{all:unset;cursor:pointer;padding:0 3px;font-size:16px}
@@ -288,7 +316,6 @@
   #tagAdv .ft button{all:unset;flex:none;width:20px;height:20px;display:grid;place-items:center;cursor:pointer;color:var(--tagInk);border:2px solid var(--tagInk);border-radius:6px}
   #tagAdv .ft button svg{width:12px;height:12px;transition:transform .15s}
   #tagAdv .ft button[aria-expanded="true"] svg{transform:rotate(180deg)}
-  #tagAdv .ft button[hidden]{display:none}
   #tagAdv .ft button:focus-visible{outline:2px solid var(--tagInk);outline-offset:2px}
   #tagAdv .al,#tagAdv .det,#tagAdv .dtx{display:grid;gap:3px}
   #tagAdv .al:empty,#tagAdv .det[hidden]{display:none}
@@ -348,7 +375,7 @@
   function place() {
     if (dragged) return;
     const st = $('#stickyTax'), h = st ? st.offsetHeight : 64, below = 24 + h + 18;
-    const w = box.offsetWidth, hh = box.offsetHeight, hdr = document.querySelector('header'), up = Math.round((hdr ? hdr.getBoundingClientRect().bottom : 64) + 8);
+    const w = box.offsetWidth, hh = box.offsetHeight, hdr = document.querySelector('header:not(#tagAdv header)'), up = Math.round((hdr ? hdr.getBoundingClientRect().bottom : 64) + 8);
     const obst = [onScreen($('#taxBtn')), onScreen(st)].filter(Boolean);
     const low = innerHeight - below - hh, L = 12, R = innerWidth - 12 - w;
     const cands = [{ side: 'right', top: null, l: R, y: low }, { side: 'left', top: null, l: L, y: low }, { side: 'right', top: up, l: R, y: up }, { side: 'left', top: up, l: L, y: up }];
@@ -375,9 +402,19 @@
   let last = null;
   const unmark = () => { if (marked) { marked.classList.remove('tagAdvBest'); delete marked.dataset.adv; marked = null; } };
   const PFX = /^🟢 [^·]+ · /, baseTitle = () => document.title.replace(PFX, ''); let marked = null;
+  // état neutre quand le conseil ne peut pas être donné : plus de marque, de fond vert, de suite, ni de titre « 🟢 »
+  const blank = msg => {
+    unmark(); put('nowClass', ui.now, 'className', 'now'); put('now', ui.now, 'textContent', msg);
+    put('ol', ui.ol, 'innerHTML', ''); put('kpi', ui.kpi, 'innerHTML', ''); put('al', ui.al, 'innerHTML', ''); put('det', ui.dtx, 'innerHTML', '');
+    const t = baseTitle(); if (document.title !== t) document.title = t;
+  };
+  // une erreur (page du jeu inattendue, donnée imprévue) s'affiche dans le panneau au lieu de le figer
   function tick() {
-    const st = last = read();
+    try { tickBody(); } catch (e) { blank('Erreur du conseiller : ' + (e && e.message || e) + '. Recharger la page du jeu.'); }
     place();
+  }
+  function tickBody() {
+    const st = last = read();
     // bandeau jaune sous l'en-tête : Facture dorée à l’écran (elle n'y reste que 15 s), puis Rafale en cours
     const flash = st.goldUp ? '🧾 Facture dorée à cliquer !' : st.boost.rf ? `⚡ Rafale : cliquer ! (×${RAFALE}, ${st.boost.rf} s)` : '';
     put('flash', ui.flash, 'textContent', flash); put('flashHidden', ui.flash, 'hidden', !flash);
@@ -387,13 +424,13 @@
     const want = mode === 'actif' ? cpsPlan : mode === 'auto' ? cad.avg : 0;
     const cps = Math.min(want, CPS_MAX, left / HORIZON);
     const why = !want || cps >= want - 0.05 ? '' : capped ? '' : cps < Math.min(want, CPS_MAX) - 0.05 ? `ramenée à ${cpsTxt(cps)} : reste ${left} clics sur le quota de l’heure` : `ramenée à ${dec1(CPS_MAX)}, plafond de ${LIM_MIN} clics par minute`;
-    if (!Number.isFinite(st.wallet) || !$('#shop')) { put('now', ui.now, 'innerHTML', 'Boutique introuvable : recharger la page du jeu.'); return; }
-    if (!st.items.length) { put('now', ui.now, 'innerHTML', 'Aucun bonus débloqué : cliquer sur TAXER.'); return; }
+    if (!Number.isFinite(st.wallet) || !$('#shop')) { blank('Boutique introuvable : recharger la page du jeu.'); return; }
+    if (!st.items.length) { blank('Aucun bonus débloqué : cliquer sur TAXER.'); return; }
     put('warnHidden', ui.warn, 'hidden', !st.drift.length);
     if (st.drift.length) put('warn', ui.warn, 'textContent', `⚠️ Le jeu ne correspond plus au barème connu (${st.drift.join(', ')}) : il a peut-être changé ses règles, conseils à prendre avec prudence.`);
     const out = plan(st, cps, PLAN_LEN), first = out[0];
     if (!first || marked !== first.it.el) unmark();
-    if (!first) return;
+    if (!first) { blank('Aucun achat à conseiller.'); return; }
     const ready = !first.it.el.disabled; // le bouton du jeu fait foi pour « achetable maintenant »
     // le jeu peut réécrire les classes de la carte : la marque est reposée si elle a disparu
     const adv = ready ? '👉 À ACHETER' : '⏳ ' + dur(first.t);
@@ -409,7 +446,7 @@
       // (marquée quand l'achat est possible tout de suite après le précédent)
       `<li><span class="n">${o.it.u.name}</span><span class="k">×${o.n}</span><span class="p">${fmt3(o.c)}</span><span class="h${o.t < 1 ? ' go' : ''}">${clock(o.t)}</span></li>`).join(''));
     // Bas du panneau : chiffres clés toujours visibles, alertes seulement quand elles comptent, détail replié.
-    // Production : réelle (parc possédé, ×3 pendant une Frénésie). Clics : à la cadence retenue (moyenne mesurée en Auto,
+    // Production : réelle (parc possédé, ×3 pendant une Frénésie, ×mult pendant un événement). Clics : à la cadence retenue (moyenne mesurée en Auto,
     // réglée en Actif). Le plan suppose leur somme, nommée comme telle dans le détail.
     const prod = prodRate(st.own) * prodMul(st.boost, 0), clk = clickPow(st.own) * cps * (st.boost.rf ? RAFALE : 1);
     // Clics pendant une série (Auto, Actif) : la colonne passe en direct (ce que la série rapporte, Rafale comprise), sur fond vert,
@@ -422,7 +459,7 @@
       ['Cagnotte', '💰 ' + fmt(st.wallet), '']];
     put('kpi', ui.kpi, 'innerHTML', kpi.map(([k, v, sub, cl]) => `<span${cl ? ` class="${cl}"` : ''}><small>${k}</small> <b>${v}</b>${sub ? ` <i>${sub}</i>` : ''}</span>`).join(''));
     const al = [], det = [];
-    if (st.boost.ev) al.push(`📣 ${st.boost.evn} encore ${dur(st.boost.ev)} : production ×${dec1(st.boost.evm)}`);
+    if (st.boost.ev) al.push(`📣 ${esc(st.boost.evn)} encore ${dur(st.boost.ev)} : production ×${dec1(st.boost.evm)}`);
     if (st.boost.fz) al.push(`🔥 Frénésie encore ${st.boost.fz} s : production ×${dec1(prodMul(st.boost, 0))}`);
     // Rafale : signalée par le bandeau jaune du haut seulement (consigne d'action), pas en double ici
     const lim = [];
@@ -431,15 +468,15 @@
     if (!capped && cad.hour > LIM_H - 2000) lim.push(`bientôt ${LIM_H} clics sur l’heure : au-delà, ils ne comptent plus`);
     if (cad.minute > LIM_MIN - 60) lim.push(`près de ${LIM_MIN} clics cette minute : au-delà, ils ne comptent plus, et un rythme tenu au plafond ${AUTOCLIC} min est pris pour un autoclic (clics ignorés ${AUTOCLIC} min)`);
     det.push(`plan calculé sur ${fmt(prod + clk)}/s : production` + (cps ? ` + clics à ${cpsTxt(cps)}/s` : ' seule'));
-    if (mode === 'auto') det.push(cad.tot ? `moyenne de ${cad.tot} clics sur ${durMin(Math.max(cad.obs, MOY_PLANCHER * 60))}` + (cad.obs < MOY_PLANCHER * 60 ? ' (durée minimale comptée)' : ' de présence (pauses d’1 h et plus écartées)') : 'aucun clic compté sur 24 h : conseil passif');
+    if (mode === 'auto') det.push(cad.tot ? `moyenne de ${cad.tot} clics sur ${durMin(Math.max(cad.obs, MOY_PLANCHER * 60))}` + (cad.obs < MOY_PLANCHER * 60 ? ' (durée minimale comptée)' : ' de présence (au-delà d’1 h sans clic, minutes écartées)') : 'aucun clic compté sur 24 h : conseil passif');
     put('al', ui.al, 'innerHTML', al.map(t => `<p>${t}</p>`).join('') + lim.map(t => `<p class="lim">⚠️ ${t}</p>`).join(''));
     put('det', ui.dtx, 'innerHTML', det.map(t => `<p>${t}</p>`).join(''));
     const t = (ready ? '🟢 ' + first.it.u.name + ' · ' : '') + baseTitle(); if (document.title !== t) document.title = t;
   }
-  setMode(mode);
-  const iv = setInterval(tick, TICK);
+  let iv = 0;
   function stop() {
-    clearInterval(iv); clearInterval(ivSave); store('clics', JSON.stringify(perMin)); box.remove(); css.remove(); document.title = baseTitle();
+    stopped = true; perMinDirty = true; save();
+    clearInterval(iv); clearInterval(ivSave); box.remove(); css.remove(); document.title = baseTitle();
     document.removeEventListener('click', onClick, true); removeEventListener('resize', place);
     if (DPIP) DPIP.removeEventListener('enter', onPip);
     if (window.open === openSpy) window.open = winOpen;
@@ -447,6 +484,9 @@
     unmark(); if (endDrag) endDrag();
     delete window.__tagAdv;
   }
-  // état lu au dernier rafraîchissement (diagnostic depuis la console, et tests)
+  // état lu au dernier rafraîchissement (diagnostic depuis la console, et tests) ; déclaré avant le premier rafraîchissement,
+  // pour qu'un second clic sur le favori arrête toujours le panneau
   window.__tagAdv = { stop, state: () => last && { wallet: last.wallet, own: { ...last.own }, boost: { ...last.boost }, cadence: cadence(), minis: minis.size } };
+  setMode(mode);
+  iv = setInterval(tick, TICK);
 })();

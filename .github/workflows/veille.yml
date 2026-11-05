@@ -32,7 +32,9 @@ jobs:
     permissions:
       contents: read
       issues: write
-    # contrôles l'un après l'autre, jamais annulés ; un lancement manuel passe tout de suite, même pendant l'attente
+    # contrôles l'un après l'autre : celui en cours n'est jamais annulé, un contrôle en attente est remplacé par le suivant
+    # (son relais de relance s'arrête faute d'heure de fin, celui du suivant prend la suite) ; un lancement manuel passe
+    # tout de suite, même pendant l'attente de la relance
     concurrency:
       group: veille-controle
       cancel-in-progress: false
@@ -51,6 +53,7 @@ jobs:
           AVANT: ${{ inputs.echecs }}
         run: |
           case "$AVANT" in ''|*[!0-9]*) AVANT=0 ;; esac
+          AVANT=$((10#$AVANT))
           if [ "$SAUTER" = true ]; then
             echo "Passage sauté après un échec d'accès : aucune requête au site." >> "$GITHUB_STEP_SUMMARY"
             { echo "etat=saute"; echo "echecs=$AVANT"; } >> "$GITHUB_OUTPUT"; exit 0
@@ -83,7 +86,11 @@ jobs:
           if gh issue list --label veille --state open --json title --jq '.[].title' | grep -qF "[$EMP]"; then
             echo "Issue déjà ouverte pour ce constat [$EMP]."; exit 0
           fi
-          if [ "$ETAT" = ecart ]; then titre="Veille : le jeu ne correspond plus au conseiller [$EMP]"; else titre="Veille : page du jeu inaccessible [$EMP]"; fi
+          case "$ETAT" in
+            ecart) titre="Veille : le jeu ne correspond plus au conseiller [$EMP]" ;;
+            erreur) titre="Veille : erreur d'analyse de la page du jeu [$EMP]" ;;
+            *) titre="Veille : page du jeu inaccessible [$EMP]" ;;
+          esac
           { cat rapport.md; echo; echo "Exécution : $RUN"; } > corps.md
           gh issue create --title "$titre" --label veille --body-file corps.md
       - name: Noter l'heure de fin

@@ -19,22 +19,23 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 let fails = 0;
 const check = (ok, msg) => { console.log((ok ? '  ok   ' : '  ÉCHEC ') + msg); if (!ok) fails++; };
 
-async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, clicks = [], hourClicks = 0, hist = null, ev = null, mini = null, det = false, detClosed = false, clickDet = false, cpsInput = null, clickMode = null, at = 0, done = [], gold = false, save = null }) {
+async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, clicks = [], hourClicks = 0, hist = null, ev = null, mini = null, det = false, detClosed = false, clickDet = false, cpsInput = null, clickMode = null, raw = null, at = 0, done = [], gold = false, save = null }) {
   const items = Object.entries(owned).map(([id, n]) => {
     const c = Math.ceil(B[id] * 1.15 ** n), d = done.includes(id);
     return `<button class="item" data-id="${id}" ${d || wallet < c ? 'disabled' : ''}><span class="ic"><b class="own">${d ? '✓' : '×' + n}</b><small class="price">${d ? 'acquis' : '💰 ' + big(c)}</small></span></button>`;
   }).join('');
-  const dom = new JSDOM(`<title>Jeu</title><b id="wallet">${big(wallet)}</b><span id="perClick">${perClick || ''}</span><p id="buffChip" ${chip ? '' : 'hidden'}>${chip || ''}</p><button id="goldBill" ${gold ? '' : 'hidden'}>Facture dorée</button>
+  const dom = new JSDOM(`<title>Jeu</title><b id="wallet">${big(wallet)}</b><span id="perClick">${perClick || ''}</span><p id="buffChip" ${chip ? '' : 'hidden'}>${(chip || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')}</p><button id="goldBill" ${gold ? '' : 'hidden'}>Facture dorée</button>
     <button id="taxBtn">TAXER</button><button id="stickyTax">T</button><div id="shop">${items}</div>`, { runScripts: 'outside-only', url: 'https://taxe-au-giga.fr/' });
   const w = dom.window, d = w.document;
   let now = 1793700000000; w.Date.now = () => now; // horloge simulée
   const timers = new Map(); let timerId = 0; // minuteries simulées : un « tour de mise à jour » se joue d'un appel, sans attendre 650 ms réelles
   w.setInterval = (f, ms) => { timers.set(++timerId, { f, ms }); return timerId; }; w.clearInterval = id => { timers.delete(id); };
+  for (const [k, v] of Object.entries(raw || {})) w.localStorage.setItem(k, v); // stockage brut, éventuellement corrompu
   if (det) w.localStorage.setItem('tagAdv-det', '1');
   if (detClosed) w.localStorage.setItem('tagAdv-det', '0');
   if (ev) w.localStorage.setItem('tagAdv-ev', JSON.stringify({ nm: ev.nm, mult: ev.mult, to: now + ev.left * 1000 }));
   w.localStorage.setItem('tagAdv-mode', mode); w.localStorage.setItem('tagAdv-cps', String(cps));
-  if (save) { const sv = typeof save === 'number' ? { w: save, at } : save; w.localStorage.setItem('taxe-giga-partie-v1', JSON.stringify({ wallet: sv.w, owned: {}, myCount: 0, t: now + sv.at * 1000 })); }
+  if (save) { const sv = typeof save === 'number' ? { w: save, at } : save; w.localStorage.setItem('taxe-giga-partie-v1', JSON.stringify({ wallet: sv.w, owned, myCount: 0, t: now + sv.at * 1000 })); }
   if (hourClicks || hist) {
     const m0 = Math.floor(now / 60e3), pm = {};
     for (const [ago, n] of Object.entries(hist || {})) pm[m0 - ago] = n;
@@ -68,7 +69,7 @@ async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, cli
   for (let i = 0; i < 20; i++) refresh.f();
   const idleMutations = mo.takeRecords().length; mo.disconnect();
   const r = {
-    now: d.querySelector('#tagAdv .now').textContent, cpsShown: !d.querySelector('#tagAdv [data-cps]').hidden, cpsVal: d.getElementById('tagAdvCps').value, goTimes: d.querySelectorAll('#tagAdv ol .h.go').length, list: [...d.querySelectorAll('#tagAdv li')].map(l => [...l.children].map(c => c.textContent).join(' ')),
+    now: d.querySelector('#tagAdv .now').textContent, imgs: d.querySelectorAll('#tagAdv img').length, evStored: w.localStorage.getItem('tagAdv-ev'), cpsShown: !d.querySelector('#tagAdv [data-cps]').hidden, cpsVal: d.getElementById('tagAdvCps').value, goTimes: d.querySelectorAll('#tagAdv ol .h.go').length, list: [...d.querySelectorAll('#tagAdv li')].map(l => [...l.children].map(c => c.textContent).join(' ')),
     ft: [...d.querySelectorAll('#tagAdv .kpi span, #tagAdv .al p, #tagAdv .det p')].map(e => e.textContent).join(' · '),
     alerts: [...d.querySelectorAll('#tagAdv .al p')].map(e => e.textContent), detHidden: d.querySelector('#tagAdv .det').hidden, warn: d.querySelector('#tagAdv .warn').hidden ? '' : d.querySelector('#tagAdv .warn').textContent,
     best: d.querySelector('.tagAdvBest')?.dataset.id, adv: d.querySelector('.tagAdvBest')?.dataset.adv,
@@ -164,7 +165,7 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   const r2 = await page({ ...base, mode: 'actif', cpsInput: '6,5' });
   check(r.cpsVal === '5.8' && r2.cpsVal === '6.5' && /prévus 6.5\/s/.test(r2.ft), `affiché ${r.cpsVal} | saisi « 6,5 » → ${r2.cpsVal}`);
 
-  console.log('En direct : production de la série de clics en cours (Auto, Actif), Rafale comprise ; rien en Passif ni après 8 s sans clic');
+  console.log('En direct : production de la série de clics en cours (Auto, Actif), Rafale comprise ; rien en Passif ni après 5 s sans clic');
   {
     const auto = await page({ ...base, clicks: every(5, 0, 30), at: 30 });
     const rafale = await page({ ...base, mode: 'actif', clicks: every(5, 0, 30), at: 30, chip: '⚡ Rafale de clics : chaque clic ×10 encore 13 s' });
@@ -177,7 +178,7 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   console.log('Événement du jeu lu sur son indicateur : production ×2 pendant sa durée, alerte, plan qui en tient compte');
   {
     r = await page({ ...base, mode: 'passif', chip: '📣 Jour de mobilisation : production ×2 jusqu’à 20 h · encore 7 h 40' });
-    check(/Production 44348\/s ×2 événement/.test(r.ft) && r.alerts.some(t => /Jour de mobilisation encore 7 h 40 : production ×2/.test(t)) && r.state.boost.ev === 27600 && /plan calculé sur 44348\/s/.test(r.ft),
+    check(/Production 44348\/s ×2 événement/.test(r.ft) && r.alerts.some(t => /Jour de mobilisation encore 7 h 39 : production ×2/.test(t)) && r.state.boost.ev === 27570 && /plan calculé sur 44348\/s/.test(r.ft),
       r.ft.slice(0, 120) + ' | ' + r.alerts.join(' / ') + ' | durée ' + r.state.boost.ev);
     console.log('Événement retenu quand l’indicateur montre une Frénésie (×4 = 1 + 2 + 2 − 1)');
     r = await page({ ...base, mode: 'passif', ev: { nm: 'Jour de mobilisation', mult: 2, left: 3600 }, chip: '🔥 Frénésie fiscale : production ×4 encore 40 s' });
@@ -207,6 +208,31 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
     check(/En direct \+\S+ 8 clics\/s/.test(acc.ft) && /En direct \+\S+ 1 clic\/s/.test(pause.ft),
       [acc, pause].map(x => (x.ft.match(/En direct[^·]*/) || ['—'])[0]).join(' | '));
   }
+
+  console.log('Événement : suite des achats calculée avec le ×2 sur toute sa durée (pas seulement le premier achat)');
+  {
+    const sans = await page({ ...base, mode: 'passif', wallet: 100 });
+    const avec = await page({ ...base, mode: 'passif', wallet: 100, chip: '📣 Jour de mobilisation : production ×2 jusqu’à 20 h · encore 7 h 40' });
+    const h = x => x.list.map(l => l.match(/(\d\d):(\d\d)$/)).map(m => +m[1] * 60 + +m[2]);
+    const hs = h(sans), ha = h(avec);
+    check(ha[ha.length - 1] < hs[hs.length - 1], 'dernier achat de la suite : ' + avec.list[avec.list.length - 1] + ' avec l’événement, ' + sans.list[sans.list.length - 1] + ' sans');
+  }
+
+  console.log('Événement : nom piégé affiché comme du texte, jamais comme du HTML');
+  r = await page({ ...base, mode: 'passif', chip: '📣 <img src=x onerror=alert(1)> : production ×2 jusqu’à 20 h · encore 45 min' });
+  check(r.imgs === 0 && r.alerts.some(t => t.includes('<img src=x onerror=alert(1)>') && /encore 44 min/.test(t)), `images dans le panneau : ${r.imgs} | ${r.alerts.join(' / ')}`);
+
+  console.log('Événement retenu, puis indicateur masqué (événement annulé ou fini) : oublié');
+  r = await page({ ...base, mode: 'passif', ev: { nm: 'Jour de mobilisation', mult: 2, left: 3600 } });
+  check(r.state.boost.ev === 0 && /Production 22174\/s automatique/.test(r.ft) && r.evStored === 'null', `durée ${r.state.boost.ev} · mémoire ${r.evStored} | ${r.ft.slice(0, 60)}`);
+
+  console.log('Stockage corrompu (compteur non objet, événement incohérent) : panneau fonctionnel, pas de panneau figé');
+  r = await page({ ...base, raw: { 'tagAdv-clics': '5', 'tagAdv-ev': '{"nm":"x","mult":"a","to":1}' } });
+  check(r.best === 'satellite' && !/Erreur/.test(r.now) && r.stopped, r.now.slice(0, 60) + ' | arrêt propre : ' + r.stopped);
+
+  console.log('Cadence prévue : 0 donne le minimum (0.1), pas la valeur par défaut');
+  r = await page({ ...base, mode: 'actif', cpsInput: '0' });
+  check(r.cpsVal === '0.1', 'saisi « 0 » → ' + r.cpsVal);
 
   console.log('Rafale à l’écran : consigne de cliquer dans l’en-tête');
   r = await page({ ...base, chip: '⚡ Rafale de clics : chaque clic ×10 encore 13 s' });

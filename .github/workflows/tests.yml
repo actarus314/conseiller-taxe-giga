@@ -23,6 +23,13 @@ jobs:
           node-version: 22
       - run: npm ci --ignore-scripts
       - run: npm test
+      # fichiers générés à jour : reconstruits depuis conseiller.js à sa propre version, ils doivent être identiques à ceux du dépôt
+      - name: Fichiers générés à jour
+        working-directory: .
+        run: |
+          v=$(sed -n "s/.*const VERSION = '\([0-9.]*\)'.*/\1/p" conseiller.js)
+          python3 dev/outils/build.py "$v"
+          git diff --exit-code
   controles:
     # workflows (actionlint : erreurs ; zizmor : failles propres à GitHub Actions) et scripts Python (ruff : erreurs et bogues probables)
     runs-on: ubuntu-latest
@@ -37,3 +44,5 @@ jobs:
         run: pipx run zizmor==1.32.0 --offline .github/workflows/
       - name: ruff
         run: pipx run ruff==0.17.3 check dev/
+      - name: tests de la veille
+        run: python3 dev/veille/test_veille.py

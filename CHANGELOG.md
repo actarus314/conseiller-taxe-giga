@@ -1,5 +1,15 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.31 — 05/11/2026
+Audit (relecture indépendante des v2.12 à v2.30). Corrigé :
+- Sécurité : nom d'événement lu sur la page du jeu échappé avant d'entrer dans le panneau (il pouvait y injecter du HTML, gardé dans le navigateur jusqu'à la fin annoncée) ; mémoire d'événement et compteur de clics validés au chargement ; veille : numéro de build du jeu validé avant d'entrer dans une issue.
+- Événements du jeu : la suite des achats comptait le ×mult seulement pour le premier ; le remboursement d'un achat compte désormais les bonus en cours sur leur durée ; événement oublié dès que l'indicateur du jeu ne le montre plus (annulé, écourté, fini), mémoire écrite seulement quand elle change.
+- Robustesse : une erreur s'affiche dans le panneau au lieu de le figer, et un second clic sur le favori l'arrête toujours ; état propre (plus de marque ni de fond vert) quand la boutique est illisible ; horloge qui recule ; cagnotte estimée sans la sauvegarde du jeu antérieure à un achat ; cadence prévue de 0 ramenée au minimum (0.1) au lieu de 5 ; enveloppe du mode mini inactive une fois le panneau arrêté.
+- Moyenne de présence : les minutes sans clic en début de fenêtre comptent comme dans la simulation qui a fixé le seuil ; libellé exact.
+- Performance : compteur de clics (19 Ko sur 24 h) écrit seulement s'il a changé, au lieu de toutes les 5 s ; placement calculé après les écritures du rafraîchissement.
+- Veille : un plantage de l'analyse donne une issue « erreur d'analyse », plus une fausse « page inaccessible » ; nombres du tableau du jeu au format 1e+6 lus. Construction : version obligatoire et validée ; script utilisateur limité au cadre principal (@noframes).
+- Tests : 7 nouveaux cas du panneau (suite des achats pendant un événement, nom piégé, événement fini, stockage corrompu, bornes de la cadence) ; tests de la veille sur des pages fabriquées ; l'intégration continue vérifie que les fichiers générés sont à jour.
+
 ## v2.30 — 05/11/2026
 Colonne « En direct » : cadence sur les 5 dernières secondes (fenêtre glissante) au lieu de la moyenne depuis le début de la série : un changement de rythme se voit en quelques secondes, une pause fait baisser le chiffre aussitôt. Sans effet sur le conseil.
 
