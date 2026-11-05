@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.32 — 05/11/2026
+Alertes plus courtes, sur une ligne : « 📣 Jour de mobilisation ×2 · encore 7 h 44 », « 🔥 Frénésie ×3 · encore 40 s » (la colonne Production indique déjà ce qui est multiplié).
+
 ## v2.31 — 05/11/2026
 Audit (relecture indépendante des v2.12 à v2.30). Corrigé :
 - Sécurité : nom d'événement lu sur la page du jeu échappé avant d'entrer dans le panneau (il pouvait y injecter du HTML, gardé dans le navigateur jusqu'à la fin annoncée) ; mémoire d'événement et compteur de clics validés au chargement ; veille : numéro de build du jeu validé avant d'entrer dans une issue.

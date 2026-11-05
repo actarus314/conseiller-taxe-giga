@@ -178,7 +178,7 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   console.log('Événement du jeu lu sur son indicateur : production ×2 pendant sa durée, alerte, plan qui en tient compte');
   {
     r = await page({ ...base, mode: 'passif', chip: '📣 Jour de mobilisation : production ×2 jusqu’à 20 h · encore 7 h 40' });
-    check(/Production 44348\/s ×2 événement/.test(r.ft) && r.alerts.some(t => /Jour de mobilisation encore 7 h 39 : production ×2/.test(t)) && r.state.boost.ev === 27570 && /plan calculé sur 44348\/s/.test(r.ft),
+    check(/Production 44348\/s ×2 événement/.test(r.ft) && r.alerts.some(t => /Jour de mobilisation ×2 · encore 7 h 39/.test(t)) && r.state.boost.ev === 27570 && /plan calculé sur 44348\/s/.test(r.ft),
       r.ft.slice(0, 120) + ' | ' + r.alerts.join(' / ') + ' | durée ' + r.state.boost.ev);
     console.log('Événement retenu quand l’indicateur montre une Frénésie (×4 = 1 + 2 + 2 − 1)');
     r = await page({ ...base, mode: 'passif', ev: { nm: 'Jour de mobilisation', mult: 2, left: 3600 }, chip: '🔥 Frénésie fiscale : production ×4 encore 40 s' });
@@ -240,7 +240,7 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
 
   console.log('Frénésie de 40 s comptée (Commission plus tôt)');
   r = await page({ owned: { ...o, hamster: 26, bot: 21, fax: 16, satellite: 3 }, wallet: 2628957, perClick: '5 803 visites', mode: 'passif', chip: '🔥 Frénésie fiscale : production ×3 encore 40 s' });
-  check(r.best === 'commission' && /Prochain achat dans 3 s/.test(r.now) && /Production 76266\/s ×3 Frénésie/.test(r.ft) && r.alerts.some(t => /Frénésie encore 40 s/.test(t)), r.now + ' | ' + r.ft);
+  check(r.best === 'commission' && /Prochain achat dans 3 s/.test(r.now) && /Production 76266\/s ×3 Frénésie/.test(r.ft) && r.alerts.some(t => /Frénésie ×3 · encore 40 s/.test(t)), r.now + ' | ' + r.ft);
 
   console.log('Rafale de 13 s en mode Actif 5/s : clics ×10 dans le revenu et les délais');
   r = await page({ ...base, mode: 'actif', cps: 5, wallet: 2e6, chip: '⚡ Rafale de clics : chaque clic ×10 encore 13 s' });

@@ -3,7 +3,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.31'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.32'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (Décret porté à +100000 par clic au build 2026-11-03h), identique au build 2026-11-04n.
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -447,8 +447,9 @@
       ['Cagnotte', '💰 ' + fmt(st.wallet), '']];
     put('kpi', ui.kpi, 'innerHTML', kpi.map(([k, v, sub, cl]) => `<span${cl ? ` class="${cl}"` : ''}><small>${k}</small> <b>${v}</b>${sub ? ` <i>${sub}</i>` : ''}</span>`).join(''));
     const al = [], det = [];
-    if (st.boost.ev) al.push(`📣 ${esc(st.boost.evn)} encore ${dur(st.boost.ev)} : production ×${dec1(st.boost.evm)}`);
-    if (st.boost.fz) al.push(`🔥 Frénésie encore ${st.boost.fz} s : production ×${dec1(prodMul(st.boost, 0))}`);
+    // courtes : la colonne Production dit déjà que c'est la production qui est multipliée
+    if (st.boost.ev) al.push(`📣 ${esc(st.boost.evn)} ×${dec1(st.boost.evm)} · encore ${dur(st.boost.ev)}`);
+    if (st.boost.fz) al.push(`🔥 Frénésie ×${dec1(prodMul(st.boost, 0))} · encore ${st.boost.fz} s`);
     // Rafale : signalée par le bandeau jaune du haut seulement (consigne d'action), pas en double ici
     const lim = [];
     if (capped && mode !== 'passif') lim.push(`${LIM_H} clics atteints sur l’heure : les clics ne comptent plus, conseil passif`);
