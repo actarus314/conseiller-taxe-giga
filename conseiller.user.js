@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Conseiller — Taxe au Giga
 // @namespace    https://github.com/actarus314/conseiller-taxe-giga
-// @version      2.26
+// @version      2.27
 // @description  Indique le meilleur bonus à acheter dans Taxe au Giga. Ne clique et n'achète rien.
 // @match        https://taxe-au-giga.fr/*
 // @grant        none
@@ -14,7 +14,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.26'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.27'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (build 2026-11-03h : Décret porté à +100000 par clic).
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -85,9 +85,9 @@
   // Présence : minutes où le panneau tournait, sauf au-delà d'1 h sans aucun clic (nuit, réunion : absence, pas jeu passif).
   // Des séries espacées donnent ainsi une cadence stable, la même pendant et entre les séries, et retrouvée dès le retour
   // d'une absence. Seuil d'1 h choisi par simulation (dev/sim/presence.py) : le plus robuste des seuils essayés.
-  // Série en cours (affichage seul) : clics de la dernière minute, interrompue après 8 s sans clic.
+  // Série en cours (colonne « En direct » seulement) : clics de la dernière minute, interrompue après 5 s sans clic.
   // Compteur par minute (0 = minute observée sans clic), gardé dans le navigateur pour survivre à un rechargement.
-  const WIN = 60e3, STOP = 8e3, recent = [];
+  const WIN = 60e3, STOP = 5e3, recent = [];
   const MOY_MIN = 180, MOY_PLANCHER = 30, PAUSE = 60, JOUR = 1440; // en minutes : présence moyennée, durée minimale comptée, pause vue comme une absence, recherche
   let perMin = {}; try { perMin = JSON.parse(store('clics') || '{}') || {}; } catch (e) { perMin = {}; }
   // début de l'observation minute par minute (v2.14) : les minutes plus anciennes, notées par les versions qui ne
@@ -256,15 +256,14 @@
   #tagAdv header .v{font:500 10px/1 "IBM Plex Mono",ui-monospace,Menlo,monospace;color:#555;margin-left:2px;text-decoration:underline;cursor:pointer}
   #tagAdv header .v:focus-visible{outline:2px solid var(--tagInk);outline-offset:2px}
   #tagAdv header button{all:unset;cursor:pointer;padding:0 3px;font-size:16px}
-  #tagAdv .modes{display:flex;gap:8px;padding:6px 12px 0;align-items:center}
-  #tagAdv .modes[hidden]{display:none}
   #tagAdv .seg{flex:none;margin:0 auto;display:inline-flex;border:2px solid var(--tagInk);border-radius:7px;overflow:hidden}
   #tagAdv .seg button{all:unset;cursor:pointer;padding:1px 5px;font-weight:700;font-size:11.5px;line-height:1.4}
   #tagAdv .seg button+button{border-left:2px solid var(--tagInk)}
   #tagAdv .seg button[aria-pressed="true"]{background:var(--tagInk);color:var(--tagPaper)}
   #tagAdv .seg button:focus-visible{outline:2px solid var(--tagInk);outline-offset:-4px}
-  #tagAdv .modes label{font-size:12px;display:flex;gap:6px;align-items:center}
-  #tagAdv .modes input{width:44px;font:inherit;font-size:12px;line-height:1.4;text-align:center;border:2px solid var(--tagInk);border-radius:6px;padding:1px 4px;background:#fff;color:var(--tagInk)}
+  #tagAdv .det label{display:flex;gap:6px;align-items:center;color:var(--tagInk)}
+  #tagAdv .det label[hidden]{display:none}
+  #tagAdv .det input{width:44px;font:inherit;font-size:12px;line-height:1.4;text-align:center;border:2px solid var(--tagInk);border-radius:6px;padding:1px 4px;background:#fff;color:var(--tagInk)}
   #tagAdv .now{padding:10px 12px;font-size:16px}
   #tagAdv .now b{display:block;font-size:18px}
   #tagAdv .now.go{background:var(--tagGo)}
@@ -287,13 +286,13 @@
   #tagAdv .ft button{all:unset;flex:none;width:18px;height:18px;line-height:18px;text-align:center;cursor:pointer;font-size:10px;color:var(--tagInk);border:2px solid var(--tagInk);border-radius:6px}
   #tagAdv .ft button[hidden]{display:none}
   #tagAdv .ft button:focus-visible{outline:2px solid var(--tagInk);outline-offset:2px}
-  #tagAdv .al,#tagAdv .det{display:grid;gap:3px}
+  #tagAdv .al,#tagAdv .det,#tagAdv .dtx{display:grid;gap:3px}
   #tagAdv .al:empty,#tagAdv .det[hidden]{display:none}
   #tagAdv .al p,#tagAdv .det p{margin:0}
   #tagAdv .al p{padding:3px 7px;border-radius:6px;background:#fff3b0;color:var(--tagInk)}
   #tagAdv .al p.lim{background:#ffb3d6}
   #tagAdv .warn{padding:6px 12px;background:#ffb3d6;font-size:12px}
-  #tagAdv.min .modes,#tagAdv.min ol,#tagAdv.min .ft{display:none}
+  #tagAdv.min ol,#tagAdv.min .ft{display:none}
   .tagAdvBest{outline:5px solid var(--tagGo)!important;outline-offset:2px;position:relative}
   .tagAdvBest::after{content:attr(data-adv);position:absolute;top:-12px;left:12px;background:var(--tagGo);color:var(--tagInk);border:2px solid var(--tagInk);
     border-radius:8px;padding:1px 8px;font:700 12px/1.4 "Space Grotesk",system-ui,sans-serif;pointer-events:none}`;
@@ -303,13 +302,12 @@
       <span class="seg" role="group" aria-label="Mode de conseil"><button data-m="auto">Auto</button><button data-m="passif">Passif</button><button data-m="actif">Actif</button></span>
       <span class="ctl"><button data-a="min" aria-label="Réduire">–</button><button data-a="x" aria-label="Fermer">✕</button></span></header>
     <div class="flash" hidden></div>
-    <div class="modes" data-cps><label>Cadence prévue <input id="tagAdvCps" type="text" inputmode="decimal" autocomplete="off"> clics/s</label></div>
     <div class="warn" hidden></div><div class="now"></div><ol></ol>
-    <div class="ft"><div class="top"><div class="kpi"></div><button data-a="det" aria-expanded="false" aria-label="Détails">▾</button></div><div class="al"></div><div class="det" hidden></div></div>`;
+    <div class="ft"><div class="top"><div class="kpi"></div><button data-a="det" aria-expanded="false" aria-label="Détails">▾</button></div><div class="al"></div><div class="det" hidden><label data-cps>Cadence prévue (Actif) <input id="tagAdvCps" type="text" inputmode="decimal" autocomplete="off"> clics/s</label><div class="dtx"></div></div></div>`;
   document.body.appendChild(box);
   // téléphone : panneau réduit au conseil, la boutique reste visible
   if (innerWidth < PHONE) box.classList.add('min');
-  const ui = { flash: box.querySelector('.flash'), now: box.querySelector('.now'), warn: box.querySelector('.warn'), ol: box.querySelector('ol'), kpi: box.querySelector('.kpi'), al: box.querySelector('.al'), det: box.querySelector('.det'), detBtn: box.querySelector('[data-a="det"]') };
+  const ui = { flash: box.querySelector('.flash'), now: box.querySelector('.now'), warn: box.querySelector('.warn'), ol: box.querySelector('ol'), kpi: box.querySelector('.kpi'), al: box.querySelector('.al'), det: box.querySelector('.det'), dtx: box.querySelector('.det .dtx'), detBtn: box.querySelector('[data-a="det"]') };
   // N'écrit dans le DOM que ce qui change : innerHTML recrée tous les nœuds même à contenu identique (recalcul de style et de mise en page à chaque tick)
   const shown = {};
   const put = (k, el, prop, v) => { if (shown[k] !== v) { el[prop] = v; shown[k] = v; } };
@@ -325,10 +323,11 @@
     const a = e.target.dataset.a;
     if (a === 'min') box.classList.toggle('min'); if (a === 'x') stop();
     if (a === 'det') { detOpen = !detOpen; store('det', detOpen ? '1' : '0'); showDet(); }
-    if (e.target.dataset.m) setMode(e.target.dataset.m);
+    // passage en Actif : détails dépliés, pour que le réglage de la cadence prévue soit sous la main
+    if (e.target.dataset.m) { if (e.target.dataset.m === 'actif' && mode !== 'actif') { detOpen = true; store('det', '1'); showDet(); } setMode(e.target.dataset.m); }
   });
 
-  // Détail du bas (cadence, quota de clics) : replié par défaut, l'état choisi est retenu
+  // Détail du bas (cadence prévue en Actif, revenu supposé par le plan, moyenne) : replié par défaut, l'état choisi est retenu
   let detOpen = store('det') === '1';
   const showDet = () => { ui.det.hidden = !detOpen; ui.detBtn.setAttribute('aria-expanded', String(detOpen)); ui.detBtn.textContent = detOpen ? '▴' : '▾'; };
   showDet();
@@ -409,7 +408,7 @@
     // réglée en Actif). Le plan suppose leur somme, nommée comme telle dans le détail.
     const prod = prodRate(st.own) * prodMul(st.boost, 0), clk = clickPow(st.own) * cps * (st.boost.rf ? RAFALE : 1);
     // Clics pendant une série (Auto, Actif) : la colonne passe en direct (ce que la série rapporte, Rafale comprise), sur fond vert,
-    // sans ligne en plus ; elle revient à la cadence retenue 8 s après le dernier clic. Le plan, lui, garde la cadence retenue.
+    // sans ligne en plus ; elle revient à la cadence retenue 5 s après le dernier clic. Le plan, lui, garde la cadence retenue.
     const live = mode !== 'passif' && !capped && cad.rate > 0;
     const kpi = [['Production', fmt(prod) + '/s', st.boost.fz || st.boost.ev ? `×${dec1(prodMul(st.boost, 0))} ${st.boost.fz ? 'Frénésie' : 'événement'}` : 'automatique'],
       mode === 'passif' || capped ? ['Clics', 'non comptés', mode === 'passif' ? 'mode Passif' : 'quota de l’heure atteint']
@@ -429,7 +428,7 @@
     det.push(`plan calculé sur ${fmt(prod + clk)}/s : production` + (cps ? ` + clics à ${cpsTxt(cps)}/s` : ' seule'));
     if (mode === 'auto') det.push(cad.tot ? `moyenne de ${cad.tot} clics sur ${durMin(Math.max(cad.obs, MOY_PLANCHER * 60))}` + (cad.obs < MOY_PLANCHER * 60 ? ' (durée minimale comptée)' : ' de présence (pauses d’1 h et plus écartées)') : 'aucun clic compté sur 24 h : conseil passif');
     put('al', ui.al, 'innerHTML', al.map(t => `<p>${t}</p>`).join('') + lim.map(t => `<p class="lim">⚠️ ${t}</p>`).join(''));
-    put('det', ui.det, 'innerHTML', det.map(t => `<p>${t}</p>`).join(''));
+    put('det', ui.dtx, 'innerHTML', det.map(t => `<p>${t}</p>`).join(''));
     const t = (ready ? '🟢 ' + first.it.u.name + ' · ' : '') + baseTitle(); if (document.title !== t) document.title = t;
   }
   setMode(mode);

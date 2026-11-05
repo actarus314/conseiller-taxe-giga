@@ -19,7 +19,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 let fails = 0;
 const check = (ok, msg) => { console.log((ok ? '  ok   ' : '  ÉCHEC ') + msg); if (!ok) fails++; };
 
-async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, clicks = [], hourClicks = 0, hist = null, ev = null, mini = null, det = false, cpsInput = null, at = 0, done = [], gold = false, save = null }) {
+async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, clicks = [], hourClicks = 0, hist = null, ev = null, mini = null, det = false, cpsInput = null, clickMode = null, at = 0, done = [], gold = false, save = null }) {
   const items = Object.entries(owned).map(([id, n]) => {
     const c = Math.ceil(B[id] * 1.15 ** n), d = done.includes(id);
     return `<button class="item" data-id="${id}" ${d || wallet < c ? 'disabled' : ''}><span class="ic"><b class="own">${d ? '✓' : '×' + n}</b><small class="price">${d ? 'acquis' : '💰 ' + big(c)}</small></span></button>`;
@@ -58,6 +58,7 @@ async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, cli
     utils.implForWrapper(tgt)._dispatch(ei);
   }
   now = 1793700000000 + at * 1000;
+  if (clickMode) d.querySelector(`#tagAdv [data-m="${clickMode}"]`).click();
   if (cpsInput != null) { const ci = d.getElementById('tagAdvCps'); ci.value = cpsInput; ci.dispatchEvent(new w.Event('change')); }
   const refresh = [...timers.values()].reduce((a, b) => (b.ms < a.ms ? b : a)); refresh.f(); // un tour de mise à jour du panneau
   // garde-fou de performance : 20 tours de plus sans aucun changement ne doivent rien écrire dans la page
@@ -65,7 +66,7 @@ async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, cli
   for (let i = 0; i < 20; i++) refresh.f();
   const idleMutations = mo.takeRecords().length; mo.disconnect();
   const r = {
-    now: d.querySelector('#tagAdv .now').textContent, cpsVal: d.getElementById('tagAdvCps').value, goTimes: d.querySelectorAll('#tagAdv ol .h.go').length, list: [...d.querySelectorAll('#tagAdv li')].map(l => [...l.children].map(c => c.textContent).join(' ')),
+    now: d.querySelector('#tagAdv .now').textContent, cpsShown: !d.querySelector('#tagAdv [data-cps]').hidden, cpsVal: d.getElementById('tagAdvCps').value, goTimes: d.querySelectorAll('#tagAdv ol .h.go').length, list: [...d.querySelectorAll('#tagAdv li')].map(l => [...l.children].map(c => c.textContent).join(' ')),
     ft: [...d.querySelectorAll('#tagAdv .kpi span, #tagAdv .al p, #tagAdv .det p')].map(e => e.textContent).join(' · '),
     alerts: [...d.querySelectorAll('#tagAdv .al p')].map(e => e.textContent), detHidden: d.querySelector('#tagAdv .det').hidden, warn: d.querySelector('#tagAdv .warn').hidden ? '' : d.querySelector('#tagAdv .warn').textContent,
     best: d.querySelector('.tagAdvBest')?.dataset.id, adv: d.querySelector('.tagAdvBest')?.dataset.adv,
@@ -183,6 +184,11 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
     r = await page({ ...base, mode: 'passif', chip: '🔥 Frénésie fiscale : production ×4 encore 40 s' });
     check(/Production 88696\/s ×4 Frénésie/.test(r.ft) && r.state.boost.ev === 40, r.ft.slice(0, 120));
   }
+
+  console.log('Passage en Actif : détails dépliés avec le réglage de la cadence prévue ; réglage caché en Auto');
+  r = await page({ ...base, clickMode: 'actif' });
+  const rAuto = await page({ ...base, det: true });
+  check(!r.detHidden && r.cpsShown&& !rAuto.cpsShown, `Actif : détails ${r.detHidden ? 'repliés' : 'dépliés'}, réglage ${r.cpsShown ? 'visible' : 'caché'} | Auto : réglage ${rAuto.cpsShown ? 'visible' : 'caché'}`);
 
   console.log('Rafale à l’écran : consigne de cliquer dans l’en-tête');
   r = await page({ ...base, chip: '⚡ Rafale de clics : chaque clic ×10 encore 13 s' });

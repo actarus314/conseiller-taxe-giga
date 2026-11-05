@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.27 — 05/11/2026
+Colonne « En direct » : la série de clics s'arrête après 5 s sans clic (8 s avant) ; sans effet sur le conseil, calculé sur la moyenne. Cadence prévue du mode Actif réglée en tête des détails, dépliés au passage en Actif, au lieu d'une ligne sous l'en-tête.
+
 ## v2.26 — 05/11/2026
 Pendant une série de clics, la colonne des clics passe « En direct » (ce que la série rapporte, Rafale comprise) au lieu d'une ligne en plus : le panneau ne change plus de taille en cliquant. Rafale signalée par le seul bandeau jaune du haut (elle l'était aussi en bas). Détails ouverts par une flèche au bout des chiffres clés, au lieu d'une ligne entière. Veille : un seul essai par passage ; après une page inaccessible, la relance suivante est sautée sans requête au site, et l'issue n'est ouverte qu'au deuxième échec de suite.
 
