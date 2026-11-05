@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Conseiller — Taxe au Giga
 // @namespace    https://github.com/actarus314/conseiller-taxe-giga
-// @version      2.28
+// @version      2.29
 // @description  Indique le meilleur bonus à acheter dans Taxe au Giga. Ne clique et n'achète rien.
 // @match        https://taxe-au-giga.fr/*
 // @grant        none
@@ -14,7 +14,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.28'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.29'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (build 2026-11-03h : Décret porté à +100000 par clic).
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -283,7 +283,9 @@
   #tagAdv .kpi small{font:600 9.5px/1.2 "IBM Plex Mono",ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.05em;color:#666}
   #tagAdv .kpi b{font:700 13px/1.3 "Space Grotesk",system-ui,sans-serif;color:var(--tagInk);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #tagAdv .kpi i{font-style:normal;font-size:11px;color:#666;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  #tagAdv .ft button{all:unset;flex:none;width:18px;height:18px;line-height:18px;text-align:center;cursor:pointer;font-size:10px;color:var(--tagInk);border:2px solid var(--tagInk);border-radius:6px}
+  #tagAdv .ft button{all:unset;flex:none;width:20px;height:20px;display:grid;place-items:center;cursor:pointer;color:var(--tagInk);border:2px solid var(--tagInk);border-radius:6px}
+  #tagAdv .ft button svg{width:12px;height:12px;transition:transform .15s}
+  #tagAdv .ft button[aria-expanded="true"] svg{transform:rotate(180deg)}
   #tagAdv .ft button[hidden]{display:none}
   #tagAdv .ft button:focus-visible{outline:2px solid var(--tagInk);outline-offset:2px}
   #tagAdv .al,#tagAdv .det,#tagAdv .dtx{display:grid;gap:3px}
@@ -303,7 +305,7 @@
       <span class="ctl"><button data-a="min" aria-label="Réduire">–</button><button data-a="x" aria-label="Fermer">✕</button></span></header>
     <div class="flash" hidden></div>
     <div class="warn" hidden></div><div class="now"></div><ol></ol>
-    <div class="ft"><div class="top"><div class="kpi"></div><button data-a="det" aria-expanded="false" aria-label="Détails">▾</button></div><div class="al"></div><div class="det" hidden><label data-cps>Cadence prévue (Actif) <input id="tagAdvCps" type="text" inputmode="decimal" autocomplete="off"> clics/s</label><div class="dtx"></div></div></div>`;
+    <div class="ft"><div class="top"><div class="kpi"></div><button data-a="det" aria-expanded="false" aria-label="Détails"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 4.2 6 8.2 10 4.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div><div class="al"></div><div class="det" hidden><label data-cps>Cadence prévue (Actif) <input id="tagAdvCps" type="text" inputmode="decimal" autocomplete="off"> clics/s</label><div class="dtx"></div></div></div>`;
   document.body.appendChild(box);
   // téléphone : panneau réduit au conseil, la boutique reste visible
   if (innerWidth < PHONE) box.classList.add('min');
@@ -320,16 +322,17 @@
   cpsIn.addEventListener('keydown', e => { if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); setCps(cpsPlan + (e.key === 'ArrowUp' ? 0.5 : -0.5)); } });
   const setMode = m => { mode = m; store('mode', m); box.querySelectorAll('[data-m]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.m === m))); box.querySelector('[data-cps]').hidden = m !== 'actif'; tick(); };
   box.addEventListener('click', e => {
-    const a = e.target.dataset.a;
+    const a = (e.target.closest('[data-a]') || {}).dataset?.a; // un clic sur le chevron (dessin) compte pour son bouton
     if (a === 'min') box.classList.toggle('min'); if (a === 'x') stop();
     if (a === 'det') { detOpen = !detOpen; store('det', detOpen ? '1' : '0'); showDet(); }
-    // passage en Actif : détails dépliés, pour que le réglage de la cadence prévue soit sous la main
-    if (e.target.dataset.m) { if (e.target.dataset.m === 'actif' && mode !== 'actif') { detOpen = true; store('det', '1'); showDet(); } setMode(e.target.dataset.m); }
+    // passage en Actif : détails dépliés tant que l'utilisateur n'a pas choisi lui-même de les ouvrir ou fermer
+    if (e.target.dataset.m) { if (e.target.dataset.m === 'actif' && store('det') == null) { detOpen = true; showDet(); } setMode(e.target.dataset.m); }
   });
 
   // Détail du bas (cadence prévue en Actif, revenu supposé par le plan, moyenne) : replié par défaut, l'état choisi est retenu
-  let detOpen = store('det') === '1';
-  const showDet = () => { ui.det.hidden = !detOpen; ui.detBtn.setAttribute('aria-expanded', String(detOpen)); ui.detBtn.textContent = detOpen ? '▴' : '▾'; };
+  // sans choix de l'utilisateur, ouverts en Actif (réglage de la cadence prévue sous la main), fermés sinon
+  let detOpen = store('det') == null ? mode === 'actif' : store('det') === '1';
+  const showDet = () => { ui.det.hidden = !detOpen; ui.detBtn.setAttribute('aria-expanded', String(detOpen)); }; // le chevron tourne avec aria-expanded
   showDet();
 
   let dragged = false; // déplacé à la main : il garde sa place

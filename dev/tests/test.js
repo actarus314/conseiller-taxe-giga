@@ -19,7 +19,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 let fails = 0;
 const check = (ok, msg) => { console.log((ok ? '  ok   ' : '  ÉCHEC ') + msg); if (!ok) fails++; };
 
-async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, clicks = [], hourClicks = 0, hist = null, ev = null, mini = null, det = false, cpsInput = null, clickMode = null, at = 0, done = [], gold = false, save = null }) {
+async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, clicks = [], hourClicks = 0, hist = null, ev = null, mini = null, det = false, detClosed = false, clickDet = false, cpsInput = null, clickMode = null, at = 0, done = [], gold = false, save = null }) {
   const items = Object.entries(owned).map(([id, n]) => {
     const c = Math.ceil(B[id] * 1.15 ** n), d = done.includes(id);
     return `<button class="item" data-id="${id}" ${d || wallet < c ? 'disabled' : ''}><span class="ic"><b class="own">${d ? '✓' : '×' + n}</b><small class="price">${d ? 'acquis' : '💰 ' + big(c)}</small></span></button>`;
@@ -31,6 +31,7 @@ async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, cli
   const timers = new Map(); let timerId = 0; // minuteries simulées : un « tour de mise à jour » se joue d'un appel, sans attendre 650 ms réelles
   w.setInterval = (f, ms) => { timers.set(++timerId, { f, ms }); return timerId; }; w.clearInterval = id => { timers.delete(id); };
   if (det) w.localStorage.setItem('tagAdv-det', '1');
+  if (detClosed) w.localStorage.setItem('tagAdv-det', '0');
   if (ev) w.localStorage.setItem('tagAdv-ev', JSON.stringify({ nm: ev.nm, mult: ev.mult, to: now + ev.left * 1000 }));
   w.localStorage.setItem('tagAdv-mode', mode); w.localStorage.setItem('tagAdv-cps', String(cps));
   if (save) { const sv = typeof save === 'number' ? { w: save, at } : save; w.localStorage.setItem('taxe-giga-partie-v1', JSON.stringify({ wallet: sv.w, owned: {}, myCount: 0, t: now + sv.at * 1000 })); }
@@ -58,6 +59,7 @@ async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, cli
     utils.implForWrapper(tgt)._dispatch(ei);
   }
   now = 1793700000000 + at * 1000;
+  if (clickDet) d.querySelector('#tagAdv [data-a="det"] path').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   if (clickMode) d.querySelector(`#tagAdv [data-m="${clickMode}"]`).click();
   if (cpsInput != null) { const ci = d.getElementById('tagAdvCps'); ci.value = cpsInput; ci.dispatchEvent(new w.Event('change')); }
   const refresh = [...timers.values()].reduce((a, b) => (b.ms < a.ms ? b : a)); refresh.f(); // un tour de mise à jour du panneau
@@ -189,6 +191,14 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   r = await page({ ...base, clickMode: 'actif' });
   const rAuto = await page({ ...base, det: true });
   check(!r.detHidden && r.cpsShown&& !rAuto.cpsShown, `Actif : détails ${r.detHidden ? 'repliés' : 'dépliés'}, réglage ${r.cpsShown ? 'visible' : 'caché'} | Auto : réglage ${rAuto.cpsShown ? 'visible' : 'caché'}`);
+
+  console.log('Détails : choix retenu (fermés par l’utilisateur, ils restent fermés en passant en Actif), ouverts par défaut au chargement en Actif, chevron cliquable');
+  {
+    const ferme = await page({ ...base, detClosed: true, clickMode: 'actif' });
+    const charge = await page({ ...base, mode: 'actif' });
+    const chevron = await page({ ...base, clickDet: true });
+    check(ferme.detHidden && !charge.detHidden && !chevron.detHidden, `fermés puis Actif : ${ferme.detHidden ? 'fermés' : 'ouverts'} | chargement en Actif : ${charge.detHidden ? 'fermés' : 'ouverts'} | clic sur le chevron : ${chevron.detHidden ? 'fermés' : 'ouverts'}`);
+  }
 
   console.log('Rafale à l’écran : consigne de cliquer dans l’en-tête');
   r = await page({ ...base, chip: '⚡ Rafale de clics : chaque clic ×10 encore 13 s' });

@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.29 — 05/11/2026
+Détails : ouverts d'office en Actif seulement tant qu'aucun choix n'a été fait ; ensuite, le choix (ouverts ou fermés) est retenu, y compris en repassant en Actif. Bouton des détails : chevron dessiné, à la taille de son carré, qui se retourne à l'ouverture.
+
 ## v2.28 — 05/11/2026
 Placement du panneau plus robuste : le bouton TAXER flottant compte aussi comme obstacle, une quatrième place (en haut à gauche) est essayée, et si aucune n'est libre, le panneau prend celle qui recouvre le moins au lieu de revenir en bas à droite.
 
