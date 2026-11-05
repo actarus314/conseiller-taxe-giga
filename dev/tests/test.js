@@ -109,7 +109,7 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
     const h = minutes(1, 120, m => m % 20 < 2 ? 300 : 0);
     const entre = await page({ ...base, hist: h });
     const pendant = await page({ ...base, hist: h, clicks: every(5, 0, 30), at: 30 });
-    check(/moyenne 0.50\/s/.test(entre.ft) && /moyenne 0.52\/s/.test(pendant.ft) && /En direct : 5 clics\/s/.test(pendant.ft) && entre.best === pendant.best,
+    check(/moyenne 0.50\/s/.test(entre.ft) && /plan calculé sur 25167\/s : production \+ clics à 0.52\/s/.test(pendant.ft) && /En direct \+28850\/s 5 clics\/s/.test(pendant.ft) && entre.best === pendant.best,
       'entre : ' + entre.best + ' | pendant : ' + pendant.best + ' | ' + pendant.ft);
   }
 
@@ -119,7 +119,7 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
 
   console.log('Auto, une seule série de 60 s à 5 clics/s sur un panneau qui vient de s’ouvrir : 0.17 clic/s, pas 5');
   r = await page({ ...base, clicks: every(5, 0, 60), at: 60 });
-  check(/moyenne 0.17\/s/.test(r.ft) && /plan calculé sur 23136\/s/.test(r.ft), r.ft);
+  check(/clics à 0.17\/s/.test(r.ft) && /plan calculé sur 23136\/s/.test(r.ft), r.ft);
 
   console.log('Auto, minutes notées par une version antérieure (clics seuls, sans les minutes sans clic) : hors de la moyenne, dans le quota');
   r = await page({ ...base, hourClicks: 3600 });
@@ -145,7 +145,7 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   for (const [m, lab] of [['pip-avant', 'image dans l’image ouverte avant le panneau'], ['pip-apres', 'image dans l’image ouverte après le panneau'], ['popup', 'fenêtre surgissante']]) {
     console.log(`Mode mini du jeu (${lab}) : clics de sa petite fenêtre comptés`);
     r = await page({ ...base, mini: m, clicks: every(5, 0, 30), at: 30 });
-    check(r.state.cadence.tot === 150 && /En direct : 5 clics\/s/.test(r.ft) && r.openRestored, `${r.state.cadence.tot} clics comptés · window.open rendu : ${r.openRestored} | ${r.ft.slice(-90)}`);
+    check(r.state.cadence.tot === 150 && /En direct \+28850\/s 5 clics\/s/.test(r.ft) && r.openRestored, `${r.state.cadence.tot} clics comptés · window.open rendu : ${r.openRestored} | ${r.ft.slice(-90)}`);
   }
 
   console.log('Bas du panneau : détail replié par défaut, alertes visibles ; Frénésie en alerte');
@@ -167,8 +167,8 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
     const rafale = await page({ ...base, mode: 'actif', clicks: every(5, 0, 30), at: 30, chip: '⚡ Rafale de clics : chaque clic ×10 encore 13 s' });
     const passif = await page({ ...base, mode: 'passif', clicks: every(5, 0, 30), at: 30 });
     const fini = await page({ ...base, clicks: every(5, 0, 30), at: 39 });
-    check(/En direct : 5 clics\/s → \+28850\/s/.test(auto.ft) && /\+288500\/s/.test(rafale.ft) && !/En direct/.test(passif.ft) && !/En direct/.test(fini.ft),
-      [auto, rafale, passif, fini].map(x => (x.ft.match(/En direct[^·]*/) || ['—'])[0]).join(' | '));
+    check(/En direct \+28850\/s 5 clics\/s/.test(auto.ft) && /En direct \+288500\/s 5 clics\/s ×10/.test(rafale.ft) && !/En direct/.test(passif.ft) && !/En direct/.test(fini.ft) && /Clics \+481\/s moyenne 0.08\/s/.test(fini.ft),
+      [auto, rafale, passif, fini].map(x => (x.ft.match(/(En direct|Clics)[^·]*/) || ['—'])[0]).join(' | '));
   }
 
   console.log('Événement du jeu lu sur son indicateur : production ×2 pendant sa durée, alerte, plan qui en tient compte');
@@ -194,11 +194,11 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
 
   console.log('Rafale de 13 s en mode Actif 5/s : clics ×10 dans le revenu et les délais');
   r = await page({ ...base, mode: 'actif', cps: 5, wallet: 2e6, chip: '⚡ Rafale de clics : chaque clic ×10 encore 13 s' });
-  check(/plan calculé sur 310674\/s/.test(r.ft) && /×10/.test(r.ft) && r.alerts.some(t => /Rafale encore 13 s/.test(t)), r.ft);
+  check(/plan calculé sur 310674\/s/.test(r.ft) && /×10/.test(r.ft) && /⚡ Rafale : cliquer ! \(×10, 13 s\)/.test(r.text) && !r.alerts.some(t => /Rafale/.test(t)), r.ft);
 
   console.log('Rafale en mode Passif : signalée sans être comptée');
   r = await page({ ...base, mode: 'passif', chip: '⚡ Rafale de clics : chaque clic ×10 encore 13 s' });
-  check(/Rafale encore 13 s : chaque clic ×10, à condition de cliquer/.test(r.ft), r.ft);
+  check(/⚡ Rafale : cliquer ! \(×10, 13 s\)/.test(r.text) && /plan calculé sur 22174\/s : production seule/.test(r.ft), r.ft);
 
   console.log('Facture dorée à l’écran : signalée dans l’en-tête, panneau sous elle (z-index < 70)');
   r = await page({ ...base, gold: true });

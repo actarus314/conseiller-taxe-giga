@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.26 — 05/11/2026
+Pendant une série de clics, la colonne des clics passe « En direct » (ce que la série rapporte, Rafale comprise) au lieu d'une ligne en plus : le panneau ne change plus de taille en cliquant. Rafale signalée par le seul bandeau jaune du haut (elle l'était aussi en bas). Détails ouverts par une flèche au bout des chiffres clés, au lieu d'une ligne entière. Veille : un seul essai par passage ; après une page inaccessible, la relance suivante est sautée sans requête au site, et l'issue n'est ouverte qu'au deuxième échec de suite.
+
 ## v2.25 — 05/11/2026
 Événements du jeu (build 2026-11-04n, premier le 05/11 de 12 h à 20 h : « Jour de mobilisation », production ×2) : lus sur l'indicateur du jeu, comptés dans la production, le plan et les délais pour leur durée, cumulés avec la Frénésie (×4 au lieu de ×3) ; signalés en alerte. Veille : l'indicateur des bonus est suivi (17 règles).
 

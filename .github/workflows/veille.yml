@@ -1,5 +1,8 @@
 # Veille : vérifie que le barème et les règles du jeu sont ceux du conseiller.
-# Écart ou page inaccessible → une issue (une seule par constat) ; retour à la normale → issues de veille refermées.
+# Écart → une issue (une seule par constat) ; retour à la normale → issues de veille refermées.
+# Page inaccessible (le site bloque parfois les robots quand son trafic monte) : un seul essai, puis la relance suivante est
+# sautée (passage sans requête au site) ; l'issue n'est ouverte qu'au deuxième échec de suite. L'état passe d'un passage
+# au suivant par les entrées du lancement (sauter, echecs).
 # Cadence : la veille se relance elle-même après le délai de l'environnement « attente-veille » (réglé dans
 # Settings → Environments), la planification de GitHub n'étant pas fiable ; le passage horaire sert de secours
 # pour relancer la chaîne si elle casse.
@@ -8,6 +11,15 @@ on:
   schedule:
     - cron: '7 * * * *'
   workflow_dispatch:
+    inputs:
+      sauter:
+        description: Passage sans requête au site (après un échec)
+        type: boolean
+        default: false
+      echecs:
+        description: Échecs d'accès de suite avant ce passage
+        type: string
+        default: '0'
   push:
     branches: [main]
     paths: ['dev/veille/**', '.github/workflows/veille.yml', 'conseiller.js']
@@ -26,28 +38,36 @@ jobs:
       cancel-in-progress: false
     outputs:
       fin: ${{ steps.fin.outputs.t }}
+      etat: ${{ steps.v.outputs.etat }}
+      echecs: ${{ steps.v.outputs.echecs }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Comparer le jeu et le conseiller
         id: v
+        env:
+          SAUTER: ${{ inputs.sauter }}
+          AVANT: ${{ inputs.echecs }}
         run: |
-          # page inaccessible : 3 essais espacés de 2 min avant de conclure
-          for essai in 1 2 3; do
-            : > "$GITHUB_OUTPUT.tmp"
-            GITHUB_OUTPUT="$GITHUB_OUTPUT.tmp" python3 dev/veille/veille.py > rapport.md && code=0 || code=$?
-            if [ "$code" != 2 ]; then break; fi
-            if [ "$essai" != 3 ]; then sleep 120; fi
-          done
-          cat "$GITHUB_OUTPUT.tmp" >> "$GITHUB_OUTPUT"
+          case "$AVANT" in ''|*[!0-9]*) AVANT=0 ;; esac
+          if [ "$SAUTER" = true ]; then
+            echo "Passage sauté après un échec d'accès : aucune requête au site." >> "$GITHUB_STEP_SUMMARY"
+            { echo "etat=saute"; echo "echecs=$AVANT"; } >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # un seul essai : après un échec, c'est la relance suivante qui est sautée
+          python3 dev/veille/veille.py > rapport.md || true
+          etat=$(grep -o '^etat=.*' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2)
+          if [ "$etat" = inaccessible ]; then echo "echecs=$((AVANT + 1))" >> "$GITHUB_OUTPUT"; else echo "echecs=0" >> "$GITHUB_OUTPUT"; fi
           # rapport (contenu tiers) dans le résumé seulement, jamais sur la sortie standard : pas de commandes « :: » injectables
           cat rapport.md >> "$GITHUB_STEP_SUMMARY"
       - name: Ouvrir ou refermer les issues de veille
+        if: steps.v.outputs.etat != 'saute'
         env:
           GH_TOKEN: ${{ github.token }}
           ETAT: ${{ steps.v.outputs.etat }}
           EMP: ${{ steps.v.outputs.empreinte }}
+          ECHECS: ${{ steps.v.outputs.echecs }}
           RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           gh label create veille --color FFD23F --description "Alerte de la veille automatique du jeu" --force >/dev/null
@@ -56,6 +76,9 @@ jobs:
               gh issue close "$n" --comment "Conforme de nouveau ($RUN)."
             done
             exit 0
+          fi
+          if [ "$ETAT" = inaccessible ] && [ "${ECHECS:-0}" -lt 2 ]; then
+            echo "Premier échec d'accès : pas d'issue, la relance suivante est sautée."; exit 0
           fi
           if gh issue list --label veille --state open --json title --jq '.[].title' | grep -qF "[$EMP]"; then
             echo "Issue déjà ouverte pour ce constat [$EMP]."; exit 0
@@ -87,6 +110,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           FIN: ${{ needs.veille.outputs.fin }}
+          ETAT: ${{ needs.veille.outputs.etat }}
+          ECHECS: ${{ needs.veille.outputs.echecs }}
         run: |
           # garde-fous contre une boucle : heure de fin connue, délai réel depuis la fin du contrôle, 6 passages par heure au plus (délai de 15 min, plus les passages lancés par un envoi)
           if [ -z "$FIN" ]; then echo "::warning::Heure de fin de la veille inconnue : pas de relance."; exit 0; fi
@@ -99,8 +124,11 @@ jobs:
           n=$(gh run list -R "$GITHUB_REPOSITORY" --workflow veille.yml --created ">$(date -u -d '-60 min' +%FT%TZ)" --json databaseId --jq length)
           if [ "$n" -gt 6 ]; then echo "::warning::$n passages en une heure : pas de relance."; exit 0; fi
           # erreur passagère de GitHub (HTTP 500 le 04/11/2026 à 09:43 UTC) : 4 essais, 30 s d'écart
+          # après un échec d'accès, le passage suivant est sauté (aucune requête au site) : prochain essai réel deux délais plus tard
+          sauter=false; if [ "$ETAT" = inaccessible ]; then sauter=true; fi
+          case "$ECHECS" in ''|*[!0-9]*) ECHECS=0 ;; esac
           for essai in 1 2 3 4; do
-            if gh workflow run veille.yml --ref main -R "$GITHUB_REPOSITORY"; then exit 0; fi
+            if gh workflow run veille.yml --ref main -R "$GITHUB_REPOSITORY" -f sauter="$sauter" -f echecs="$ECHECS"; then exit 0; fi
             echo "::warning::Relance refusée par GitHub (essai $essai sur 4)"
             if [ "$essai" -lt 4 ]; then sleep 30; fi
           done

@@ -10,7 +10,7 @@ Il lit ce que le jeu affiche. **Aucun clic, aucun achat, aucun appel au serveur 
 
 | Mode Auto, pendant une série de clics | Téléphone |
 |---|---|
-| ![Mode Auto à 0.51 clic/s en moyenne sur 2 h : Tampon à acheter](captures/auto-clics.png) | ![Panneau réduit sur téléphone](captures/mobile.png) |
+| ![Mode Auto pendant une série de clics, colonne En direct ; moyenne de 0.51 clic/s sur 2 h : Tampon à acheter](captures/auto-clics.png) | ![Panneau réduit sur téléphone](captures/mobile.png) |
 
 ## Modes
 
@@ -28,7 +28,7 @@ Dans tous les cas, la cadence retenue reste sous 1030 clics par minute (17.2/s),
 - **Favori à jour** (conseillé) : glisser le bouton vert de la [page d'installation](https://actarus314.github.io/conseiller-taxe-giga/) dans la barre de favoris, ou créer un favori dont l'adresse est le contenu de [`bookmarklet-auto.txt`](bookmarklet-auto.txt). Il charge `conseiller.js` depuis GitHub Pages à chaque clic : une nouvelle version arrive quelques minutes après sa publication (déploiement de Pages, puis une minute de cache au plus).
 - **Favori figé** : le contenu de [`bookmarklet.txt`](bookmarklet.txt), avec le code entier dans l'adresse ; rien n'est chargé à distance, mais il faut le refaire à chaque nouvelle version.
 
-Un clic sur le favori ouvre le panneau, un second le ferme. Le panneau se place de lui-même hors du grand bouton TAXER ; glissé par son en-tête, il garde la place choisie. En bas : production automatique (réelle), apport des clics à la cadence retenue (moyenne mesurée en Auto, prévue en Actif) et cagnotte ; pendant une série de clics (Auto, Actif), ce qu'elle rapporte en direct ; les alertes (Frénésie, Rafale, limites de clics) s'affichent d'elles-mêmes, « détails » déplie le revenu sur lequel le plan est calculé (production + clics) et la moyenne. Sur téléphone, le panneau s'ouvre réduit au conseil ; le bouton « – » le déplie.
+Un clic sur le favori ouvre le panneau, un second le ferme. Le panneau se place de lui-même hors du grand bouton TAXER ; glissé par son en-tête, il garde la place choisie. En bas : production automatique (réelle), apport des clics à la cadence retenue (moyenne mesurée en Auto, prévue en Actif) et cagnotte ; pendant une série de clics (Auto, Actif), la colonne des clics passe en direct ; Facture dorée et Rafale ont un bandeau jaune sous l'en-tête, Frénésie, événements du jeu et limites de clics une alerte en bas ; la flèche ▾ déplie le revenu sur lequel le plan est calculé (production + clics) et la moyenne. Sur téléphone, le panneau s'ouvre réduit au conseil ; le bouton « – » le déplie.
 
 ## Modèle
 
@@ -46,4 +46,4 @@ Barème recopié du code du jeu (build 2026-11-04m). Une alerte rose apparaît s
 - Simulateur des stratégies : `python3 dev/sim/modele.py <clics par seconde>`.
 - Captures : `dev/outils/captures.py` (mode d'emploi en tête du fichier).
 - Contrôles à chaque envoi et sur chaque demande de fusion : tests (dont garde-fous de performance), actionlint et zizmor sur les workflows, ruff sur les scripts Python. CodeQL analyse le code, Dependabot propose chaque mois les mises à jour des actions et des dépendances de test. Signaler une faille : voir [SECURITY.md](SECURITY.md).
-- Veille : en continu, relancée après le délai de l'environnement `attente-veille`, [`dev/veille/veille.py`](dev/veille/veille.py) compare le barème et les règles du jeu à ceux du conseiller ([workflow](.github/workflows/veille.yml)). Écart ou page inaccessible : une issue étiquetée `veille`, refermée d'elle-même au retour à la normale. Après une mise à jour du conseiller : `python3 dev/veille/veille.py --maj-reference`.
+- Veille : en continu, relancée après le délai de l'environnement `attente-veille`, [`dev/veille/veille.py`](dev/veille/veille.py) compare le barème et les règles du jeu à ceux du conseiller ([workflow](.github/workflows/veille.yml)). Écart : une issue étiquetée `veille`, refermée d'elle-même au retour à la normale. Page inaccessible (le site bloque parfois les robots quand son trafic monte) : un seul essai, la relance suivante est sautée sans requête au site, et l'issue n'est ouverte qu'au deuxième échec de suite. Après une mise à jour du conseiller : `python3 dev/veille/veille.py --maj-reference`.

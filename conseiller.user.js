@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Conseiller — Taxe au Giga
 // @namespace    https://github.com/actarus314/conseiller-taxe-giga
-// @version      2.25
+// @version      2.26
 // @description  Indique le meilleur bonus à acheter dans Taxe au Giga. Ne clique et n'achète rien.
 // @match        https://taxe-au-giga.fr/*
 // @grant        none
@@ -14,7 +14,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.25'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.26'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (build 2026-11-03h : Décret porté à +100000 par clic).
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -277,12 +277,14 @@
   #tagAdv ol .h{color:#666}
   #tagAdv ol .h.go{background:var(--tagGo);color:var(--tagInk);font-weight:700;border-radius:4px;padding:0 3px}
   #tagAdv .ft{padding:6px 12px 8px;border-top:2px dashed var(--tagInk);font-size:12px;color:#555;display:flex;flex-direction:column;gap:5px}
-  #tagAdv .kpi{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  #tagAdv .ft .top{display:flex;align-items:center;gap:6px}
+  #tagAdv .kpi{flex:1;min-width:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  #tagAdv .kpi span.live{background:#d3f5ea;border-radius:6px;margin:-3px -5px;padding:3px 5px}
   #tagAdv .kpi span{display:flex;flex-direction:column;min-width:0}
   #tagAdv .kpi small{font:600 9.5px/1.2 "IBM Plex Mono",ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.05em;color:#666}
   #tagAdv .kpi b{font:700 13px/1.3 "Space Grotesk",system-ui,sans-serif;color:var(--tagInk);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #tagAdv .kpi i{font-style:normal;font-size:11px;color:#666;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  #tagAdv .ft button{all:unset;display:block;cursor:pointer;font-size:11.5px;color:#555;text-decoration:underline;text-underline-offset:2px}
+  #tagAdv .ft button{all:unset;flex:none;width:18px;height:18px;line-height:18px;text-align:center;cursor:pointer;font-size:10px;color:var(--tagInk);border:2px solid var(--tagInk);border-radius:6px}
   #tagAdv .ft button[hidden]{display:none}
   #tagAdv .ft button:focus-visible{outline:2px solid var(--tagInk);outline-offset:2px}
   #tagAdv .al,#tagAdv .det{display:grid;gap:3px}
@@ -290,7 +292,6 @@
   #tagAdv .al p,#tagAdv .det p{margin:0}
   #tagAdv .al p{padding:3px 7px;border-radius:6px;background:#fff3b0;color:var(--tagInk)}
   #tagAdv .al p.lim{background:#ffb3d6}
-  #tagAdv .al p.live{background:#d3f5ea}
   #tagAdv .warn{padding:6px 12px;background:#ffb3d6;font-size:12px}
   #tagAdv.min .modes,#tagAdv.min ol,#tagAdv.min .ft{display:none}
   .tagAdvBest{outline:5px solid var(--tagGo)!important;outline-offset:2px;position:relative}
@@ -304,7 +305,7 @@
     <div class="flash" hidden></div>
     <div class="modes" data-cps><label>Cadence prévue <input id="tagAdvCps" type="text" inputmode="decimal" autocomplete="off"> clics/s</label></div>
     <div class="warn" hidden></div><div class="now"></div><ol></ol>
-    <div class="ft"><div class="kpi"></div><div class="al"></div><button data-a="det" aria-expanded="false">▸ détails</button><div class="det" hidden></div></div>`;
+    <div class="ft"><div class="top"><div class="kpi"></div><button data-a="det" aria-expanded="false" aria-label="Détails">▾</button></div><div class="al"></div><div class="det" hidden></div></div>`;
   document.body.appendChild(box);
   // téléphone : panneau réduit au conseil, la boutique reste visible
   if (innerWidth < PHONE) box.classList.add('min');
@@ -329,7 +330,7 @@
 
   // Détail du bas (cadence, quota de clics) : replié par défaut, l'état choisi est retenu
   let detOpen = store('det') === '1';
-  const showDet = () => { ui.det.hidden = !detOpen; ui.detBtn.setAttribute('aria-expanded', String(detOpen)); ui.detBtn.textContent = detOpen ? '▾ détails' : '▸ détails'; };
+  const showDet = () => { ui.det.hidden = !detOpen; ui.detBtn.setAttribute('aria-expanded', String(detOpen)); ui.detBtn.textContent = detOpen ? '▴' : '▾'; };
   showDet();
 
   let dragged = false; // déplacé à la main : il garde sa place
@@ -407,15 +408,19 @@
     // Production : réelle (parc possédé, ×3 pendant une Frénésie). Clics : à la cadence retenue (moyenne mesurée en Auto,
     // réglée en Actif). Le plan suppose leur somme, nommée comme telle dans le détail.
     const prod = prodRate(st.own) * prodMul(st.boost, 0), clk = clickPow(st.own) * cps * (st.boost.rf ? RAFALE : 1);
+    // Clics pendant une série (Auto, Actif) : la colonne passe en direct (ce que la série rapporte, Rafale comprise), sur fond vert,
+    // sans ligne en plus ; elle revient à la cadence retenue 8 s après le dernier clic. Le plan, lui, garde la cadence retenue.
+    const live = mode !== 'passif' && !capped && cad.rate > 0;
     const kpi = [['Production', fmt(prod) + '/s', st.boost.fz || st.boost.ev ? `×${dec1(prodMul(st.boost, 0))} ${st.boost.fz ? 'Frénésie' : 'événement'}` : 'automatique'],
       mode === 'passif' || capped ? ['Clics', 'non comptés', mode === 'passif' ? 'mode Passif' : 'quota de l’heure atteint']
+        : live ? ['En direct', '+' + fmt(clickPow(st.own) * cad.rate * (st.boost.rf ? RAFALE : 1)) + '/s', `${dec1(cad.rate)} clics/s` + (st.boost.rf ? ` ×${RAFALE}` : ''), 'live']
         : ['Clics', '+' + fmt(clk) + '/s', `${mode === 'auto' ? 'moyenne' : 'prévus'} ${cpsTxt(cps)}/s` + (st.boost.rf ? ` ×${RAFALE}` : '')],
       ['Cagnotte', '💰 ' + fmt(st.wallet), '']];
-    put('kpi', ui.kpi, 'innerHTML', kpi.map(([k, v, sub]) => `<span><small>${k}</small> <b>${v}</b>${sub ? ` <i>${sub}</i>` : ''}</span>`).join(''));
+    put('kpi', ui.kpi, 'innerHTML', kpi.map(([k, v, sub, cl]) => `<span${cl ? ` class="${cl}"` : ''}><small>${k}</small> <b>${v}</b>${sub ? ` <i>${sub}</i>` : ''}</span>`).join(''));
     const al = [], det = [];
     if (st.boost.ev) al.push(`📣 ${st.boost.evn} encore ${dur(st.boost.ev)} : production ×${dec1(st.boost.evm)}`);
     if (st.boost.fz) al.push(`🔥 Frénésie encore ${st.boost.fz} s : production ×${dec1(prodMul(st.boost, 0))}`);
-    if (st.boost.rf) al.push(`⚡ Rafale encore ${st.boost.rf} s : chaque clic ×${RAFALE}` + (cps ? '' : ', à condition de cliquer'));
+    // Rafale : signalée par le bandeau jaune du haut seulement (consigne d'action), pas en double ici
     const lim = [];
     if (capped && mode !== 'passif') lim.push(`${LIM_H} clics atteints sur l’heure : les clics ne comptent plus, conseil passif`);
     else if (why) lim.push(`cadence ${why}`);
@@ -423,9 +428,7 @@
     if (cad.minute > LIM_MIN - 60) lim.push(`près de ${LIM_MIN} clics cette minute : au-delà, ils ne comptent plus, et un rythme tenu au plafond ${AUTOCLIC} min est pris pour un autoclic (clics ignorés ${AUTOCLIC} min)`);
     det.push(`plan calculé sur ${fmt(prod + clk)}/s : production` + (cps ? ` + clics à ${cpsTxt(cps)}/s` : ' seule'));
     if (mode === 'auto') det.push(cad.tot ? `moyenne de ${cad.tot} clics sur ${durMin(Math.max(cad.obs, MOY_PLANCHER * 60))}` + (cad.obs < MOY_PLANCHER * 60 ? ' (durée minimale comptée)' : ' de présence (pauses d’1 h et plus écartées)') : 'aucun clic compté sur 24 h : conseil passif');
-    // série de clics en cours (Auto, Actif) : ce qu'elle rapporte en ce moment, Rafale comprise ; disparaît 8 s après le dernier clic
-    const live = mode !== 'passif' && cad.rate ? `<p class="live">👆 En direct : ${dec1(cad.rate)} clics/s → +${fmt(clickPow(st.own) * cad.rate * (st.boost.rf ? RAFALE : 1))}/s</p>` : '';
-    put('al', ui.al, 'innerHTML', live + al.map(t => `<p>${t}</p>`).join('') + lim.map(t => `<p class="lim">⚠️ ${t}</p>`).join(''));
+    put('al', ui.al, 'innerHTML', al.map(t => `<p>${t}</p>`).join('') + lim.map(t => `<p class="lim">⚠️ ${t}</p>`).join(''));
     put('det', ui.det, 'innerHTML', det.map(t => `<p>${t}</p>`).join(''));
     const t = (ready ? '🟢 ' + first.it.u.name + ' · ' : '') + baseTitle(); if (document.title !== t) document.title = t;
   }
