@@ -252,6 +252,12 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
       `facture ${facture.notes} · son coupé ${coupe.notes} · événement déjà en cours ${dejaLa.notes} · événement qui démarre ${debut.notes}`);
   }
 
+  console.log('Son : rappel de 2 notes toutes les 3 s tant que la facture est affichée');
+  {
+    const r1 = await page({ ...base, son: true, gold: true, at: 1 }), r4 = await page({ ...base, son: true, gold: true, at: 3.5 });
+    check(r1.notes === 4 && r4.notes === 6, `après 1 s : ${r1.notes} notes · après 3.5 s : ${r4.notes} notes`);
+  }
+
   console.log('Rafale à l’écran : consigne de cliquer dans l’en-tête');
   r = await page({ ...base, chip: '⚡ Rafale de clics : chaque clic ×10 encore 13 s' });
   check(/⚡ Rafale : cliquer ! \(×10, 13 s\)/.test(r.text), 'en-tête : ' + r.text.slice(0, 40));

@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.34 — 05/11/2026
+Son de la Facture dorée rappelé toutes les 3 s tant qu'elle est à l'écran (deux notes plus graves que le premier son ; 4 rappels au plus sur ses 15 s), jusqu'à ce qu'elle soit cliquée ou disparaisse.
+
 ## v2.33 — 05/11/2026
 Signal sonore, à cocher dans les détails (désactivé par défaut, retenu) : quatre notes à l'apparition d'une Facture dorée, trois au début d'un événement du jeu ; rien au chargement du panneau pendant un événement déjà en cours. Sons produits par le navigateur, sans fichier ; un son d'essai à l'activation. Le jeu ne montre la facture que si son onglet est visible à l'écran : le son prévient quand on regarde une autre fenêtre, pas quand l'onglet est caché.
 

@@ -3,7 +3,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.33'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.34'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (Décret porté à +100000 par clic au build 2026-11-03h), identique au build 2026-11-04n.
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -323,7 +323,7 @@
       <span class="ctl"><button data-a="min" aria-label="Réduire">–</button><button data-a="x" aria-label="Fermer">✕</button></span></header>
     <div class="flash" hidden></div>
     <div class="warn" hidden></div><div class="now"></div><ol></ol>
-    <div class="ft"><div class="top"><div class="kpi"></div><button data-a="det" aria-expanded="false" aria-label="Détails"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 4.2 6 8.2 10 4.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div><div class="al"></div><div class="det" hidden><label><input id="tagAdvSon" type="checkbox"> 🔔 Son : Facture dorée, début d’un événement</label><label data-cps>Cadence prévue (Actif) <input id="tagAdvCps" type="text" inputmode="decimal" autocomplete="off"> clics/s</label><div class="dtx"></div></div></div>`;
+    <div class="ft"><div class="top"><div class="kpi"></div><button data-a="det" aria-expanded="false" aria-label="Détails"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 4.2 6 8.2 10 4.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div><div class="al"></div><div class="det" hidden><label><input id="tagAdvSon" type="checkbox"> 🔔 Son : Facture dorée (rappel toutes les 3 s), début d’un événement</label><label data-cps>Cadence prévue (Actif) <input id="tagAdvCps" type="text" inputmode="decimal" autocomplete="off"> clics/s</label><div class="dtx"></div></div></div>`;
   document.body.appendChild(box);
   // téléphone : panneau réduit au conseil, la boutique reste visible
   if (innerWidth < PHONE) box.classList.add('min');
@@ -364,7 +364,8 @@
     } catch (e) { return null; }
   };
   // notes (Hz) jouées l'une après l'autre : Facture dorée, aiguë et brève ; événement, trois notes montantes
-  const SON_FACTURE = [988, 1319, 988, 1319], SON_EVENEMENT = [523, 659, 784];
+  // rappel tant que la facture est affichée : deux notes plus graves, toutes les 3 s (4 rappels au plus sur ses 15 s)
+  const SON_FACTURE = [988, 1319, 988, 1319], SON_RAPPEL = [740, 988], RAPPEL = 3000, SON_EVENEMENT = [523, 659, 784];
   const beep = notes => {
     const c = sonOn && audio(); if (!c) return;
     let t = c.currentTime + 0.02;
@@ -378,7 +379,7 @@
   const unlock = () => { if (sonOn) audio(); };
   document.addEventListener('pointerdown', unlock, true);
   sonIn.addEventListener('change', () => { sonOn = sonIn.checked; store('son', sonOn ? '1' : '0'); if (sonOn) beep(SON_FACTURE); });
-  let goldWas = false, evWas = null;
+  let goldWas = false, evWas = null, goldBeep = 0;
   const showDet = () => { ui.det.hidden = !detOpen; ui.detBtn.setAttribute('aria-expanded', String(detOpen)); }; // le chevron tourne avec aria-expanded
   showDet();
 
@@ -434,7 +435,9 @@
   function tickBody() {
     const st = last = read();
     // signaux sonores sur les apparitions seulement (pas au chargement du panneau pour un événement déjà en cours)
-    if (st.goldUp && !goldWas) beep(SON_FACTURE); goldWas = st.goldUp;
+    if (st.goldUp && !goldWas) { beep(SON_FACTURE); goldBeep = Date.now(); }
+    else if (st.goldUp && Date.now() - goldBeep >= RAPPEL) { beep(SON_RAPPEL); goldBeep = Date.now(); }
+    goldWas = st.goldUp;
     const evKey = st.boost.ev ? st.boost.evn + '×' + st.boost.evm : '';
     if (evWas !== null && evKey && evKey !== evWas) beep(SON_EVENEMENT); evWas = evKey;
     // bandeau jaune sous l'en-tête : Facture dorée à l’écran (elle n'y reste que 15 s), puis Rafale en cours
