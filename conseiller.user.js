@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Conseiller — Taxe au Giga
 // @namespace    https://github.com/actarus314/conseiller-taxe-giga
-// @version      2.35
+// @version      2.36
 // @description  Indique le meilleur bonus à acheter dans Taxe au Giga. Ne clique et n'achète rien.
 // @match        https://taxe-au-giga.fr/*
 // @grant        none
@@ -15,7 +15,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.35'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.36'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (Décret porté à +100000 par clic au build 2026-11-03h), identique au build 2026-11-04n.
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -301,6 +301,21 @@
   #tagAdv .now small{display:block;font-size:12.5px;color:#555;margin-top:2px}
   #tagAdv ol{margin:0;padding:6px 12px 10px;font-size:13px;list-style:none}
   #tagAdv ol li{display:grid;grid-template-columns:minmax(0,1fr) 2.4em 4.3em 3.1em;gap:6px;align-items:baseline;margin:2px 0}
+  /* production en bleu, clic en rose : boutons Passif et Actif, étiquettes du bas, barre du conseil et de chaque achat (sans légende) */
+  #tagAdv{--tagProd:#2b7bd6;--tagClic:#e0479e}
+  #tagAdv .now{border-left:6px solid transparent}
+  #tagAdv .now.kp{border-left-color:var(--tagProd)}
+  #tagAdv .now.kc{border-left-color:var(--tagClic)}
+  #tagAdv ol li{position:relative}
+  #tagAdv ol li::before{content:'';position:absolute;left:-8px;top:3px;bottom:3px;width:3px;border-radius:2px}
+  #tagAdv ol li.kp::before{background:var(--tagProd)}
+  #tagAdv ol li.kc::before{background:var(--tagClic)}
+  #tagAdv .seg button[data-m=passif]{color:var(--tagProd)}
+  #tagAdv .seg button[data-m=actif]{color:var(--tagClic)}
+  #tagAdv .seg button[data-m=passif][aria-pressed=true]{background:var(--tagProd);color:#fff}
+  #tagAdv .seg button[data-m=actif][aria-pressed=true]{background:var(--tagClic);color:#fff}
+  #tagAdv .kpi span:nth-child(1) small{color:var(--tagProd)}
+  #tagAdv .kpi span:nth-child(2) small{color:var(--tagClic)}
   #tagAdv ol .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   #tagAdv ol .k{color:#555;font-variant-numeric:tabular-nums;text-align:right}
   #tagAdv ol .p,#tagAdv ol .h{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
@@ -474,14 +489,14 @@
     if (!first.it.el.classList.contains('tagAdvBest')) first.it.el.classList.add('tagAdvBest');
     if (first.it.el.dataset.adv !== adv) first.it.el.dataset.adv = adv;
     marked = first.it.el;
-    put('nowClass', ui.now, 'className', 'now' + (ready ? ' go' : ''));
+    put('nowClass', ui.now, 'className', 'now' + (ready ? ' go' : '') + (first.it.u.rate ? ' kp' : ' kc'));
     put('now', ui.now, 'innerHTML', ready
       ? `Acheter maintenant<b>${first.it.u.name}</b>💰 ${fmt(first.c)} · devient ×${first.n}`
       : (isFinite(first.t) ? `Prochain achat dans ${dur(first.t)} (${clock(first.t)})` : 'Prochain achat après quelques clics') + `<b>${first.it.u.name}</b>💰 ${fmt(first.c)} · devient ×${first.n}<small>ne rien acheter d’autre d’ici là</small>`);
     put('ol', ui.ol, 'innerHTML', out.slice(1).map(o =>
       // une ligne par achat, dans l'ordre : nom (coupé par « … » s'il est trop long), nombre possédé après achat, prix, heure
       // (marquée quand l'achat est possible tout de suite après le précédent)
-      `<li><span class="n">${o.it.u.name}</span><span class="k">×${o.n}</span><span class="p">${fmt3(o.c)}</span><span class="h${o.t < 1 ? ' go' : ''}">${clock(o.t)}</span></li>`).join(''));
+      `<li class="${o.it.u.rate ? 'kp' : 'kc'}"><span class="n">${o.it.u.name}</span><span class="k">×${o.n}</span><span class="p">${fmt3(o.c)}</span><span class="h${o.t < 1 ? ' go' : ''}">${clock(o.t)}</span></li>`).join(''));
     // Bas du panneau : chiffres clés toujours visibles, alertes seulement quand elles comptent, détail replié.
     // Production : réelle (parc possédé, ×3 pendant une Frénésie, ×mult pendant un événement). Clics : à la cadence retenue (moyenne mesurée en Auto,
     // réglée en Actif). Le plan suppose leur somme, nommée comme telle dans le détail.

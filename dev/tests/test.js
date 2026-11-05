@@ -77,7 +77,7 @@ async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, cli
   for (let i = 0; i < 20; i++) refresh.f();
   const idleMutations = mo.takeRecords().length; mo.disconnect();
   const r = {
-    now: d.querySelector('#tagAdv .now').textContent, imgs: d.querySelectorAll('#tagAdv img').length, evStored: w.localStorage.getItem('tagAdv-ev'), cpsShown: !d.querySelector('#tagAdv [data-cps]').hidden, cpsVal: d.getElementById('tagAdvCps').value, goTimes: d.querySelectorAll('#tagAdv ol .h.go').length, list: [...d.querySelectorAll('#tagAdv li')].map(l => [...l.children].map(c => c.textContent).join(' ')),
+    now: d.querySelector('#tagAdv .now').textContent, kinds: [d.querySelector('#tagAdv .now').className.match(/k[pc]/)?.[0], ...[...d.querySelectorAll('#tagAdv ol li')].map(l => l.className)].join(' '), imgs: d.querySelectorAll('#tagAdv img').length, evStored: w.localStorage.getItem('tagAdv-ev'), cpsShown: !d.querySelector('#tagAdv [data-cps]').hidden, cpsVal: d.getElementById('tagAdvCps').value, goTimes: d.querySelectorAll('#tagAdv ol .h.go').length, list: [...d.querySelectorAll('#tagAdv li')].map(l => [...l.children].map(c => c.textContent).join(' ')),
     ft: [...d.querySelectorAll('#tagAdv .kpi span, #tagAdv .al p, #tagAdv .det p')].map(e => e.textContent).join(' · '),
     alerts: [...d.querySelectorAll('#tagAdv .al p')].map(e => e.textContent), detHidden: d.querySelector('#tagAdv .det').hidden, warn: d.querySelector('#tagAdv .warn').hidden ? '' : d.querySelector('#tagAdv .warn').textContent,
     best: d.querySelector('.tagAdvBest')?.dataset.id, adv: d.querySelector('.tagAdvBest')?.dataset.adv,
@@ -257,6 +257,11 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
     const r1 = await page({ ...base, son: true, gold: true, at: 1 }), r4 = await page({ ...base, son: true, gold: true, at: 3.5 });
     check(r1.notes === 4 && r4.notes === 6, `après 1 s : ${r1.notes} notes · après 3.5 s : ${r4.notes} notes`);
   }
+
+  console.log('Production (bleu) ou clic (rose) : marque du conseil et de chaque achat');
+  r = await page({ ...base, mode: 'passif' });
+  const ra = await page({ ...base, mode: 'actif', cps: 5 });
+  check(/^kp( kp)+$/.test(r.kinds) && ra.kinds.startsWith('kc') && ra.kinds.split(' ').every(k => k === 'kp' || k === 'kc'), `Passif : ${r.kinds} | Actif 5/s : ${ra.kinds}`);
 
   console.log('Rafale à l’écran : consigne de cliquer dans l’en-tête');
   r = await page({ ...base, chip: '⚡ Rafale de clics : chaque clic ×10 encore 13 s' });

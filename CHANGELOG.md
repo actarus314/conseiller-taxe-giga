@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.36 — 05/11/2026
+Production en bleu, clic en rose, sans légende : boutons Passif et Actif, étiquettes Production et Clics du bas, barre à gauche du conseil et de chaque achat de la liste (utile en Auto, qui mêle les deux).
+
 ## v2.35 — 05/11/2026
 En-tête du panneau sans l'icône du boulier, illisible à cette taille. Réglage du son sur une ligne.
 
