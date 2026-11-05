@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.28 — 05/11/2026
+Placement du panneau plus robuste : le bouton TAXER flottant compte aussi comme obstacle, une quatrième place (en haut à gauche) est essayée, et si aucune n'est libre, le panneau prend celle qui recouvre le moins au lieu de revenir en bas à droite.
+
 ## v2.27 — 05/11/2026
 Colonne « En direct » : la série de clics s'arrête après 5 s sans clic (8 s avant) ; sans effet sur le conseil, calculé sur la moyenne. Cadence prévue du mode Actif réglée en tête des détails, dépliés au passage en Actif, au lieu d'une ligne sous l'en-tête.
 

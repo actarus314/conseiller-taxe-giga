@@ -3,7 +3,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.27'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.28'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (build 2026-11-03h : Décret porté à +100000 par clic).
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -322,23 +322,23 @@
   showDet();
 
   let dragged = false; // déplacé à la main : il garde sa place
-  // Position : en bas à droite, au-dessus du bouton TAXER flottant. S'il y couvrirait le grand bouton TAXER à l'écran
-  // (à 1280 px de large, il est dans la colonne de droite ; sur téléphone, en bas de l'écran d'accueil) : en bas à
-  // gauche, sinon en haut sous l'en-tête du jeu. Revue à chaque rafraîchissement (défilement, taille du panneau) ;
+  // Position : en bas à droite, au-dessus du bouton TAXER flottant ; sinon en bas à gauche, en haut à droite, en haut à gauche
+  // (sous l'en-tête du jeu) : la première qui ne recouvre ni le grand bouton TAXER ni le bouton flottant quand ils sont à l'écran,
+  // à défaut celle qui en recouvre le moins. Revue à chaque rafraîchissement (défilement, taille du panneau, bandeaux) ;
   // le DOM n'est réécrit que si elle change.
   const setStyle = (k, v) => { if (box.style[k] !== v) box.style[k] = v; };
+  const onScreen = el => { if (!el) return null; const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+    return r.width && r.height && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth && cs.display !== 'none' && cs.visibility !== 'hidden' && +cs.opacity > 0.05 ? r : null; };
   function place() {
     if (dragged) return;
     const st = $('#stickyTax'), h = st ? st.offsetHeight : 64, below = 24 + h + 18;
     const w = box.offsetWidth, hh = box.offsetHeight, hdr = document.querySelector('header'), up = Math.round((hdr ? hdr.getBoundingClientRect().bottom : 64) + 8);
-    let pos = { side: 'right', top: null };
-    const tb = $('#taxBtn'), t = tb && tb.getBoundingClientRect();
-    if (t && t.width && t.bottom > 0 && t.top < innerHeight) {
-      const hits = (l, y) => l < t.right && l + w > t.left && y < t.bottom && y + hh > t.top;
-      const low = innerHeight - below - hh;
-      pos = [{ side: 'right', top: null, l: innerWidth - 12 - w, y: low }, { side: 'left', top: null, l: 12, y: low }, { side: 'right', top: up, l: innerWidth - 12 - w, y: up }]
-        .find(c => !hits(c.l, c.y)) || pos;
-    }
+    const obst = [onScreen($('#taxBtn')), onScreen(st)].filter(Boolean);
+    const low = innerHeight - below - hh, L = 12, R = innerWidth - 12 - w;
+    const cands = [{ side: 'right', top: null, l: R, y: low }, { side: 'left', top: null, l: L, y: low }, { side: 'right', top: up, l: R, y: up }, { side: 'left', top: up, l: L, y: up }];
+    const area = c => obst.reduce((s, t) => s + Math.max(0, Math.min(c.l + w, t.right) - Math.max(c.l, t.left)) * Math.max(0, Math.min(c.y + hh, t.bottom) - Math.max(c.y, t.top)), 0);
+    let pos = cands[0], best = Infinity;
+    for (const c of cands) { const a = area(c); if (a < best) { best = a; pos = c; } if (!a) break; }
     setStyle('top', pos.top == null ? 'auto' : pos.top + 'px');
     setStyle('bottom', pos.top == null ? `calc(${below}px + env(safe-area-inset-bottom, 0px))` : 'auto');
     setStyle('left', pos.side === 'left' ? '12px' : ''); setStyle('right', pos.side === 'left' ? 'auto' : '');
