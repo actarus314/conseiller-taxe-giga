@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Conseiller — Taxe au Giga
 // @namespace    https://github.com/actarus314/conseiller-taxe-giga
-// @version      2.34
+// @version      2.35
 // @description  Indique le meilleur bonus à acheter dans Taxe au Giga. Ne clique et n'achète rien.
 // @match        https://taxe-au-giga.fr/*
 // @grant        none
@@ -15,7 +15,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.34'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.35'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (Décret porté à +100000 par clic au build 2026-11-03h), identique au build 2026-11-04n.
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -330,12 +330,12 @@
     border-radius:8px;padding:1px 8px;font:700 12px/1.4 "Space Grotesk",system-ui,sans-serif;pointer-events:none}`;
   document.head.appendChild(css);
   const box = document.createElement('div'); box.id = 'tagAdv';
-  box.innerHTML = `<header><span class="id"><span class="t">🧮 Conseiller</span> <a class="v" href="https://github.com/actarus314/conseiller-taxe-giga" target="_blank" rel="noopener">v${VERSION}</a></span>
+  box.innerHTML = `<header><span class="id"><span class="t">Conseiller</span> <a class="v" href="https://github.com/actarus314/conseiller-taxe-giga" target="_blank" rel="noopener">v${VERSION}</a></span>
       <span class="seg" role="group" aria-label="Mode de conseil"><button data-m="auto">Auto</button><button data-m="passif">Passif</button><button data-m="actif">Actif</button></span>
       <span class="ctl"><button data-a="min" aria-label="Réduire">–</button><button data-a="x" aria-label="Fermer">✕</button></span></header>
     <div class="flash" hidden></div>
     <div class="warn" hidden></div><div class="now"></div><ol></ol>
-    <div class="ft"><div class="top"><div class="kpi"></div><button data-a="det" aria-expanded="false" aria-label="Détails"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 4.2 6 8.2 10 4.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div><div class="al"></div><div class="det" hidden><label><input id="tagAdvSon" type="checkbox"> 🔔 Son : Facture dorée (rappel toutes les 3 s), début d’un événement</label><label data-cps>Cadence prévue (Actif) <input id="tagAdvCps" type="text" inputmode="decimal" autocomplete="off"> clics/s</label><div class="dtx"></div></div></div>`;
+    <div class="ft"><div class="top"><div class="kpi"></div><button data-a="det" aria-expanded="false" aria-label="Détails"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 4.2 6 8.2 10 4.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div><div class="al"></div><div class="det" hidden><label><input id="tagAdvSon" type="checkbox"> 🔔 Son : Facture dorée (rappel 3 s), événement</label><label data-cps>Cadence prévue (Actif) <input id="tagAdvCps" type="text" inputmode="decimal" autocomplete="off"> clics/s</label><div class="dtx"></div></div></div>`;
   document.body.appendChild(box);
   // téléphone : panneau réduit au conseil, la boutique reste visible
   if (innerWidth < PHONE) box.classList.add('min');

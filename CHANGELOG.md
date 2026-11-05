@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.35 — 05/11/2026
+En-tête du panneau sans l'icône du boulier, illisible à cette taille. Réglage du son sur une ligne.
+
 ## v2.34 — 05/11/2026
 Son de la Facture dorée rappelé toutes les 3 s tant qu'elle est à l'écran (deux notes plus graves que le premier son ; 4 rappels au plus sur ses 15 s), jusqu'à ce qu'elle soit cliquée ou disparaisse.
 
