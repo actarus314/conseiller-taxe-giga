@@ -41,7 +41,7 @@ small{color:var(--muted)}
 <main>
   <header style="display:grid;gap:10px">
     <h1>🧮 Conseiller</h1>
-    <p class="lead">Panneau posé sur la page du jeu : le bonus à acheter surligné en vert, le compte à rebours jusqu'au prochain achat et les sept suivants. Le conseil suit la cadence moyenne des clics sur TAXER des 3 dernières heures : stable pendant et entre les séries de clics.</p>
+    <p class="lead">Panneau posé sur la page du jeu : le bonus à acheter surligné en vert, le compte à rebours jusqu'au prochain achat et les sept suivants. Le conseil suit la cadence moyenne des clics sur TAXER des 3 dernières heures de présence : stable pendant et entre les séries de clics, et retrouvée au retour d'une absence.</p>
     <small>Version __VERSION__ · <a href="https://github.com/actarus314/conseiller-taxe-giga" style="color:inherit">code source</a></small>
   </header>
 
@@ -66,7 +66,7 @@ small{color:var(--muted)}
   <section class="card" aria-labelledby="t2">
     <h2 id="t2">Modes</h2>
     <dl class="facts">
-      <dt>Auto</dt><dd>par défaut. Moyenne des clics TAXER sur le temps de jeu observé des 3 dernières heures, comptée sur 30 min au moins ; aucun clic sur 3 h : conseil passif. Les clics du mode mini du jeu comptent aussi : toujours dans la fenêtre « image dans l'image » de Chrome et Edge, et dans la fenêtre séparée des autres navigateurs si elle s'ouvre panneau ouvert.</dd>
+      <dt>Auto</dt><dd>par défaut. Moyenne des clics TAXER sur les 3 dernières heures de présence, comptée sur 30 min au moins ; au-delà d'1 h sans clic, c'est une absence (nuit, réunion), écartée de la moyenne ; aucun clic sur 24 h : conseil passif. Les clics du mode mini du jeu comptent aussi : toujours dans la fenêtre « image dans l'image » de Chrome et Edge, et dans la fenêtre séparée des autres navigateurs si elle s'ouvre panneau ouvert.</dd>
       <dt>Passif</dt><dd>production automatique seule ; les bonus de clic ne sont jamais conseillés.</dd>
       <dt>Actif</dt><dd>cadence fixée à la main (5 clics/s par défaut).</dd>
       <dt>Limites</dt><dd>le serveur ne compte que 1030 clics par minute et 24000 par heure. La cadence retenue reste sous 17.2/s, et le reste du quota horaire se répartit sur 15 min quand il ne suffit plus. Un rythme tenu au plafond 10 min est pris pour un autoclic : clics ignorés 10 min.</dd>

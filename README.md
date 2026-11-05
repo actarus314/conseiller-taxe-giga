@@ -16,11 +16,11 @@ Il lit ce que le jeu affiche. **Aucun clic, aucun achat, aucun appel au serveur 
 
 | Mode | Cadence de clic prise en compte |
 |---|---|
-| **Auto** (défaut) | moyenne des clics TAXER sur le temps de jeu observé des 3 dernières heures, comptée sur 30 min au moins : des séries de clics espacées donnent une cadence stable, la même pendant et entre les séries ; aucun clic sur 3 h : conseil passif |
+| **Auto** (défaut) | moyenne des clics TAXER sur les 3 dernières heures de présence (cherchées sur 24 h, comptées sur 30 min au moins) ; au-delà d'1 h sans clic, c'est une absence, écartée de la moyenne : au retour d'une nuit, le conseil repart sur la cadence d'avant ; aucun clic sur 24 h : conseil passif |
 | Passif | aucune : seule la production automatique compte |
 | Actif | fixée à la main (5 clics/s par défaut) |
 
-Dans tous les cas, la cadence retenue reste sous 1030 clics par minute (17.2/s), et le reste du quota de 24000 clics par heure se répartit sur 15 min quand il ne suffit plus. Les clics sont comptés minute par minute dans le navigateur ; les minutes où le panneau était fermé ne comptent ni dans les clics ni dans la durée de la moyenne. Les clics du mode mini du jeu comptent aussi : toujours dans la fenêtre « image dans l'image » de Chrome et Edge, et dans la fenêtre séparée des autres navigateurs si elle s'ouvre panneau ouvert.
+Dans tous les cas, la cadence retenue reste sous 1030 clics par minute (17.2/s), et le reste du quota de 24000 clics par heure se répartit sur 15 min quand il ne suffit plus. Les clics sont comptés minute par minute dans le navigateur ; les minutes où le panneau était fermé ne comptent ni dans les clics ni dans la durée de la moyenne. Seuil d'1 h choisi par simulation ([`dev/sim/presence.py`](dev/sim/presence.py)). Les clics du mode mini du jeu comptent aussi : toujours dans la fenêtre « image dans l'image » de Chrome et Edge, et dans la fenêtre séparée des autres navigateurs si elle s'ouvre panneau ouvert.
 
 ## Installation
 

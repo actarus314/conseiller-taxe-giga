@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.24 — 05/11/2026
+Mode Auto : moyenne sur les 3 dernières heures de présence, cherchées sur 24 h. Au-delà d'1 h sans clic, c'est une absence, écartée : au retour d'une nuit onglet ouvert, le conseil repart sur la cadence d'avant au lieu de partir de zéro pendant 3 h. Seuil choisi par simulation (dev/sim/presence.py) : le plus robuste parmi 30, 45, 60, 90 min et un seuil adaptatif.
+
 ## v2.23 — 05/11/2026
 En direct : pendant une série de clics (Auto, Actif), une ligne donne sa cadence et ce qu'elle rapporte (Rafale comprise) ; elle disparaît 8 s après le dernier clic. Décompte des clics sur l'heure et la minute retiré du détail : les limites restent signalées en alerte quand elles approchent.
 

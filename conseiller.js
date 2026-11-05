@@ -3,7 +3,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.23'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.24'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (build 2026-11-03h : Décret porté à +100000 par clic).
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -68,13 +68,14 @@
   let cpsPlan = clampCps(store('cps'));
 
   // Mesure des clics réels sur TAXER (bouton principal, bouton flottant et bouton du mode mini).
-  // Mode Auto : moyenne des clics sur le temps de jeu observé des 3 dernières heures (minutes où le panneau
-  // tournait), comptée sur 30 min au moins : des séries de clics espacées donnent une cadence stable, valable
-  // pendant et entre les séries, qui est celle qui rembourse un bonus de clic.
+  // Mode Auto : moyenne des clics sur les 3 dernières heures de présence, cherchées sur 24 h et comptées sur 30 min au moins.
+  // Présence : minutes où le panneau tournait, sauf au-delà d'1 h sans aucun clic (nuit, réunion : absence, pas jeu passif).
+  // Des séries espacées donnent ainsi une cadence stable, la même pendant et entre les séries, et retrouvée dès le retour
+  // d'une absence. Seuil d'1 h choisi par simulation (dev/sim/presence.py) : le plus robuste des seuils essayés.
   // Série en cours (affichage seul) : clics de la dernière minute, interrompue après 8 s sans clic.
   // Compteur par minute (0 = minute observée sans clic), gardé dans le navigateur pour survivre à un rechargement.
   const WIN = 60e3, STOP = 8e3, recent = [];
-  const MOY_MIN = 180, MOY_PLANCHER = 30; // fenêtre de la moyenne et durée minimale comptée, en minutes
+  const MOY_MIN = 180, MOY_PLANCHER = 30, PAUSE = 60, JOUR = 1440; // en minutes : présence moyennée, durée minimale comptée, pause vue comme une absence, recherche
   let perMin = {}; try { perMin = JSON.parse(store('clics') || '{}') || {}; } catch (e) { perMin = {}; }
   // début de l'observation minute par minute (v2.14) : les minutes plus anciennes, notées par les versions qui ne
   // gardaient que les minutes avec clics, comptent pour le quota horaire mais pas pour la moyenne
@@ -94,19 +95,29 @@
   const winOpen = window.open;
   const openSpy = function (...a) { const w = winOpen.apply(this, a); if (a[1] === 'taxe-giga-mini') watchMini(w); return w; };
   window.open = openSpy;
+  // minutes passées : recalculées une fois par minute (seule la minute en cours change entre deux)
+  let past = null;
+  function pastMinutes(m0) {
+    const ks = Object.keys(perMin).map(Number).filter(k => k < m0).sort((x, y) => x - y), counted = [];
+    let last = null, hour = 0;
+    for (const k of ks) {
+      if (k <= m0 - JOUR) { delete perMin[k]; continue; }
+      const n = perMin[k]; if (k > m0 - 60) hour += n; if (n > 0) last = k;
+      if (k >= since && (n > 0 || (last !== null && k - last <= PAUSE))) counted.push(n);
+    }
+    return { m0, counted, last, hour };
+  }
   function cadence() {
     const now = Date.now(), m0 = Math.floor(now / 60e3);
     while (recent.length && recent[0] < now - WIN) recent.shift();
     if (!(m0 in perMin)) perMin[m0] = 0; // minute observée
-    let hour = 0, tot = 0, seen = 0;
-    for (const k in perMin) {
-      if (k <= m0 - MOY_MIN) { delete perMin[k]; continue; }
-      if (k > m0 - 60) hour += perMin[k];
-      if (k >= since) { tot += perMin[k]; seen++; }
-    }
-    const obs = (seen - 1) * 60 + (now % 60e3) / 1000; // la minute en cours compte pour ce qui en est écoulé
-    const avg = tot / Math.max(obs, MOY_PLANCHER * 60), minute = perMin[m0];
-    const out = { avg, obs, tot, rate: 0, idle: Infinity, hour, minute };
+    if (!past || past.m0 !== m0) past = pastMinutes(m0);
+    const cur = perMin[m0], curIn = m0 >= since && (cur > 0 || (past.last !== null && m0 - past.last <= PAUSE));
+    const prev = past.counted.slice(-(MOY_MIN - (curIn ? 1 : 0)));
+    const tot = prev.reduce((x, y) => x + y, 0) + (curIn ? cur : 0);
+    const obs = prev.length * 60 + (curIn ? (now % 60e3) / 1000 : 0); // la minute en cours compte pour ce qui en est écoulé
+    const avg = tot / Math.max(obs, MOY_PLANCHER * 60);
+    const out = { avg, obs, tot, rate: 0, idle: Infinity, hour: past.hour + cur, minute: cur };
     if (!recent.length) return out;
     out.idle = now - recent[recent.length - 1];
     if (out.idle > STOP) return out;
@@ -387,7 +398,7 @@
     if (!capped && cad.hour > LIM_H - 2000) lim.push(`bientôt ${LIM_H} clics sur l’heure : au-delà, ils ne comptent plus`);
     if (cad.minute > LIM_MIN - 60) lim.push(`près de ${LIM_MIN} clics cette minute : au-delà, ils ne comptent plus, et un rythme tenu au plafond ${AUTOCLIC} min est pris pour un autoclic (clics ignorés ${AUTOCLIC} min)`);
     det.push(`plan calculé sur ${fmt(prod + clk)}/s : production` + (cps ? ` + clics à ${cpsTxt(cps)}/s` : ' seule'));
-    if (mode === 'auto') det.push(cad.tot ? `moyenne de ${cad.tot} clics sur ${durMin(Math.max(cad.obs, MOY_PLANCHER * 60))}` + (cad.obs < MOY_PLANCHER * 60 ? ' (durée minimale comptée)' : ' de jeu observé') : 'aucun clic dans la moyenne des 3 dernières heures : conseil passif');
+    if (mode === 'auto') det.push(cad.tot ? `moyenne de ${cad.tot} clics sur ${durMin(Math.max(cad.obs, MOY_PLANCHER * 60))}` + (cad.obs < MOY_PLANCHER * 60 ? ' (durée minimale comptée)' : ' de présence (pauses d’1 h et plus écartées)') : 'aucun clic compté sur 24 h : conseil passif');
     // série de clics en cours (Auto, Actif) : ce qu'elle rapporte en ce moment, Rafale comprise ; disparaît 8 s après le dernier clic
     const live = mode !== 'passif' && cad.rate ? `<p class="live">👆 En direct : ${dec1(cad.rate)} clics/s → +${fmt(clickPow(st.own) * cad.rate * (st.boost.rf ? RAFALE : 1))}/s</p>` : '';
     put('al', ui.al, 'innerHTML', live + al.map(t => `<p>${t}</p>`).join('') + lim.map(t => `<p class="lim">⚠️ ${t}</p>`).join(''));

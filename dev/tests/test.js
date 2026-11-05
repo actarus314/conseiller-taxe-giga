@@ -94,14 +94,14 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
 
   console.log('Auto sans clic : conseil passif');
   r = await page({ ...base });
-  check(r.best === 'satellite' && /aucun clic dans la moyenne des 3 dernières heures/.test(r.ft), r.ft);
+  check(r.best === 'satellite' && /aucun clic compté sur 24 h/.test(r.ft), r.ft);
 
   // historique : minutes écoulées → clics comptés dans cette minute (0 = minute observée sans clic)
   const minutes = (from, to, f) => Object.fromEntries(Array.from({ length: to - from + 1 }, (_, i) => [from + i, f(from + i)]));
 
-  console.log('Auto, 3 h de jeu observé à 30 clics par minute : conseil à 0.50 clic/s (revenu 25059/s)');
+  console.log('Auto, 3 h de présence à 30 clics par minute : conseil à 0.50 clic/s (revenu 25059/s)');
   r = await page({ ...base, hist: minutes(1, 179, () => 30) });
-  check(/moyenne 0.50\/s/.test(r.ft) && /moyenne de 5370 clics sur 2 h 59 de jeu observé/.test(r.ft) && /plan calculé sur 25059\/s/.test(r.ft), r.ft);
+  check(/moyenne 0.50\/s/.test(r.ft) && /moyenne de 5370 clics sur 2 h 59 de présence/.test(r.ft) && /plan calculé sur 25059\/s/.test(r.ft), r.ft);
 
   console.log('Auto, séries de 2 min à 5 clics/s trois fois par heure : même conseil pendant et entre les séries');
   {
@@ -122,11 +122,16 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
 
   console.log('Auto, minutes notées par une version antérieure (clics seuls, sans les minutes sans clic) : hors de la moyenne, dans le quota');
   r = await page({ ...base, hourClicks: 3600 });
-  check(/aucun clic dans la moyenne des 3 dernières heures/.test(r.ft) && r.state.cadence.hour === 3600, r.ft);
+  check(/aucun clic compté sur 24 h/.test(r.ft) && r.state.cadence.hour === 3600, r.ft);
 
-  console.log('Auto, clics de plus de 3 h : oubliés, conseil passif');
-  r = await page({ ...base, hist: { 200: 5000 } });
-  check(r.best === 'satellite' && /aucun clic dans la moyenne des 3 dernières heures/.test(r.ft), r.ft);
+  console.log('Auto, clics de plus de 24 h : oubliés, conseil passif');
+  r = await page({ ...base, hist: { 1500: 300 } });
+  check(r.best === 'satellite' && /aucun clic compté sur 24 h/.test(r.ft), r.ft);
+
+  console.log('Auto, retour après une nuit de 8 h onglet ouvert : moyenne d’avant la nuit retrouvée (au-delà d’1 h sans clic, absence écartée)');
+  // 2 h à 30 clics par minute (10 h à 8 h avant), puis 8 h sans clic : 120 minutes de clics + 60 minutes de pause comptées
+  r = await page({ ...base, hist: minutes(1, 600, a => a > 480 ? 30 : 0) });
+  check(/moyenne 0.33\/s/.test(r.ft) && /moyenne de 3600 clics sur 3 h 00 de présence/.test(r.ft), r.ft.slice(0, 200));
 
   console.log('Auto, 24000 clics déjà comptés sur l’heure : conseil passif et alerte');
   r = await page({ ...base, clicks: every(5, 0, 30), at: 30, hourClicks: 24000 });
