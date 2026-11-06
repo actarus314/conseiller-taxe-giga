@@ -269,7 +269,7 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
 
   console.log('Frénésie de 40 s comptée (Commission plus tôt)');
   r = await page({ owned: { ...o, hamster: 26, bot: 21, fax: 16, satellite: 3 }, wallet: 2628957, perClick: '5 803 visites', mode: 'passif', chip: '🔥 Frénésie fiscale : production ×3 encore 40 s' });
-  check(r.best === 'commission' && /Prochain achat dans 3 s/.test(r.now) && /Production 76266\/s ×3 Frénésie/.test(r.ft) && r.alerts.some(t => /Frénésie ×3 · encore 40 s/.test(t)), r.now + ' | ' + r.ft);
+  check(r.best === 'commission' && /Prochain achat à \d\d:\d\d \(3 s\)/.test(r.now) && /Production 76266\/s ×3 Frénésie/.test(r.ft) && r.alerts.some(t => /Frénésie ×3 · encore 40 s/.test(t)), r.now + ' | ' + r.ft);
 
   console.log('Rafale de 13 s en mode Actif 5/s : clics ×10 dans le revenu et les délais');
   r = await page({ ...base, mode: 'actif', cps: 5, wallet: 2e6, chip: '⚡ Rafale de clics : chaque clic ×10 encore 13 s' });
@@ -301,7 +301,7 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   // affichage « 1,14 Md » (arrondi à 10 M près) ; sauvegarde exacte 1144900000 ; Datacenter ×1 : 60000/s, prochain à 1.15 Md
   r = await page({ owned: { datacenter: 1 }, wallet: 1144900000, mode: 'passif', save: 1144900000 });
   const r3 = await page({ owned: { datacenter: 1 }, wallet: 1144900000, mode: 'passif' });
-  check(/dans 1 min 25 s/.test(r.now) && /dans 2 min 47 s/.test(r3.now), 'avec sauvegarde : ' + r.now.slice(0, 40) + ' | sans : ' + r3.now.slice(0, 40));
+  check(/\(1 min 25 s\)/.test(r.now) && /\(2 min 47 s\)/.test(r3.now), 'avec sauvegarde : ' + r.now.slice(0, 40) + ' | sans : ' + r3.now.slice(0, 40));
 
   console.log('Clics faits depuis la sauvegarde du jeu ajoutés à la cagnotte estimée');
   // Datacenter ×1 (60000/s), Tampon ×35 (clic : 1 + 35 × 40000 + 1 % × 60000 = 1400601) ; sauvegarde 1140000000 à t = 0,

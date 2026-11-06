@@ -3,7 +3,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.36'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.37'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (Décret porté à +100000 par clic au build 2026-11-03h), identique au build 2026-11-04n.
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -285,6 +285,8 @@
   #tagAdv .det input{width:44px;font:inherit;font-size:12px;line-height:1.4;text-align:center;border:2px solid var(--tagInk);border-radius:6px;padding:1px 4px;background:#fff;color:var(--tagInk)}
   #tagAdv .now{padding:10px 12px;font-size:16px}
   #tagAdv .now b{display:block;font-size:18px}
+  /* compte à rebours sur une ligne : chiffres de largeur fixe, sans retour à la ligne (coupé par « … » sur un écran étroit) */
+  #tagAdv .now .w{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
   #tagAdv .now.go{background:var(--tagGo)}
   #tagAdv .now small{display:block;font-size:12.5px;color:#555;margin-top:2px}
   #tagAdv ol{margin:0;padding:6px 12px 10px;font-size:13px;list-style:none}
@@ -480,7 +482,7 @@
     put('nowClass', ui.now, 'className', 'now' + (ready ? ' go' : '') + (first.it.u.rate ? ' kp' : ' kc'));
     put('now', ui.now, 'innerHTML', ready
       ? `Acheter maintenant<b>${first.it.u.name}</b>💰 ${fmt(first.c)} · devient ×${first.n}`
-      : (isFinite(first.t) ? `Prochain achat dans ${dur(first.t)} (${clock(first.t)})` : 'Prochain achat après quelques clics') + `<b>${first.it.u.name}</b>💰 ${fmt(first.c)} · devient ×${first.n}<small>ne rien acheter d’autre d’ici là</small>`);
+      : `<span class="w">${isFinite(first.t) ? `Prochain achat à ${clock(first.t)} (${dur(first.t)})` : 'Prochain achat après quelques clics'}</span>` + `<b>${first.it.u.name}</b>💰 ${fmt(first.c)} · devient ×${first.n}<small>ne rien acheter d’autre d’ici là</small>`);
     put('ol', ui.ol, 'innerHTML', out.slice(1).map(o =>
       // une ligne par achat, dans l'ordre : nom (coupé par « … » s'il est trop long), nombre possédé après achat, prix, heure
       // (marquée quand l'achat est possible tout de suite après le précédent)

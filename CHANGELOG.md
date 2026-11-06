@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.37 — 06/11/2026
+Ligne « Prochain achat » sur une seule ligne : « Prochain achat à 21:57 (43 min 40 s) », plus courte (elle passait de une à deux lignes selon les chiffres du compte à rebours), chiffres de largeur fixe.
+
 ## v2.36 — 05/11/2026
 Production en bleu, clic en rose, sans légende : boutons Passif et Actif, étiquettes Production et Clics du bas, barre à gauche du conseil et de chaque achat de la liste (utile en Auto, qui mêle les deux).
 
