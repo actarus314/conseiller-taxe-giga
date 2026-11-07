@@ -99,11 +99,15 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   check(/Fax.*×16/.test(r.list[0]) && /Ferme de bots ×21/.test(r.list[1]) && /Hamster-routeur ×26/.test(r.list[2]), 'suite : ' + r.list.slice(0, 3).join(' | '));
   check(r.goTimes === 3, `heure en pastille verte pour les 3 achats possibles aussitôt : ${r.goTimes}`);
   check(/Production 22174\/s automatique/.test(r.ft) && /Clics non comptés mode Passif/.test(r.ft) && /plan calculé sur 22174\/s : production seule/.test(r.ft), r.ft);
+  check(r.state.adv.cps === 0 && r.state.adv.clics === 0 && Math.abs(r.state.adv.prod - 22174) < 1 && Math.abs(r.state.adv.income - 22174) < 1 && r.state.adv.plan[0].name === 'Satellite de taxation' && r.state.adv.plan[0].kind === 'prod' && r.state.adv.plan.length === 8,
+    'state().adv (Passif) : ' + JSON.stringify({ cps: r.state.adv.cps, prod: r.state.adv.prod, income: r.state.adv.income, p0: r.state.adv.plan[0] }));
   check(r.stopped && r.timers === 0, 'arrêt propre : panneau, marque et minuteries retirés (minuteries restantes : ' + r.timers + ')');
 
   console.log('Actif 5/s : revenu 51024/s comme le simulateur, Doigts en premier');
   r = await page({ ...base, mode: 'actif', cps: 5 });
   check(r.best === 'doigt' && /Clics \+28850\/s prévus 5\/s/.test(r.ft) && /plan calculé sur 51024\/s : production \+ clics à 5\/s/.test(r.ft), r.ft);
+  check(r.state.adv.cps === 5 && Math.abs(r.state.adv.clics - 28850) < 1 && Math.abs(r.state.adv.income - 51024) < 2 && r.state.adv.plan[0].name === 'Doigt de fonctionnaire' && r.state.adv.plan[0].kind === 'clic',
+    'state().adv (Actif) : ' + JSON.stringify({ cps: r.state.adv.cps, clics: r.state.adv.clics, income: r.state.adv.income, p0name: r.state.adv.plan[0].name }));
 
   console.log('Auto sans clic : conseil passif');
   r = await page({ ...base });

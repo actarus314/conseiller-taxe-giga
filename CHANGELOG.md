@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.39 — 07/11/2026
+`window.__tagAdv.state()` enrichi d'un objet `adv` (production, clics retenus et en direct, rendement total, cadence retenue et moyenne mesurée, prochains achats du plan), pour le monitoring du Conseiller lancé en container. Additif : le conseil, l'affichage et la performance sont inchangés, comme les champs existants (`wallet`, `own`, `boost`, `cadence`, `minis`).
+
 ## v2.38 — 07/11/2026
 Flux de clics externe `window.__tagAdv.feedClick(ts)` : une automatisation ou une intégration tierce peut signaler un clic « taxer », compté comme un vrai clic pour la cadence (mode Auto). Additif et O(1) — les vrais clics restent comptés par le listener DOM, aucun autre comportement ni la performance n'est modifié.
 
