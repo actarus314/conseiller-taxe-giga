@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Conseiller — Taxe au Giga
 // @namespace    https://github.com/actarus314/conseiller-taxe-giga
-// @version      2.39
+// @version      2.40
 // @description  Indique le meilleur bonus à acheter dans Taxe au Giga. Ne clique et n'achète rien.
 // @match        https://taxe-au-giga.fr/*
 // @grant        none
@@ -15,7 +15,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.39'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.40'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (Décret porté à +100000 par clic au build 2026-11-03h), identique au build 2026-11-04n.
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -73,6 +73,9 @@
   // créé une fois : toLocaleTimeString(options) en recrée un à chaque appel (72 µs)
   const hhmm = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' });
   const clock = s => !isFinite(s) ? '—' : hhmm.format(Date.now() + s * 1000);
+  // jours de calendrier franchis avant cette étape : 0 aujourd'hui, 1 demain… (écart des minuits, insensible à l'heure et à l'heure d'été)
+  const dayOff = s => { if (!isFinite(s)) return 0; const t = Date.now(), n = new Date(t), d = new Date(t + s * 1000);
+    return Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - new Date(n.getFullYear(), n.getMonth(), n.getDate())) / 864e5); };
   // texte venu de la page du jeu (nom d'événement) avant de l'insérer dans du HTML
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const store = (k, v) => { try { if (v === undefined) return localStorage.getItem('tagAdv-' + k); localStorage.setItem('tagAdv-' + k, v); } catch (e) { return null; } };
@@ -302,7 +305,7 @@
   #tagAdv .now.go{background:var(--tagGo)}
   #tagAdv .now small{display:block;font-size:12.5px;color:#555;margin-top:2px}
   #tagAdv ol{margin:0;padding:6px 12px 10px;font-size:13px;list-style:none}
-  #tagAdv ol li{display:grid;grid-template-columns:minmax(0,1fr) 2.4em 4.3em 3.1em;gap:6px;align-items:baseline;margin:2px 0}
+  #tagAdv ol li{display:grid;grid-template-columns:minmax(0,1fr) 2.4em 4.3em auto;gap:6px;align-items:baseline;margin:2px 0}
   /* production en bleu, clic en rose : boutons Passif et Actif, étiquettes du bas, barre du conseil et de chaque achat (sans légende) */
   #tagAdv{--tagProd:#2b7bd6;--tagClic:#e0479e}
   #tagAdv .now{border-left:6px solid transparent}
@@ -323,6 +326,8 @@
   #tagAdv ol .p,#tagAdv ol .h{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
   #tagAdv ol .h{color:#666}
   #tagAdv ol .h.go{background:var(--tagGo);color:var(--tagInk);font-weight:700;border-radius:4px;padding:0 3px}
+  /* badge de jour (+1, +2…) devant l'heure d'une étape du lendemain : lisible, teinte ambrée « plus tard » */
+  #tagAdv ol .h .d{font-size:11px;font-weight:700;color:#b26b00;margin-right:3px}
   #tagAdv .ft{padding:6px 12px 8px;border-top:2px dashed var(--tagInk);font-size:12px;color:#555;display:flex;flex-direction:column;gap:5px}
   #tagAdv .ft .top{display:flex;align-items:center;gap:6px}
   #tagAdv .kpi{flex:1;min-width:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
@@ -499,10 +504,14 @@
     put('now', ui.now, 'innerHTML', ready
       ? `Acheter maintenant<b>${first.it.u.name}</b>💰 ${fmt(first.c)} · devient ×${first.n}`
       : `<span class="w">${isFinite(first.t) ? `Prochain achat à ${clock(first.t)} (${dur(first.t)})` : 'Prochain achat après quelques clics'}</span>` + `<b>${first.it.u.name}</b>💰 ${fmt(first.c)} · devient ×${first.n}<small>ne rien acheter d’autre d’ici là</small>`);
-    put('ol', ui.ol, 'innerHTML', out.slice(1).map(o =>
+    put('ol', ui.ol, 'innerHTML', out.slice(1).map(o => {
       // une ligne par achat, dans l'ordre : nom (coupé par « … » s'il est trop long), nombre possédé après achat, prix, heure
       // (marquée quand l'achat est possible tout de suite après le précédent)
-      `<li class="${o.it.u.rate ? 'kp' : 'kc'}"><span class="n">${o.it.u.name}</span><span class="k">×${o.n}</span><span class="p">${fmt3(o.c)}</span><span class="h${o.t < 1 ? ' go' : ''}">${clock(o.t)}</span></li>`).join(''));
+      // étape passée dans un jour suivant : badge « +N » et heure sans minutes (fausse précision à plus d'un jour)
+      const off = dayOff(o.t);
+      const t = off > 0 ? `<i class="d" title="dans ${off} jour${off > 1 ? 's' : ''}">+${off}</i>${new Date(Date.now() + o.t * 1000).getHours()} h` : clock(o.t);
+      return `<li class="${o.it.u.rate ? 'kp' : 'kc'}"><span class="n">${o.it.u.name}</span><span class="k">×${o.n}</span><span class="p">${fmt3(o.c)}</span><span class="h${o.t < 1 ? ' go' : ''}">${t}</span></li>`;
+    }).join(''));
     // Bas du panneau : chiffres clés toujours visibles, alertes seulement quand elles comptent, détail replié.
     // Production : réelle (parc possédé, ×3 pendant une Frénésie, ×mult pendant un événement). Clics : à la cadence retenue (moyenne mesurée en Auto,
     // réglée en Actif). Le plan suppose leur somme, nommée comme telle dans le détail.

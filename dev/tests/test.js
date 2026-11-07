@@ -77,7 +77,7 @@ async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, cli
   for (let i = 0; i < 20; i++) refresh.f();
   const idleMutations = mo.takeRecords().length; mo.disconnect();
   const r = {
-    now: d.querySelector('#tagAdv .now').textContent, kinds: [d.querySelector('#tagAdv .now').className.match(/k[pc]/)?.[0], ...[...d.querySelectorAll('#tagAdv ol li')].map(l => l.className)].join(' '), imgs: d.querySelectorAll('#tagAdv img').length, evStored: w.localStorage.getItem('tagAdv-ev'), cpsShown: !d.querySelector('#tagAdv [data-cps]').hidden, cpsVal: d.getElementById('tagAdvCps').value, goTimes: d.querySelectorAll('#tagAdv ol .h.go').length, list: [...d.querySelectorAll('#tagAdv li')].map(l => [...l.children].map(c => c.textContent).join(' ')),
+    now: d.querySelector('#tagAdv .now').textContent, kinds: [d.querySelector('#tagAdv .now').className.match(/k[pc]/)?.[0], ...[...d.querySelectorAll('#tagAdv ol li')].map(l => l.className)].join(' '), imgs: d.querySelectorAll('#tagAdv img').length, evStored: w.localStorage.getItem('tagAdv-ev'), cpsShown: !d.querySelector('#tagAdv [data-cps]').hidden, cpsVal: d.getElementById('tagAdvCps').value, goTimes: d.querySelectorAll('#tagAdv ol .h.go').length, hours: [...d.querySelectorAll('#tagAdv ol .h')].map(e => e.textContent), days: d.querySelectorAll('#tagAdv ol .h .d').length, list: [...d.querySelectorAll('#tagAdv li')].map(l => [...l.children].map(c => c.textContent).join(' ')),
     ft: [...d.querySelectorAll('#tagAdv .kpi span, #tagAdv .al p, #tagAdv .det p')].map(e => e.textContent).join(' · '),
     alerts: [...d.querySelectorAll('#tagAdv .al p')].map(e => e.textContent), detHidden: d.querySelector('#tagAdv .det').hidden, warn: d.querySelector('#tagAdv .warn').hidden ? '' : d.querySelector('#tagAdv .warn').textContent,
     best: d.querySelector('.tagAdvBest')?.dataset.id, adv: d.querySelector('.tagAdvBest')?.dataset.adv,
@@ -101,6 +101,14 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   check(/Production 22174\/s automatique/.test(r.ft) && /Clics non comptés mode Passif/.test(r.ft) && /plan calculé sur 22174\/s : production seule/.test(r.ft), r.ft);
   check(r.state.adv.cps === 0 && r.state.adv.clics === 0 && Math.abs(r.state.adv.prod - 22174) < 1 && Math.abs(r.state.adv.income - 22174) < 1 && r.state.adv.plan[0].name === 'Satellite de taxation' && r.state.adv.plan[0].kind === 'prod' && r.state.adv.plan.length === 8,
     'state().adv (Passif) : ' + JSON.stringify({ cps: r.state.adv.cps, prod: r.state.adv.prod, income: r.state.adv.income, p0: r.state.adv.plan[0] }));
+  check(r.days === 0 && r.hours.every(h => /^\d{1,2}:\d\d$/.test(h) || /aussitôt|—/.test(h)), 'le jour même : heure HH:MM, aucun badge de jour (' + r.hours.slice(0, 2).join(', ') + ')');
+
+  console.log('Étape d’un jour suivant : badge « +N » et heure sans minutes (fausse précision à plus d’un jour)');
+  // horloge poussée à 23 h 59 : les étapes basculent au lendemain
+  const rd = await page({ owned: { stagiaire: 1, satellite: 0 }, wallet: 0, perClick: '1 visite', mode: 'passif', at: 46790 });
+  check(rd.days === rd.hours.length && rd.days > 0 && rd.hours.every(h => /^\+\d+\s*\d{1,2}\s*h$/.test(h)) && !rd.hours.some(h => h.includes(':')),
+    'lendemain : badge +N et heure sans minutes (' + rd.hours.slice(0, 2).join(', ') + ')');
+
   check(r.stopped && r.timers === 0, 'arrêt propre : panneau, marque et minuteries retirés (minuteries restantes : ' + r.timers + ')');
 
   console.log('Actif 5/s : revenu 51024/s comme le simulateur, Doigts en premier');
