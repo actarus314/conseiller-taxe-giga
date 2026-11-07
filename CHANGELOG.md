@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.38 — 07/11/2026
+Flux de clics externe `window.__tagAdv.feedClick(ts)` : une automatisation ou une intégration tierce peut signaler un clic « taxer », compté comme un vrai clic pour la cadence (mode Auto). Additif et O(1) — les vrais clics restent comptés par le listener DOM, aucun autre comportement ni la performance n'est modifié.
+
 ## v2.37 — 06/11/2026
 Ligne « Prochain achat » sur une seule ligne : « Prochain achat à 21:57 (43 min 40 s) », plus courte (elle passait de une à deux lignes selon les chiffres du compte à rebours), chiffres de largeur fixe.
 

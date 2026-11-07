@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Conseiller — Taxe au Giga
 // @namespace    https://github.com/actarus314/conseiller-taxe-giga
-// @version      2.37
+// @version      2.38
 // @description  Indique le meilleur bonus à acheter dans Taxe au Giga. Ne clique et n'achète rien.
 // @match        https://taxe-au-giga.fr/*
 // @grant        none
@@ -15,7 +15,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.37'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.38'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (Décret porté à +100000 par clic au build 2026-11-03h), identique au build 2026-11-04n.
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -542,7 +542,10 @@
   }
   // état lu au dernier rafraîchissement (diagnostic depuis la console, et tests) ; déclaré avant le premier rafraîchissement,
   // pour qu'un second clic sur le favori arrête toujours le panneau
-  window.__tagAdv = { stop, state: () => last && { wallet: last.wallet, own: { ...last.own }, boost: { ...last.boost }, cadence: cadence(), minis: minis.size } };
+  // Flux de clics externe (automatisation, intégration tierce) : enregistre un clic « taxer » comme le ferait onClick.
+  // Additif et O(1) : les vrais clics continuent d'être comptés par le listener DOM, rien d'autre n'est modifié.
+  const feedClick = ts => { const t = Number.isFinite(ts) ? ts : Date.now(); recent.push(t); const m = Math.floor(t / 60e3); perMin[m] = (perMin[m] || 0) + 1; perMinDirty = true; };
+  window.__tagAdv = { stop, state: () => last && { wallet: last.wallet, own: { ...last.own }, boost: { ...last.boost }, cadence: cadence(), minis: minis.size }, feedClick };
   setMode(mode);
   iv = setInterval(tick, TICK);
 })();
