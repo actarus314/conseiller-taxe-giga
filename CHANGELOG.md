@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.42 — 08/11/2026
+Ligne du plan (détails) sur une seule ligne, qui ne saute plus : « **plan : 110.50 M/s = production + clics 4.4/s** » (avant : « plan calculé sur … : production + clics à … », 314 px pour 310 disponibles, passant de une à deux lignes selon la largeur des chiffres). Chiffres de largeur fixe dans les détails ; la ligne du plan est coupée par des points de suspension plutôt que renvoyée à la ligne si une valeur extrême débordait (mesuré dans Chrome : 264 px au plus, avec « Md » et 0.52 clic/s).
+
 ## v2.41 — 08/11/2026
 Alerte de cadence reformulée pour être plus claire. Avant : « cadence ramenée à X : reste Y clics sur le quota de l'heure ». Après : « **Réduire la cadence à X/s : il reste Y clics avant le plafond horaire** » (et pour le plafond/minute : « Réduire la cadence à X/s : plafond de 1030 clics par minute »). Même mécanisme, formulation actionnable. La limite reste à 24 000.
 

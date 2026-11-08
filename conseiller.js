@@ -3,7 +3,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.41'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.42'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (Décret porté à +100000 par clic au build 2026-11-03h), identique au build 2026-11-04n.
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -331,6 +331,8 @@
   #tagAdv .al,#tagAdv .det,#tagAdv .dtx{display:grid;gap:3px}
   #tagAdv .al:empty,#tagAdv .det[hidden]{display:none}
   #tagAdv .al p,#tagAdv .det p{margin:0}
+  #tagAdv .dtx{font-variant-numeric:tabular-nums}
+  #tagAdv .dtx p:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis} /* ligne du plan : une ligne, sans saut selon les chiffres */
   #tagAdv .al p{padding:3px 7px;border-radius:6px;background:#fff3b0;color:var(--tagInk)}
   #tagAdv .al p.lim{background:#ffb3d6}
   #tagAdv .warn{padding:6px 12px;background:#ffb3d6;font-size:12px}
@@ -523,7 +525,7 @@
     else if (why) lim.push(why);
     if (!capped && cad.hour > LIM_H - 2000) lim.push(`bientôt ${LIM_H} clics sur l’heure : au-delà, ils ne comptent plus`);
     if (cad.minute > LIM_MIN - 60) lim.push(`près de ${LIM_MIN} clics cette minute : au-delà, ils ne comptent plus, et un rythme tenu au plafond ${AUTOCLIC} min est pris pour un autoclic (clics ignorés ${AUTOCLIC} min)`);
-    det.push(`plan calculé sur ${fmt(prod + clk)}/s : production` + (cps ? ` + clics à ${cpsTxt(cps)}/s` : ' seule'));
+    det.push(`plan : ${fmt(prod + clk)}/s = production` + (cps ? ` + clics ${cpsTxt(cps)}/s` : ' seule'));
     if (mode === 'auto') det.push(cad.tot ? `moyenne de ${cad.tot} clics sur ${durMin(Math.max(cad.obs, MOY_PLANCHER * 60))}` + (cad.obs < MOY_PLANCHER * 60 ? ' (durée minimale comptée)' : ' de présence (au-delà d’1 h sans clic, minutes écartées)') : 'aucun clic compté sur 24 h : conseil passif');
     put('al', ui.al, 'innerHTML', al.map(t => `<p>${t}</p>`).join('') + lim.map(t => `<p class="lim">⚠️ ${t}</p>`).join(''));
     put('det', ui.dtx, 'innerHTML', det.map(t => `<p>${t}</p>`).join(''));
