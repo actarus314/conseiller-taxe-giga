@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Conseiller — Taxe au Giga
 // @namespace    https://github.com/actarus314/conseiller-taxe-giga
-// @version      2.40
+// @version      2.41
 // @description  Indique le meilleur bonus à acheter dans Taxe au Giga. Ne clique et n'achète rien.
 // @match        https://taxe-au-giga.fr/*
 // @grant        none
@@ -15,7 +15,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.40'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.41'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (Décret porté à +100000 par clic au build 2026-11-03h), identique au build 2026-11-04n.
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -486,7 +486,7 @@
     const cad = cadence(), left = Math.max(0, LIM_H - cad.hour), capped = left === 0;
     const want = mode === 'actif' ? cpsPlan : mode === 'auto' ? cad.avg : 0;
     const cps = Math.min(want, CPS_MAX, left / HORIZON);
-    const why = !want || cps >= want - 0.05 ? '' : capped ? '' : cps < Math.min(want, CPS_MAX) - 0.05 ? `ramenée à ${cpsTxt(cps)} : reste ${left} clics sur le quota de l’heure` : `ramenée à ${dec1(CPS_MAX)}, plafond de ${LIM_MIN} clics par minute`;
+    const why = !want || cps >= want - 0.05 ? '' : capped ? '' : cps < Math.min(want, CPS_MAX) - 0.05 ? `Réduire la cadence à ${cpsTxt(cps)}/s : il reste ${left} clics avant le plafond horaire` : `Réduire la cadence à ${dec1(CPS_MAX)}/s : plafond de ${LIM_MIN} clics par minute`;
     if (!Number.isFinite(st.wallet) || !$('#shop')) { blank('Boutique introuvable : recharger la page du jeu.'); return; }
     if (!st.items.length) { blank('Aucun bonus débloqué : cliquer sur TAXER.'); return; }
     put('warnHidden', ui.warn, 'hidden', !st.drift.length);
@@ -532,7 +532,7 @@
     // Rafale : signalée par le bandeau jaune du haut seulement (consigne d'action), pas en double ici
     const lim = [];
     if (capped && mode !== 'passif') lim.push(`${LIM_H} clics atteints sur l’heure : les clics ne comptent plus, conseil passif`);
-    else if (why) lim.push(`cadence ${why}`);
+    else if (why) lim.push(why);
     if (!capped && cad.hour > LIM_H - 2000) lim.push(`bientôt ${LIM_H} clics sur l’heure : au-delà, ils ne comptent plus`);
     if (cad.minute > LIM_MIN - 60) lim.push(`près de ${LIM_MIN} clics cette minute : au-delà, ils ne comptent plus, et un rythme tenu au plafond ${AUTOCLIC} min est pris pour un autoclic (clics ignorés ${AUTOCLIC} min)`);
     det.push(`plan calculé sur ${fmt(prod + clk)}/s : production` + (cps ? ` + clics à ${cpsTxt(cps)}/s` : ' seule'));

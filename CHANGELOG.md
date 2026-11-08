@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.41 — 08/11/2026
+Alerte de cadence reformulée pour être plus claire. Avant : « cadence ramenée à X : reste Y clics sur le quota de l'heure ». Après : « **Réduire la cadence à X/s : il reste Y clics avant le plafond horaire** » (et pour le plafond/minute : « Réduire la cadence à X/s : plafond de 1030 clics par minute »). Même mécanisme, formulation actionnable. La limite reste à 24 000.
+
 ## v2.40 — 07/11/2026
 Étapes d'un jour suivant distinguées dans la liste : badge « +1 », « +2 » devant l'heure, affichée sans les minutes (fausse précision à plus d'un jour). Plus de passage trompeur 17:18 → 11:20 sans repère de jour. Colonne de l'heure ajustée au contenu, titre tronqué d'un cran quand un badge apparaît.
 

@@ -164,7 +164,7 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
 
   console.log('Actif 5/s mais 23150 clics comptés sur l’heure : reste du quota réparti sur 15 min');
   r = await page({ ...base, mode: 'actif', cps: 5, clicks: every(5, 0, 30), at: 30, hourClicks: 23000 });
-  check(/ramenée à 0.94 : reste 850 clics/.test(r.ft), r.ft);
+  check(/Réduire la cadence à 0.94\/s : il reste 850 clics avant le plafond horaire/.test(r.ft), r.ft);
 
   for (const [m, lab] of [['pip-avant', 'image dans l’image ouverte avant le panneau'], ['pip-apres', 'image dans l’image ouverte après le panneau'], ['popup', 'fenêtre surgissante']]) {
     console.log(`Mode mini du jeu (${lab}) : clics de sa petite fenêtre comptés`);
