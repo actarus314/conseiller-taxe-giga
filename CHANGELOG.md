@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.43 — 09/11/2026
+`window.__tagAdv.state()` enrichi de `me` (= `me.id` lu en `localStorage['taxe-giga-me']`, forme `{id}` posée par le jeu — sert le pseudo public et les rangs via l'API) et `badges` (ids gagnés, lus en `localStorage['taxe-giga-badges']`, forme objet `{id:1}` vérifiée dans la source du jeu). Pour un collecteur de progression hors dépôt (dossier `taxe-giga-moniteur/`) qui suit les deux comptes à la fois depuis macOS. Lecture seule, jamais affiché ni écrit, repli propre (`null`/`[]`) sur stockage absent ou corrompu. Additif comme `adv` en v2.39 : conseil, affichage et performance inchangés. Test jsdom ajouté (cas nominal + repli).
+
 ## v2.42 — 08/11/2026
 Ligne du plan (détails) sur une seule ligne, qui ne saute plus : « **plan : 110.50 M/s = production + clics 4.4/s** » (avant : « plan calculé sur … : production + clics à … », 314 px pour 310 disponibles, passant de une à deux lignes selon la largeur des chiffres). Chiffres de largeur fixe dans les détails ; la ligne du plan est coupée par des points de suspension plutôt que renvoyée à la ligne si une valeur extrême débordait (mesuré dans Chrome : 264 px au plus, avec « Md » et 0.52 clic/s).
 
