@@ -1,5 +1,5 @@
 {
- "build": "2026-11-04n",
+ "build": "2026-11-09a",
  "regles": {
   "prix": "const cost = u => Math.ceil(u.base * Math.pow(1.15, owned[u.id]));",
   "production": "const rate = () => SHOP.reduce((s, u) => s + (u.rate || 0) * owned[u.id], 0);",
@@ -16,7 +16,10 @@
   "carte de bonus": "b.innerHTML = `<span class=\"ie\">${u.emoji}</span><span class=\"it\"><b>${u.name}</b><small>${u.desc}</small><em class=\"gain\"></em></span><span class=\"ic\"><b class=\"own\">0</b><small class=\"price\"></small></span>`;",
   "affichage possédés et prix": "b.querySelector('.own').textContent = done ? '✓' : '×' + owned[u.id]; b.querySelector('.price').textContent = done ? 'acquis' : '💰 ' + big(c);",
   "format des grands nombres": "const big = n => n < 1e6 ? int(Math.floor(n)) : n < 1e9 ? nf(2).format(n / 1e6) + ' M' : n < 1e15 ? nf(2).format(n / 1e9) + ' Md' : nf(2).format(n / 1e12) + ' billions';",
-  "indicateur des bonus": "chip.textContent = `⚡ Rafale de clics : chaque clic ×10 encore ${Math.ceil((rafaleUntil - now) / 1000)} s` | chip.textContent = `🔥 Frénésie fiscale : production ×${evOn() ? 2 + gameEv.mult : 3} encore ${Math.ceil((frenzyUntil - now) / 1000)} s` | chip.textContent = now >= gameEv.from ? `📣 ${gameEv.nm} : production ×${gameEv.mult} jusqu’à ${evHour(gameEv.hTo)} · encore ${evLeft(gameEv.to - now)}`",
-  "éléments lus": "id=\"buffChip\" | id=\"goldBill\" | id=\"perClick\" | id=\"shop\" | id=\"stickyTax\" | id=\"taxBtn\" | id=\"wallet\""
+  "indicateur des bonus": "chip.textContent = `⚔️ Bonus du Dépité : clics ×${nf(1).format(bossB.mult)}${bossB.part ? ', merci d’avoir combattu' : ''} jusqu’à ${evHour(bossB.hTo)} · encore ${evLeft(bossB.to - now)}` | chip.textContent = `⚡ Rafale de clics : chaque clic ×10 encore ${Math.ceil((rafaleUntil - now) / 1000)} s` | chip.textContent = `🔥 Frénésie fiscale : production ×${evOn() ? 2 + gameEv.mult : 3} encore ${Math.ceil((frenzyUntil - now) / 1000)} s` | chip.textContent = now >= gameEv.from ? `📣 ${gameEv.nm} : production ×${gameEv.mult} jusqu’à ${evHour(gameEv.hTo)} · encore ${evLeft(gameEv.to - now)}`",
+  "éléments lus": "id=\"buffChip\" | id=\"goldBill\" | id=\"perClick\" | id=\"shop\" | id=\"stickyTax\" | id=\"taxBtn\" | id=\"wallet\"",
+  "détection durée (classement Autoclickers)": "repérés 3 jours à plus de 18 h de clics. Leurs visites restent sur la facture de Laurent, mais ils ne figurent dans aucun autre classement",
+  "classement bots (libellé)": "lbRange === 'bots' ? 'Top 10 des Autoclickers'",
+  "verrou boss (bouton désactivé)": "bossLock = on; document.documentElement.classList.toggle('boss-lock', on); btn.disabled = on;"
  }
 }

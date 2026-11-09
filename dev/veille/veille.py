@@ -37,6 +37,11 @@ REGLES = {
     'format des grands nombres': r"const big = n => [^;]{1,400};",
     'indicateur des bonus': r"chip\.textContent = (?:now >= gameEv\.from \? )?`[^`]{1,300}`",
     'éléments lus': r'id="(?:wallet|shop|perClick|buffChip|goldBill|taxBtn|stickyTax)"',
+    # Détection anti-autoclic et boss (n'affectent pas l'économie du conseiller, mais changent le
+    # comportement de la pile bot/pilote : la veille sert de radar pour toute évolution de ces règles).
+    'détection durée (classement Autoclickers)': r"repérés \d+ jours à plus de \d+ h de clics.{0,140}?aucun autre classement",
+    'classement bots (libellé)': r"lbRange === 'bots' \? 'Top 10 des Autoclickers'",
+    'verrou boss (bouton désactivé)': r"bossLock = on;.{0,160}?btn\.disabled = on;",
 }
 
 
