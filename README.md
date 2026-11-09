@@ -37,7 +37,7 @@ Un clic sur le favori ouvre le panneau, un second le ferme. Le panneau se place 
 - Choix : le bonus qui minimise *attente avant de pouvoir le payer* + *temps pour qu'il se rembourse*.
 - Bonus temporaires comptés pour leur durée : Frénésie (production +200 %), Rafale (clics ×10) et événements du jeu (production ×2 pendant quelques heures, par exemple), lus sur l'indicateur du jeu.
 
-Barème recopié du code du jeu (build 2026-11-04m). Une alerte rose apparaît si un prix ou la puissance de clic affichés ne correspondent plus.
+Barème recopié du code du jeu (build 2026-11-04e, inchangé jusqu'au build 2026-11-09a). Une alerte rose apparaît si un prix ou la puissance de clic affichés ne correspondent plus.
 
 ## Développement
 
