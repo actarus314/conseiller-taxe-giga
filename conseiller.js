@@ -3,7 +3,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.42'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.43'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (Décret porté à +100000 par clic au build 2026-11-03h), identique au build 2026-11-04n.
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -562,7 +562,11 @@
   // Flux de clics externe (automatisation, intégration tierce) : enregistre un clic « taxer » comme le ferait onClick.
   // Additif et O(1) : les vrais clics continuent d'être comptés par le listener DOM, rien d'autre n'est modifié.
   const feedClick = ts => { const t = Number.isFinite(ts) ? ts : Date.now(); recent.push(t); const m = Math.floor(t / 60e3); perMin[m] = (perMin[m] || 0) + 1; perMinDirty = true; };
-  window.__tagAdv = { stop, state: () => last && { version: VERSION, wallet: last.wallet, own: { ...last.own }, boost: { ...last.boost }, cadence: cadence(), minis: minis.size, adv: lastAdv }, feedClick };
+  // Identité joueur + palmarès lus en localStorage pour le monitoring distant (collecteur) : lecture seule,
+  // jamais écrits ni affichés. me.id → pseudo et rang via l'API ; badges → liste des ids gagnés.
+  const meId = () => { try { const m = JSON.parse(localStorage.getItem('taxe-giga-me') || 'null'); return m && m.id ? m.id : null; } catch (e) { return null; } };
+  const myBadges = () => { try { return Object.keys(JSON.parse(localStorage.getItem('taxe-giga-badges') || '{}')); } catch (e) { return []; } };
+  window.__tagAdv = { stop, state: () => last && { version: VERSION, wallet: last.wallet, own: { ...last.own }, boost: { ...last.boost }, cadence: cadence(), minis: minis.size, me: meId(), badges: myBadges(), adv: lastAdv }, feedClick };
   setMode(mode);
   iv = setInterval(tick, TICK);
 })();

@@ -364,6 +364,16 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
     w.close();
   }
 
+  console.log('Monitoring distant : state() expose me.id et les badges gagnés (lus en localStorage, lecture seule)');
+  r = await page({ ...base, raw: { 'taxe-giga-me': JSON.stringify({ id: 'f80c88e2', n: 42 }), 'taxe-giga-badges': JSON.stringify({ nuit: 1, top1: 1, assidu: 1 }) } });
+  check(r.state.me === 'f80c88e2' && Array.isArray(r.state.badges) && r.state.badges.length === 3 && r.state.badges.includes('nuit') && r.state.badges.includes('top1'),
+    'me/badges exposés : ' + JSON.stringify({ me: r.state.me, badges: r.state.badges }));
+
+  console.log('Monitoring distant : sans me ni badges (ou stockage corrompu), me = null et badges = [] (jamais d’erreur)');
+  r = await page({ ...base, raw: { 'taxe-giga-me': 'pas du json', 'taxe-giga-badges': '{{{' } });
+  check(r.state.me === null && Array.isArray(r.state.badges) && r.state.badges.length === 0,
+    'repli propre : ' + JSON.stringify({ me: r.state.me, badges: r.state.badges }));
+
   console.log('Favori à jour : charge conseiller.js depuis GitHub Pages (paramètre à la minute), ouvre puis ferme le panneau');
   {
     const auto = fs.readFileSync(path.join(ROOT, 'bookmarklet-auto.txt'), 'utf8').trim();
