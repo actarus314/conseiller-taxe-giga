@@ -208,6 +208,35 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
     check(/Production 88696\/s ×4 Frénésie/.test(r.ft) && r.state.boost.ev === 40, r.ft.slice(0, 120));
   }
 
+  console.log('Bonus du Dépité (build 2026-11-09a) : puissance affichée ×mult sans bandeau rose, clics ×mult dans le modèle, alerte');
+  {
+    const T0 = 1793700000000, chipBs = '⚔️ Bonus du Dépité : clics ×2,5, merci d’avoir combattu jusqu’à 19 h · encore 54 min';
+    r = await page({ ...base, mode: 'actif', cps: 5, perClick: '14 425 visites', chip: chipBs });
+    check(!r.warn && r.state.boost.bs === 3210 && r.state.boost.bsm === 2.5 && r.alerts.some(t => /Dépité : clics ×2.5/.test(t)) && /×2.5 Dépité/.test(r.ft) && /Clics \+72125\/s/.test(r.ft),
+      'alerte : ' + (r.warn || 'aucune') + ' | ' + r.ft.slice(0, 160));
+    console.log('Puissance ×2,5 sans bonus connu : bandeau rose (contrôle conservé)');
+    r = await page({ ...base, mode: 'passif', perClick: '14 425 visites' });
+    check(/puissance de clic/.test(r.warn), r.warn || 'aucune alerte');
+    console.log('Bonus du Dépité retenu sous une Frénésie (indicateur masqué)');
+    r = await page({ ...base, mode: 'passif', perClick: '8 655 visites', chip: '🔥 Frénésie fiscale : production ×3 encore 40 s', raw: { 'tagAdv-bs': JSON.stringify({ mult: 1.5, to: T0 + 600e3 }) } });
+    check(!r.warn && r.state.boost.bs === 600 && r.state.boost.bsm === 1.5, 'alerte : ' + (r.warn || 'aucune') + ' | bs ' + r.state.boost.bs);
+    console.log('Événement gardé en mémoire quand l’indicateur montre le Dépité');
+    r = await page({ ...base, mode: 'passif', perClick: '14 425 visites', chip: chipBs, ev: { nm: 'Jour de mobilisation', mult: 2, left: 3600 } });
+    check(r.evStored !== 'null' && r.alerts.some(t => /Jour de mobilisation/.test(t)) && /Production 44348\/s ×2 événement/.test(r.ft), (r.evStored || '') + ' | ' + r.ft.slice(0, 120));
+    console.log('Dernière minute du bonus : fin retenue dépassée, indicateur encore affiché, pas de bandeau rose');
+    r = await page({ ...base, mode: 'passif', perClick: '14 425 visites', chip: '⚔️ Bonus du Dépité : clics ×2,5 jusqu’à 19 h · encore 1 min', raw: { 'tagAdv-bs': JSON.stringify({ mult: 2.5, to: T0 - 5e3 }) } });
+    check(!r.warn && r.state.boost.bs > 0, 'alerte : ' + (r.warn || 'aucune') + ' | bs ' + r.state.boost.bs);
+    console.log('Bonus commencé sous une Rafale : multiplicateur déduit de la puissance affichée');
+    r = await page({ ...base, mode: 'passif', perClick: '11 540 visites', chip: '⚡ Rafale de clics : chaque clic ×10 encore 9 s' });
+    check(!r.warn && r.state.boost.bs === 9 && r.state.boost.bsm === 2, 'alerte : ' + (r.warn || 'aucune') + ' | bs ' + r.state.boost.bs + ' ×' + r.state.boost.bsm);
+    console.log('Multiplicateur réel à 2 décimales (1,75 affiché 1,8) : toléré');
+    r = await page({ ...base, mode: 'passif', perClick: '10 097 visites', chip: '⚔️ Bonus du Dépité : clics ×1,8 jusqu’à 19 h · encore 20 min' });
+    check(!r.warn, 'alerte : ' + (r.warn || 'aucune'));
+    console.log('Bonus du Dépité terminé (indicateur masqué) : mémoire effacée');
+    r = await page({ ...base, mode: 'passif', raw: { 'tagAdv-bs': JSON.stringify({ mult: 1.5, to: T0 + 600e3 }) } });
+    check(r.state.boost.bs === 0 && !r.warn, 'bs ' + r.state.boost.bs);
+  }
+
   console.log('Passage en Actif : détails dépliés avec le réglage de la cadence prévue ; réglage caché en Auto');
   r = await page({ ...base, clickMode: 'actif' });
   const rAuto = await page({ ...base, det: true });

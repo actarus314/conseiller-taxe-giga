@@ -20,6 +20,8 @@
   "éléments lus": "id=\"buffChip\" | id=\"goldBill\" | id=\"perClick\" | id=\"shop\" | id=\"stickyTax\" | id=\"taxBtn\" | id=\"wallet\"",
   "détection durée (classement Autoclickers)": "repérés 3 jours à plus de 18 h de clics. Leurs visites restent sur la facture de Laurent, mais ils ne figurent dans aucun autre classement",
   "classement bots (libellé)": "lbRange === 'bots' ? 'Top 10 des Autoclickers'",
-  "verrou boss (bouton désactivé)": "bossLock = on; document.documentElement.classList.toggle('boss-lock', on); btn.disabled = on;"
+  "verrou boss (bouton désactivé)": "bossLock = on; document.documentElement.classList.toggle('boss-lock', on); btn.disabled = on;",
+  "puissance affichée (bonus du Dépité)": "const power = () => serious ? 1 : Math.floor(clickPower() * bossMult());",
+  "indicateur du bonus du Dépité": "chip.textContent = `⚔️ Bonus du Dépité : clics ×${nf(1).format(bossB.mult)}${bossB.part ? ', merci d’avoir combattu' : ''} jusqu’à ${evHour(bossB.hTo)} · encore ${evLeft(bossB.to - now)}`"
  }
 }

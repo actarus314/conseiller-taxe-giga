@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Conseiller — Taxe au Giga
 // @namespace    https://github.com/actarus314/conseiller-taxe-giga
-// @version      2.43
+// @version      2.44
 // @description  Indique le meilleur bonus à acheter dans Taxe au Giga. Ne clique et n'achète rien.
 // @match        https://taxe-au-giga.fr/*
 // @grant        none
@@ -15,7 +15,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.43'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.44'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (Décret porté à +100000 par clic au build 2026-11-03h), identique au build 2026-11-04n.
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -88,6 +88,10 @@
     && Number.isFinite(e.to) && e.to > Date.now() && e.to < Date.now() + 864e5;
   let evMem = null; try { evMem = JSON.parse(store('ev') || 'null'); } catch (e) { evMem = null; }
   if (!evOk(evMem)) evMem = null;
+  // Bonus d'après-combat du Dépité (build 2026-11-09a) : clics ×mult (1,5 à 2,5) jusqu'à une heure donnée par le serveur ; masqué par une Frénésie ou une Rafale, d'où la fin retenue
+  const bsOk = e => !!e && Number.isFinite(e.mult) && e.mult > 1 && e.mult <= 10 && Number.isFinite(e.to) && e.to < Date.now() + 864e5;
+  let bsMem = null; try { bsMem = JSON.parse(store('bs') || 'null'); } catch (e) { bsMem = null; }
+  if (!bsOk(bsMem)) bsMem = null;
   let cpsPlan = clampCps(store('cps'));
 
   // Mesure des clics réels sur TAXER (bouton principal, bouton flottant et bouton du mode mini).
@@ -176,7 +180,7 @@
       const same = sv && sv.owned && typeof sv.owned === 'object' && Object.keys(own).every(id => (sv.owned[id] || 0) === own[id]);
       if (same && Number.isFinite(sv.wallet) && sv.t) {
         const clicks = recent.filter(t => t > sv.t).length; // clics comptés par le panneau depuis la sauvegarde
-        est = sv.wallet + prodRate(own) * prodMul(boost, 0) * Math.max(0, Date.now() - sv.t) / 1000 + clicks * clickPow(own) * (boost.rf ? RAFALE : 1);
+        est = sv.wallet + prodRate(own) * prodMul(boost, 0) * Math.max(0, Date.now() - sv.t) / 1000 + clicks * clickPow(own) * clickMul(boost, 0);
       }
     } catch (e) {}
     return Number.isFinite(est) ? Math.min(hi, Math.max(lo, est)) : shown;
@@ -198,13 +202,28 @@
         items.push({ u, el: b });
       }
     }
-    // la puissance de clic affichée par le jeu sert de contrôle du modèle
-    const pcTxt = ($('#perClick') || {}).textContent || '', pc = /volontaire/.test(pcTxt) ? 0 : parseInt(pcTxt.replace(/\D/g, ''), 10); // mode sérieux : rien à contrôler
-    if (pc && items.length && Math.abs(pc - clickPow(own)) > Math.max(2, pc * DRIFT)) drift.push('puissance de clic');
     // bonus de la Facture dorée en cours, lus dans le bandeau du jeu : Frénésie (production ×3) ou Rafale (clics ×10)
     const chip = $('#buffChip'), ct = chip && !chip.hidden ? chip.textContent : '', left = (ct.match(/(\d+)\s*s\b/) || [])[1];
     const fzOn = /^\s*🔥 Frénésie/.test(ct), rfOn = /^\s*⚡ Rafale/.test(ct);
-    const boost = { fz: fzOn && left ? +left : 0, rf: rfOn && left ? +left : 0, ev: 0, evm: 1, evn: '' };
+    const boost = { fz: fzOn && left ? +left : 0, rf: rfOn && left ? +left : 0, ev: 0, evm: 1, evn: '', bs: 0, bsm: 1 };
+    // Bonus du Dépité : affiché hors Frénésie et Rafale, avant l'événement ; fin lue à la minute (arrondie au-dessus) : on retire 30 s
+    const bsx = /⚔️ Bonus du Dépité : clics ×(\d+(?:[.,]\d+)?).*?encore (?:(\d+) h (\d+)|(\d+) min)/.exec(ct);
+    if (bsx) {
+      const e = { mult: parseFloat(bsx[1].replace(',', '.')), to: Date.now() + (bsx[2] ? (+bsx[2] * 60 + +bsx[3]) : +bsx[4]) * 60e3 - 30e3 };
+      if (bsOk(e) && (!bsMem || bsMem.mult !== e.mult || Math.abs(bsMem.to - e.to) > 60e3)) { bsMem = e; store('bs', JSON.stringify(e)); }
+    } else if (!fzOn && !rfOn && bsMem) { bsMem = null; store('bs', 'null'); }
+    if (bsMem && bsMem.to > Date.now()) Object.assign(boost, { bs: Math.round((bsMem.to - Date.now()) / 1000), bsm: bsMem.mult });
+    // indicateur affiché : le bonus est en cours, même si la fin retenue (à 30 s près) est passée
+    if (bsx && !boost.bs) Object.assign(boost, { bs: 1, bsm: parseFloat(bsx[1].replace(',', '.')) });
+    // la puissance de clic affichée par le jeu (×bonus du Dépité) sert de contrôle du modèle ; près de la fin du bonus (fin connue à 30 s près), les deux valeurs passent
+    const pcTxt = ($('#perClick') || {}).textContent || '', pc = /volontaire/.test(pcTxt) ? 0 : parseInt(pcTxt.replace(/\D/g, ''), 10); // mode sérieux : rien à contrôler
+    const cp0 = clickPow(own);
+    // bonus commencé sous une Frénésie ou une Rafale (indicateur masqué) : multiplicateur déduit de la puissance affichée, pour la durée du bonus doré
+    if (pc && items.length && !boost.bs && (fzOn || rfOn) && left && cp0 > 0 && pc / cp0 >= 1.4 && pc / cp0 <= 2.6) Object.assign(boost, { bs: +left, bsm: Math.round(pc / cp0 * 10) / 10 });
+    const pcOk = [Math.floor(cp0 * boost.bsm)].concat(boost.bs && boost.bs < 90 && !bsx ? [cp0] : [], !boost.bs && bsMem && Date.now() - bsMem.to < 90e3 ? [Math.floor(cp0 * bsMem.mult)] : []);
+    // multiplicateur affiché au dixième par le jeu : tolérance élargie d'autant pendant le bonus
+    const tol = boost.bs ? Math.max(DRIFT, 0.06 / boost.bsm) : DRIFT;
+    if (pc && items.length && pcOk.every(v => Math.abs(pc - v) > Math.max(2, pc * tol))) drift.push('puissance de clic');
     // Événement du jeu (build 2026-11-04n) : production ×mult pendant quelques heures, cumulée avec la Frénésie (1 + 2 + mult − 1).
     // L'indicateur du jeu ne l'affiche que hors Frénésie et Rafale : sa fin est retenue, et pendant une Frénésie sans fin connue,
     // le multiplicateur affiché (×4 au lieu de ×3) suffit à le déduire, pour la durée de la Frénésie.
@@ -213,7 +232,7 @@
     if (evm) {
       const e = { nm: evm[1].slice(0, 60), mult: parseFloat(evm[2].replace(',', '.')), to: Date.now() + (evm[3] ? (+evm[3] * 60 + +evm[4]) : +evm[5]) * 60e3 - 30e3 };
       if (evOk(e) && (!evMem || evMem.nm !== e.nm || evMem.mult !== e.mult || Math.abs(evMem.to - e.to) > 60e3)) { evMem = e; store('ev', JSON.stringify(e)); }
-    } else if (!fzOn && !rfOn && evMem) { evMem = null; store('ev', 'null'); } // indicateur masqué ou sans événement : il n'y en a pas (ou plus)
+    } else if (!fzOn && !rfOn && !bsx && evMem) { evMem = null; store('ev', 'null'); } // indicateur masqué ou sans événement : il n'y en a pas (ou plus)
     if (evMem && evMem.to > Date.now()) Object.assign(boost, { ev: Math.round((evMem.to - Date.now()) / 1000), evm: evMem.mult, evn: evMem.nm });
     const fzm = boost.fz && /production ×(\d+(?:[.,]\d+)?)/.exec(ct), fzx = fzm ? parseFloat(fzm[1].replace(',', '.')) : FRENESIE;
     if (boost.fz && fzx > FRENESIE && !boost.ev) Object.assign(boost, { ev: boost.fz, evm: fzx - FRENESIE + 1, evn: 'événement' });
@@ -221,12 +240,14 @@
     return { items, own, drift, wallet: walletNow(own, boost), boost, goldUp: !!gold && !gold.hidden };
   }
 
-  // Revenu à l'instant t (s) : Frénésie = production ×3 pendant fz s, Rafale = clics ×10 pendant rf s, événement = production ×mult pendant ev s
+  // Revenu à l'instant t (s) : Frénésie = production ×3 pendant fz s, Rafale = clics ×10 pendant rf s, événement = production ×mult pendant ev s, Dépité = clics ×bsm pendant bs s
   // multiplicateur de production à l'instant t (s) : Frénésie (+2) et événement du jeu (+mult − 1) s'additionnent
   const prodMul = (b, t) => 1 + (t < b.fz ? FRENESIE - 1 : 0) + (t < (b.ev || 0) ? b.evm - 1 : 0);
-  const rateAt = (own, cps, b, t) => { const r = prodRate(own); return r * prodMul(b, t) + (cps > 0 ? clickPow(own, r) * cps * (t < b.rf ? RAFALE : 1) : 0); };
+  // multiplicateur des clics à l'instant t (s) : Rafale (×10) et bonus du Dépité (×mult) se multiplient, comme power() du jeu
+  const clickMul = (b, t) => (t < b.rf ? RAFALE : 1) * (t < (b.bs || 0) ? b.bsm : 1);
+  const rateAt = (own, cps, b, t) => { const r = prodRate(own); return r * prodMul(b, t) + (cps > 0 ? clickPow(own, r) * cps * clickMul(b, t) : 0); };
   // Morceaux de temps où le revenu est constant : [0, fin du 1er bonus], [.., fin du suivant]…, [.., ∞)
-  const pieces = b => [...new Set([b.fz, b.rf, b.ev].filter(x => x > 0))].sort((x, y) => x - y).concat(Infinity);
+  const pieces = b => [...new Set([b.fz, b.rf, b.ev, b.bs].filter(x => x > 0))].sort((x, y) => x - y).concat(Infinity);
   // Revenu de chaque morceau de temps, calculé une fois par étape du plan : [{ end, rate }]
   const segments = (own, cps, b) => { let start = 0; return pieces(b).map(end => { const seg = { end, rate: rateAt(own, cps, b, start) }; start = end; return seg; }); };
   // temps pour gagner `amount`
@@ -245,7 +266,7 @@
     for (const { end, rate } of segs) { const e = Math.min(end, T); if (e > t) sum += rate * (e - t); t = e; if (t >= T) break; }
     return sum;
   }
-  const after = (b, dt) => ({ ...b, fz: Math.max(0, b.fz - dt), rf: Math.max(0, b.rf - dt), ev: Math.max(0, (b.ev || 0) - dt) });
+  const after = (b, dt) => ({ ...b, fz: Math.max(0, b.fz - dt), rf: Math.max(0, b.rf - dt), ev: Math.max(0, (b.ev || 0) - dt), bs: Math.max(0, (b.bs || 0) - dt) });
   // Choix : le bonus qui minimise (attente avant de pouvoir le payer + temps pour qu'il se rembourse). Le remboursement compte
   // les bonus en cours sur leur durée (un bonus de production rapporte ×mult pendant un événement, ×3 pendant une Frénésie).
   function pick(items, own, w, cps, boost) {
@@ -253,9 +274,9 @@
     const r0 = prodRate(own), c0 = cps > 0 ? clickPow(own, r0) : 0;
     for (const it of items) {
       const n = own[it.u.id] || 0; if (it.u.max && n >= it.u.max) continue;
-      // gain du bonus, morceau par morceau : production en plus (×Frénésie, ×événement) et clics en plus (×Rafale)
+      // gain du bonus, morceau par morceau : production en plus (×Frénésie, ×événement) et clics en plus (×Rafale, ×Dépité)
       own[it.u.id] = n + 1; const dC = cps > 0 ? clickPow(own, r0 + it.u.rate) - c0 : 0; own[it.u.id] = n;
-      let start = 0; const gain = ends.map(end => { const g = { end, rate: it.u.rate * prodMul(boost, start) + dC * cps * (start < boost.rf ? RAFALE : 1) }; start = end; return g; });
+      let start = 0; const gain = ends.map(end => { const g = { end, rate: it.u.rate * prodMul(boost, start) + dC * cps * clickMul(boost, start) }; start = end; return g; });
       if (gain[gain.length - 1].rate <= 0) continue;
       const c = cost(it.u, n), wait = earnTime(c - w, segs), s = wait + earnTime(c, gain);
       if (s < bs) { bs = s; best = { it, c, wait, segs }; }
@@ -517,19 +538,20 @@
     // Bas du panneau : chiffres clés toujours visibles, alertes seulement quand elles comptent, détail replié.
     // Production : réelle (parc possédé, ×3 pendant une Frénésie, ×mult pendant un événement). Clics : à la cadence retenue (moyenne mesurée en Auto,
     // réglée en Actif). Le plan suppose leur somme, nommée comme telle dans le détail.
-    const prod = prodRate(st.own) * prodMul(st.boost, 0), clk = clickPow(st.own) * cps * (st.boost.rf ? RAFALE : 1);
+    const prod = prodRate(st.own) * prodMul(st.boost, 0), clk = clickPow(st.own) * cps * clickMul(st.boost, 0);
     // Clics pendant une série (Auto, Actif) : la colonne passe en direct (ce que la série rapporte, Rafale comprise), sur fond vert,
     // sans ligne en plus ; elle revient à la cadence retenue 5 s après le dernier clic. Le plan, lui, garde la cadence retenue.
     const live = mode !== 'passif' && !capped && cad.rate > 0;
     const kpi = [['Production', fmt(prod) + '/s', st.boost.fz || st.boost.ev ? `×${dec1(prodMul(st.boost, 0))} ${st.boost.fz ? 'Frénésie' : 'événement'}` : 'automatique'],
       mode === 'passif' || capped ? ['Clics', 'non comptés', mode === 'passif' ? 'mode Passif' : 'quota de l’heure atteint']
-        : live ? ['En direct', '+' + fmt(clickPow(st.own) * cad.rate * (st.boost.rf ? RAFALE : 1)) + '/s', `${dec1(cad.rate)} ${cad.rate >= 2 ? 'clics' : 'clic'}/s` + (st.boost.rf ? ` ×${RAFALE}` : ''), 'live']
-        : ['Clics', '+' + fmt(clk) + '/s', `${mode === 'auto' ? 'moyenne' : 'prévus'} ${cpsTxt(cps)}/s` + (st.boost.rf ? ` ×${RAFALE}` : '')],
+        : live ? ['En direct', '+' + fmt(clickPow(st.own) * cad.rate * clickMul(st.boost, 0)) + '/s', `${dec1(cad.rate)} ${cad.rate >= 2 ? 'clics' : 'clic'}/s` + (st.boost.rf ? ` ×${RAFALE}` : '') + (st.boost.bs ? ` ×${dec1(st.boost.bsm)} Dépité` : ''), 'live']
+        : ['Clics', '+' + fmt(clk) + '/s', `${mode === 'auto' ? 'moyenne' : 'prévus'} ${cpsTxt(cps)}/s` + (st.boost.rf ? ` ×${RAFALE}` : '') + (st.boost.bs ? ` ×${dec1(st.boost.bsm)} Dépité` : '')],
       ['Cagnotte', '💰 ' + fmt(st.wallet), '']];
     put('kpi', ui.kpi, 'innerHTML', kpi.map(([k, v, sub, cl]) => `<span${cl ? ` class="${cl}"` : ''}><small>${k}</small> <b>${v}</b>${sub ? ` <i>${sub}</i>` : ''}</span>`).join(''));
     const al = [], det = [];
     // courtes : la colonne Production dit déjà que c'est la production qui est multipliée
     if (st.boost.ev) al.push(`📣 ${esc(st.boost.evn)} ×${dec1(st.boost.evm)} · encore ${dur(st.boost.ev)}`);
+    if (st.boost.bs) al.push(`⚔️ Dépité : clics ×${dec1(st.boost.bsm)} · encore ${dur(st.boost.bs)}`);
     if (st.boost.fz) al.push(`🔥 Frénésie ×${dec1(prodMul(st.boost, 0))} · encore ${st.boost.fz} s`);
     // Rafale : signalée par le bandeau jaune du haut seulement (consigne d'action), pas en double ici
     const lim = [];
@@ -547,7 +569,7 @@
       prod,                       // production/s, bonus (Frénésie, événement) compris
       clics: clk,                 // clics/s retenus par le plan (0 en Passif ou au plafond)
       income: prod + clk,         // rendement total supposé /s
-      clicsLive: live ? clickPow(st.own) * cad.rate * (st.boost.rf ? RAFALE : 1) : 0, // série en cours
+      clicsLive: live ? clickPow(st.own) * cad.rate * clickMul(st.boost, 0) : 0, // série en cours
       cps,                        // cadence retenue
       rateLive: cad.rate,         // cadence de la série en cours (0 hors série)
       avg: cad.avg,               // moyenne mesurée sur la présence (Auto), clics/s

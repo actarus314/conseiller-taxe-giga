@@ -42,6 +42,9 @@ REGLES = {
     'détection durée (classement Autoclickers)': r"repérés \d+ jours à plus de \d+ h de clics.{0,140}?aucun autre classement",
     'classement bots (libellé)': r"lbRange === 'bots' \? 'Top 10 des Autoclickers'",
     'verrou boss (bouton désactivé)': r"bossLock = on;.{0,160}?btn\.disabled = on;",
+    # Puissance affichée dans #perClick et indicateur du bonus d'après-combat (lus par le conseiller depuis la v2.44)
+    'puissance affichée (bonus du Dépité)': r"const power = \(\) => [^;]{1,200};",
+    'indicateur du bonus du Dépité': r"chip\.textContent = `⚔️ Bonus du Dépité[^`]{1,300}`",
 }
 
 
