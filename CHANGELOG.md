@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.47 — 10/11/2026
+`state().adv.plan[]` porte le **gain de chaque achat** : `gainProd` (visites/s de production en plus) et `gainClic` (visites par clic en plus ; × la cadence retenue `adv.cps` = gain/s des clics), hors bonus en cours. Pour l'infobulle des prochains achats du widget. Choix des achats inchangé.
+
 ## v2.46 — 10/11/2026
 **Absences écartées en entier** (relecture du 10/11, validée par Romain). Le mode Auto compte comme présence (à 0 clic) les minutes d'une pause de moins d'1 h — c'est la règle de la v2.24, pensée pour un jeu passif à la main entrecoupé de séries. Mais il comptait aussi les 60 premières minutes de **toute** pause, même celle qui devient une absence : pour un compte au bot avec pause nuit, cadence fantôme de ~3,9 clics/s toute la nuit, puis moyenne trop basse d'un tiers jusqu'à 2 h après le réveil. Désormais les minutes d'une pause ne comptent que si elle finit en moins d'1 h (la pause en cours compte tant qu'elle n'a pas dépassé 1 h) ; au-delà d'1 h sans clic, le compte est **absent** : aucun clic prévu en Auto (« Clics +0/s · absent · moyenne x/s »), la moyenne d'avant reste affichée et reprend au retour. Pauses de moins d'1 h : inchangées. Effet sur le revenu ~0 (−0,1 % estimé avant) ; affichage et heures du plan justes la nuit et au réveil. 2 tests jsdom (nuit, pause de 40 min).
 

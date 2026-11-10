@@ -116,6 +116,8 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   check(r.best === 'doigt' && /Clics \+28850\/s prévus 5\/s/.test(r.ft) && /plan : 51024\/s = production \+ clics 5\/s/.test(r.ft), r.ft);
   check(r.state.adv.cps === 5 && Math.abs(r.state.adv.clics - 28850) < 1 && Math.abs(r.state.adv.income - 51024) < 2 && r.state.adv.plan[0].name === 'Doigt de fonctionnaire' && r.state.adv.plan[0].kind === 'clic',
     'state().adv (Actif) : ' + JSON.stringify({ cps: r.state.adv.cps, clics: r.state.adv.clics, income: r.state.adv.income, p0name: r.state.adv.plan[0].name }));
+  check(r.state.adv.plan.every(x => typeof x.gainProd === 'number' && typeof x.gainClic === 'number' && x.gainProd >= 0 && x.gainClic >= 0) && r.state.adv.plan.some(x => x.kind === 'clic' && x.gainClic > 0 && x.gainProd === 0),
+    'plan : gain de chaque achat (production /s, visites par clic) : ' + JSON.stringify(r.state.adv.plan.slice(0, 2).map(x => [x.name, x.kind, x.gainProd, x.gainClic])));
 
   console.log('Auto sans clic : conseil passif');
   r = await page({ ...base });

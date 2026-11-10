@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Conseiller — Taxe au Giga
 // @namespace    https://github.com/actarus314/conseiller-taxe-giga
-// @version      2.46
+// @version      2.47
 // @description  Indique le meilleur bonus à acheter dans Taxe au Giga. Ne clique et n'achète rien.
 // @match        https://taxe-au-giga.fr/*
 // @grant        none
@@ -15,7 +15,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.46'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.47'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (Décret porté à +100000 par clic au build 2026-11-03h), identique au build 2026-11-04n.
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -292,7 +292,8 @@
       let start = 0; const gain = ends.map(end => { const g = { end, rate: it.u.rate * prodMul(boost, start) + dC * cps * clickMul(boost, start) }; start = end; return g; });
       if (gain[gain.length - 1].rate <= 0) continue;
       const c = cost(it.u, n), wait = earnTime(c - w, segs), s = wait + earnTime(c, gain);
-      if (s < bs) { bs = s; best = { it, c, wait, segs }; }
+      // gain hors bonus en cours (v2.47, pour l'affichage) : production en plus, et visites par clic en plus × cadence retenue
+      if (s < bs) { bs = s; best = { it, c, wait, segs, gp: it.u.rate, gc: dC }; }
     }
     return best;
   }
@@ -301,10 +302,10 @@
     const own = { ...st.own }; let w = st.wallet, t = 0, boost = st.boost; const out = [];
     for (let i = 0; i < k; i++) {
       const best = pick(st.items, own, w, cps, boost); if (!best) break;
-      const { it, c, wait, segs } = best, n = own[it.u.id] || 0;
-      if (!isFinite(wait)) { out.push({ it, c, t: Infinity, n: n + 1 }); break; }
+      const { it, c, wait, segs, gp, gc } = best, n = own[it.u.id] || 0;
+      if (!isFinite(wait)) { out.push({ it, c, t: Infinity, n: n + 1, gp, gc }); break; }
       w += earned(wait, segs) - c; boost = after(boost, wait); t += wait;
-      own[it.u.id] = n + 1; out.push({ it, c, t, n: n + 1 });
+      own[it.u.id] = n + 1; out.push({ it, c, t, n: n + 1, gp, gc });
     }
     return out;
   }
@@ -592,7 +593,8 @@
       avg: cad.avg,               // moyenne mesurée sur la présence (Auto), clics/s
       avgTot: cad.tot, avgObs: cad.obs, // clics comptés / durée observée (s)
       hour: cad.hour, minute: cad.minute,
-      plan: out.map(o => ({ id: o.it.u.id, name: o.it.u.name, cost: o.c, n: o.n, t: o.t, kind: o.it.u.rate ? 'prod' : 'clic' })),
+      // gainProd : visites/s de production en plus ; gainClic : visites par clic en plus (le gain/s des clics = gainClic × cadence)
+      plan: out.map(o => ({ id: o.it.u.id, name: o.it.u.name, cost: o.c, n: o.n, t: o.t, kind: o.it.u.rate ? 'prod' : 'clic', gainProd: o.gp, gainClic: o.gc })),
     };
     const t = (ready ? '🟢 ' + first.it.u.name + ' · ' : '') + baseTitle(); if (document.title !== t) document.title = t;
   }
