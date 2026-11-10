@@ -3,7 +3,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.45'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.46'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (Décret porté à +100000 par clic au build 2026-11-03h), identique au build 2026-11-04n.
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -123,12 +123,22 @@
     // avant le premier clic de la fenêtre, comme dans la simulation (dev/sim/presence.py) : la fenêtre s'ouvre comme un clic
     // sort : clics des minutes qui quittent l'heure glissante dans les 15 prochaines minutes (m0−59 … m0−45) — autant
     // de place qui se libère sous le plafond (v2.45)
-    let last = m0 - JOUR, hour = 0, sort = 0;
+    // Minutes sans clic d'une pause : comptées comme présence (à 0) seulement si la pause finit en moins de PAUSE (v2.46).
+    // Avant, les PAUSE premières minutes de toute pause étaient comptées, même quand la pause devenait une absence
+    // (nuit) : cadence fantôme pendant l'absence, puis moyenne trop basse d'un tiers jusqu'à 2 h après le retour.
+    let last = m0 - JOUR, hour = 0, sort = 0, attente = [];
     for (const k of ks) {
       if (k <= m0 - JOUR) { delete perMin[k]; perMinDirty = true; continue; }
-      const n = perMin[k]; if (k > m0 - 60) hour += n; if (k > m0 - 60 && k <= m0 - 45) sort += n; if (n > 0) last = k;
-      if (k >= since && (n > 0 || k - last <= PAUSE)) counted.push(n);
+      const n = perMin[k]; if (k > m0 - 60) hour += n; if (k > m0 - 60 && k <= m0 - 45) sort += n;
+      if (n > 0) {
+        if (k - last <= PAUSE + 1) for (const z of attente) counted.push(z);   // pause courte : ses minutes comptent
+        attente = [];
+        last = k;
+        if (k >= since) counted.push(n);
+      } else if (k >= since && k - last <= PAUSE) attente.push(0);
     }
+    // pause en cours : comptée tant qu'elle n'a pas dépassé PAUSE (on ne sait pas encore si elle sera une absence)
+    if (m0 - last <= PAUSE) for (const z of attente) counted.push(z);
     return { m0, counted, last, hour, sort };
   }
   function cadence() {
@@ -144,7 +154,8 @@
     const tot = prev.reduce((x, y) => x + y, 0) + (curIn ? cur : 0);
     const obs = prev.length * 60 + (curIn ? (now % 60e3) / 1000 : 0); // la minute en cours compte pour ce qui en est écoulé
     const avg = tot / Math.max(obs, MOY_PLANCHER * 60);
-    const out = { avg, obs, tot, rate: 0, idle: Infinity, hour: past.hour + cur, minute: cur, sort: past.sort };
+    // absent : plus de PAUSE minutes sans clic (nuit, départ) — en Auto, aucun clic n'est alors prévu (v2.46)
+    const out = { avg, obs, tot, rate: 0, idle: Infinity, hour: past.hour + cur, minute: cur, sort: past.sort, absent: !cur && m0 - past.last > PAUSE };
     if (!recent.length) return out;
     out.idle = now - recent[recent.length - 1];
     if (out.idle > STOP) return out;
@@ -499,7 +510,7 @@
     // d'il y a ~1 h qui sortent de l'heure glissante pendant ce temps (v2.45). Avant, seul le reste comptait : un compte
     // qui clique en continu au plafond (la fenêtre se libère au rythme où il clique) était estimé à ~0 clic/s.
     const cad = cadence(), left = Math.max(0, LIM_H - cad.hour), capped = left === 0, place = left + cad.sort;
-    const want = mode === 'actif' ? cpsPlan : mode === 'auto' ? cad.avg : 0;
+    const want = mode === 'actif' ? cpsPlan : mode === 'auto' && !cad.absent ? cad.avg : 0;
     const cps = Math.min(want, CPS_MAX, place / HORIZON);
     const why = !want || cps >= want - 0.05 ? '' : capped && !cps ? '' : cps < Math.min(want, CPS_MAX) - 0.05 ? `Réduire la cadence à ${cpsTxt(cps)}/s : il reste ${place} clics avant le plafond horaire d'ici 15 min` : `Réduire la cadence à ${dec1(CPS_MAX)}/s : plafond de ${LIM_MIN} clics par minute`;
     if (!Number.isFinite(st.wallet) || !$('#shop')) { blank('Boutique introuvable : recharger la page du jeu.'); return; }
@@ -537,6 +548,7 @@
     const kpi = [['Production', fmt(prod) + '/s', st.boost.fz || st.boost.ev ? `×${dec1(prodMul(st.boost, 0))} ${st.boost.fz ? 'Frénésie' : 'événement'}` : 'automatique'],
       mode === 'passif' || (capped && !cps) ? ['Clics', 'non comptés', mode === 'passif' ? 'mode Passif' : 'quota de l’heure atteint']
         : live ? ['En direct', '+' + fmt(clickPow(st.own) * cad.rate * clickMul(st.boost, 0)) + '/s', `${dec1(cad.rate)} ${cad.rate >= 2 ? 'clics' : 'clic'}/s` + (st.boost.rf ? ` ×${RAFALE}` : '') + (st.boost.bs ? ` ×${dec1(st.boost.bsm)} Dépité` : ''), 'live']
+        : mode === 'auto' && cad.absent ? ['Clics', '+0/s', `absent · moyenne ${cpsTxt(cad.avg)}/s`]
         : ['Clics', '+' + fmt(clk) + '/s', `${mode === 'auto' ? 'moyenne' : 'prévus'} ${cpsTxt(cps)}/s` + (st.boost.rf ? ` ×${RAFALE}` : '') + (st.boost.bs ? ` ×${dec1(st.boost.bsm)} Dépité` : '')],
       ['Cagnotte', '💰 ' + fmt(st.wallet), '']];
     put('kpi', ui.kpi, 'innerHTML', kpi.map(([k, v, sub, cl]) => `<span${cl ? ` class="${cl}"` : ''}><small>${k}</small> <b>${v}</b>${sub ? ` <i>${sub}</i>` : ''}</span>`).join(''));

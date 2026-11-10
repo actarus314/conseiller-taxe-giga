@@ -153,10 +153,14 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   r = await page({ ...base, hist: { 1500: 300 } });
   check(r.best === 'satellite' && /aucun clic compté sur 24 h/.test(r.ft), r.ft);
 
-  console.log('Auto, retour après une nuit de 8 h onglet ouvert : moyenne d’avant la nuit retrouvée (au-delà d’1 h sans clic, absence écartée)');
-  // 2 h à 30 clics par minute (10 h à 8 h avant), puis 8 h sans clic : 120 minutes de clics + 60 minutes de pause comptées
+  console.log('Auto, après une nuit de 8 h onglet ouvert : absent (aucun clic prévu), moyenne d’avant la nuit gardée — la nuit entière écartée (v2.46)');
+  // 2 h à 30 clics par minute (10 h à 8 h avant), puis 8 h sans clic : seules les 120 minutes de clics comptent
   r = await page({ ...base, hist: minutes(1, 600, a => a > 480 ? 30 : 0) });
-  check(/moyenne 0.33\/s/.test(r.ft) && /moyenne de 3600 clics sur 3 h 00 de présence/.test(r.ft), r.ft.slice(0, 200));
+  check(/Clics \+0\/s absent · moyenne 0.50\/s/.test(r.ft) && /moyenne de 3600 clics sur 2 h 00 de présence/.test(r.ft) && r.state.adv.cps === 0, r.ft.slice(0, 220));
+
+  console.log('Auto, pause de 40 min entre deux séries : comptée comme présence (à 0), comme avant');
+  r = await page({ ...base, hist: minutes(1, 140, a => (a > 100 || a <= 60) ? 30 : 0), clicks: every(0.5, 0, 30), at: 30 });
+  check(/sur 2 h 2\d de présence|sur 2 h 20 de présence/.test(r.ft), r.ft.slice(0, 220));
 
   console.log('Auto, 24000 clics déjà comptés sur l’heure : conseil passif et alerte');
   r = await page({ ...base, clicks: every(5, 0, 30), at: 30, hourClicks: 24000 });
