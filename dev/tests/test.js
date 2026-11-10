@@ -162,6 +162,17 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   r = await page({ ...base, clicks: every(5, 0, 30), at: 30, hourClicks: 24000 });
   check(r.best === 'satellite' && r.alerts.some(t => /24000 clics atteints/.test(t)) && /Clics non comptés quota de l’heure atteint/.test(r.ft), r.ft);
 
+  console.log('Auto, au plafond en continu (400 clics chaque minute depuis 1 h) : la fenêtre glissante libère ~6,7 clics/s, revenu des clics compté');
+  { const h = {}; for (let k = 1; k <= 59; k++) h[k] = 400;   // 23 600 sur les 59 minutes passées + 400 dans la minute en cours = plafond
+    r = await page({ ...base, hist: h, clicks: every(400 / 60, 0, 59.9), at: 59.9 });
+    check(Math.abs(r.state.adv.cps - 6000 / 900) < 0.01 && r.state.adv.clics > 0 && !/Clics non comptés/.test(r.ft) && !r.alerts.some(t => /bientôt/.test(t)),
+      JSON.stringify({ cps: r.state.adv.cps, capped: r.state.adv.capped, clics: r.state.adv.clics, hour: r.state.cadence.hour, sort: r.state.cadence.sort }) + ' | ' + r.alerts.join(' / ')); }
+
+  console.log('Auto, plafond tout juste atteint en continu : alerte « au plafond », clics comptés');
+  { const h = {}; for (let k = 1; k <= 59; k++) h[k] = 400; h[59] += 1;
+    r = await page({ ...base, hist: h, clicks: every(400 / 60, 0, 59.9), at: 59.9 });
+    check(r.state.adv.capped === true && r.state.adv.clics > 0 && r.alerts.some(t => /au plafond de 24000 clics\/h : 6.7\/s possibles/.test(t)), JSON.stringify({ cps: r.state.adv.cps, hour: r.state.cadence.hour }) + ' | ' + r.alerts.join(' / ')); }
+
   console.log('Actif 5/s mais 23150 clics comptés sur l’heure : reste du quota réparti sur 15 min');
   r = await page({ ...base, mode: 'actif', cps: 5, clicks: every(5, 0, 30), at: 30, hourClicks: 23000 });
   check(/Réduire la cadence à 0.94\/s : il reste 850 clics avant le plafond horaire/.test(r.ft), r.ft);
