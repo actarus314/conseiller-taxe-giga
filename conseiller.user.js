@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Conseiller — Taxe au Giga
 // @namespace    https://github.com/actarus314/conseiller-taxe-giga
-// @version      2.47
+// @version      2.48
 // @description  Indique le meilleur bonus à acheter dans Taxe au Giga. Ne clique et n'achète rien.
 // @match        https://taxe-au-giga.fr/*
 // @grant        none
@@ -15,7 +15,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.47'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.48'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (Décret porté à +100000 par clic au build 2026-11-03h), identique au build 2026-11-04n.
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -59,10 +59,12 @@
     const m = t.match(/^([\d.]+)(billions?|Md|M)?$/); if (!m) return NaN;
     return parseFloat(m[1]) * (m[2] === 'Md' ? 1e9 : m[2] === 'M' ? 1e6 : m[2] ? 1e12 : 1);
   };
-  // nombres au point décimal, sans séparateur de milliers
-  const fmt = n => n < 1e6 ? String(Math.round(n)) : n < 1e9 ? (n / 1e6).toFixed(2) + ' M' : n < 1e12 ? (n / 1e9).toFixed(2) + ' Md' : (n / 1e12).toFixed(2) + ' T';
-  // trois chiffres significatifs (suite des achats : un ordre de grandeur suffit, la place va au nom)
-  const fmt3 = n => n < 1e6 ? String(Math.round(n)) : ((v, u) => (v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : Math.round(v)) + ' ' + u)(...(n < 999.5e6 ? [n / 1e6, 'M'] : n < 999.5e9 ? [n / 1e9, 'Md'] : [n / 1e12, 'T']));
+  // Grands nombres : unités du jeu (M, Md, billion = 10¹² abrégé « Bn »), le billion dès 10¹² (le jeu garde « Md »
+  // jusqu'à 10¹⁵ : choix de Romain du 15/11/2026, pour la lisibilité), au point décimal et sans séparateur de milliers.
+  // Même règle dans le widget et le collecteur (dépôt taxe-au-giga-bot).
+  const fmt = n => n < 1e6 ? String(Math.round(n)) : n < 1e9 ? (n / 1e6).toFixed(2) + ' M' : n < 1e12 ? (n / 1e9).toFixed(2) + ' Md' : (n / 1e12).toFixed(2) + ' Bn';
+  // trois chiffres significatifs au moins (suite des achats : un ordre de grandeur suffit, la place va au nom)
+  const fmt3 = n => n < 1e6 ? String(Math.round(n)) : ((v, u) => (v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : Math.round(v)) + ' ' + u)(...(n < 999.5e6 ? [n / 1e6, 'M'] : n < 999.5e9 ? [n / 1e9, 'Md'] : [n / 1e12, 'Bn']));
   const dec1 = n => n.toFixed(1).replace(/\.0$/, '');
   const cpsTxt = n => n < 1 ? n.toFixed(2) : dec1(n); // cadence : deux décimales sous 1 clic/s
   const pad = n => String(n).padStart(2, '0');

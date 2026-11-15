@@ -1,5 +1,8 @@
 # v2.x — Conseil passif et actif, cadence de clic détectée, déposé dans ce dépôt avec ses tests et son simulateur.
 
+## v2.48 — 15/11/2026
+Grands nombres harmonisés avec le widget de suivi et le jeu : le billion (10¹²) s'écrit « Bn » au lieu de « T » (un trillion vaut 10¹⁸ en français). Unités du jeu (M, Md, billion) ; le billion dès 10¹², alors que le jeu garde « Md » jusqu'à 10¹⁵ (lisibilité, choix de Romain). Tests des seuils Md et Bn.
+
 ## v2.47 — 10/11/2026
 `state().adv.plan[]` porte le **gain de chaque achat** : `gainProd` (visites/s de production en plus) et `gainClic` (visites par clic en plus ; × la cadence retenue `adv.cps` = gain/s des clics), hors bonus en cours. Pour l'infobulle des prochains achats du widget. Choix des achats inchangé.
 

@@ -368,9 +368,16 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   check(Math.abs(r.state.wallet - 1142981202) < 2, 'cagnotte estimée ' + r.state.wallet);
 
   console.log('Cagnotte et prix au-delà de 1e15, affichés en « billions » depuis le build 2026-11-03m');
-  // Taxe quantique ×50 : prix 2e12 × 1.15^50 ≈ 2,17 billions ; cagnotte 3,00 billions
+  // Taxe quantique ×50 : prix 2e12 × 1.15^50 ≈ 2167 Bn ; cagnotte 3000.00 Bn
   r = await page({ owned: { quantique: 50 }, wallet: 3e15, mode: 'passif' });
   check(!r.warn && Math.abs(r.state.wallet - 3e15) <= 5e9 && /Taxe quantique/.test(r.now + r.list.join(' ')), 'cagnotte ' + r.state.wallet + ' | ' + r.now.slice(0, 60) + ' | alerte : ' + (r.warn || 'aucune'));
+
+  console.log('Unités du jeu, billion abrégé « Bn » dès 10¹² ; jamais « T »');
+  check(/💰 3000\.00 Bn/.test(r.text) && !/\d (T|billions?)\b/.test(r.text), 'cagnotte 3e15 : ' + (r.text.match(/💰 [\d.]+ \S+/g) || []).join(' · '));
+  r = await page({ owned: { datacenter: 30 }, wallet: 2.5e11, mode: 'passif' });
+  check(/💰 250\.00 Md/.test(r.text) && !/\d (T|Bn|billions?)\b/.test(r.text), 'cagnotte 2.5e11 : ' + (r.text.match(/💰 [\d.]+ \S+/g) || []).join(' · '));
+  r = await page({ owned: { quantique: 0 }, wallet: 2.5e12, mode: 'passif' });
+  check(/💰 2\.50 Bn/.test(r.text) && !/\d (T|billions?)\b/.test(r.text), 'cagnotte 2.5e12 : ' + (r.text.match(/💰 [\d.]+ \S+/g) || []).join(' · '));
 
   console.log('Version affichée dans l’en-tête, égale à celle du script utilisateur');
   {
