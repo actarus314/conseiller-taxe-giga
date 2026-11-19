@@ -1,5 +1,7 @@
-# Veille : vérifie que le barème et les règles du jeu sont ceux du conseiller.
-# Écart → une issue (une seule par constat) ; retour à la normale → issues de veille refermées.
+# Veille : vérifie que le barème et les règles du jeu sont ceux du conseiller, et que la détection d'autoclic du jeu
+# (code et textes) n'a pas changé.
+# Écart → une issue (une seule par constat ; un constat nouveau remplace l'issue ouverte) ; retour à la normale → issues
+# de veille refermées.
 # Page inaccessible (le site bloque parfois les robots quand son trafic monte) : un seul essai, puis la relance suivante est
 # sautée (passage sans requête au site) ; l'issue n'est ouverte qu'au deuxième échec de suite. L'état passe d'un passage
 # au suivant par les entrées du lancement (sauter, echecs).
@@ -59,7 +61,7 @@ jobs:
             { echo "etat=saute"; echo "echecs=$AVANT"; } >> "$GITHUB_OUTPUT"; exit 0
           fi
           # un seul essai : après un échec, c'est la relance suivante qui est sautée
-          python3 dev/veille/veille.py > rapport.md || true
+          python3 dev/veille/veille.py --corps corps.md > rapport.md || true
           etat=$(grep -o '^etat=.*' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2)
           if [ "$etat" = inaccessible ]; then echo "echecs=$((AVANT + 1))" >> "$GITHUB_OUTPUT"; else echo "echecs=0" >> "$GITHUB_OUTPUT"; fi
           # rapport (contenu tiers) dans le résumé seulement, jamais sur la sortie standard : pas de commandes « :: » injectables
@@ -70,12 +72,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ETAT: ${{ steps.v.outputs.etat }}
           EMP: ${{ steps.v.outputs.empreinte }}
+          SUJET: ${{ steps.v.outputs.sujet }}
           ECHECS: ${{ steps.v.outputs.echecs }}
           RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           gh label create veille --color FFD23F --description "Alerte de la veille automatique du jeu" --force >/dev/null
           if [ "$ETAT" = conforme ]; then
-            for n in $(gh issue list --label veille --state open --json number --jq '.[].number'); do
+            for n in $(gh issue list --label veille --state open --limit 100 --json number --jq '.[].number'); do
               gh issue close "$n" --comment "Conforme de nouveau ($RUN)."
             done
             exit 0
@@ -83,16 +86,30 @@ jobs:
           if [ "$ETAT" = inaccessible ] && [ "${ECHECS:-0}" -lt 2 ]; then
             echo "Premier échec d'accès : pas d'issue, la relance suivante est sautée."; exit 0
           fi
-          if gh issue list --label veille --state open --json title --jq '.[].title' | grep -qF "[$EMP]"; then
+          if gh issue list --label veille --state open --limit 100 --json title --jq '.[].title' | grep -qF "[$EMP]"; then
             echo "Issue déjà ouverte pour ce constat [$EMP]."; exit 0
           fi
           case "$ETAT" in
-            ecart) titre="Veille : le jeu ne correspond plus au conseiller [$EMP]" ;;
+            ecart)
+              case "$SUJET" in
+                autoclic) titre="Veille : la détection d'autoclic du jeu a changé [$EMP]" ;;
+                mixte) titre="Veille : le jeu ne correspond plus au conseiller, et sa détection d'autoclic a changé [$EMP]" ;;
+                *) titre="Veille : le jeu ne correspond plus au conseiller [$EMP]" ;;
+              esac ;;
             erreur) titre="Veille : erreur d'analyse de la page du jeu [$EMP]" ;;
             *) titre="Veille : page du jeu inaccessible [$EMP]" ;;
           esac
-          { cat rapport.md; echo; echo "Exécution : $RUN"; } > corps.md
-          gh issue create --title "$titre" --label veille --body-file corps.md
+          # corps plafonné par veille.py sous la limite de GitHub (rapport complet dans le résumé de l'exécution)
+          if [ ! -s corps.md ]; then cp rapport.md corps.md; fi
+          { cat corps.md; echo; echo "Exécution : $RUN"; } > issue.md
+          url=$(gh issue create --title "$titre" --label veille --body-file issue.md)
+          nouvelle=${url##*/}
+          # écart : la nouvelle issue (différence cumulée depuis la référence) remplace celles encore ouvertes
+          if [ "$ETAT" = ecart ]; then
+            for n in $(gh issue list --label veille --state open --limit 100 --json number --jq '.[].number'); do
+              if [ "$n" != "$nouvelle" ]; then gh issue close "$n" --comment "Remplacée par #$nouvelle ($RUN)."; fi
+            done
+          fi
       - name: Noter l'heure de fin
         id: fin
         if: always()

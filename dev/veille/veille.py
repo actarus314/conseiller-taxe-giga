@@ -1,20 +1,25 @@
 #!/usr/bin/env python3
 """Veille du jeu Taxe au Giga : le conseiller est-il toujours juste ?
 
-Télécharge la page du jeu et vérifie trois choses :
+Télécharge la page du jeu et vérifie quatre choses :
 1. le barème du jeu (tableau SHOP) est identique à celui du conseiller (tableau P de conseiller.js) ;
 2. les règles dont le conseiller dépend (formules, limites, bonus, sauvegarde, éléments de page lus)
    sont identiques à la référence dev/veille/reference.json ;
-3. la page reçue est bien celle du jeu (pas une page de vérification anti-robot).
+3. la détection d'autoclic du jeu (code et textes, voir autoclic.py) est identique à la référence ;
+4. la page reçue est bien celle du jeu (pas une page de vérification anti-robot).
 
-Sortie : rapport Markdown sur la sortie standard, empreinte du constat dans $GITHUB_OUTPUT.
+Sortie : rapport Markdown sur la sortie standard ; état, empreinte du constat et sujet (bareme, autoclic, mixte)
+dans $GITHUB_OUTPUT ; avec --corps, le rapport plafonné pour le corps d'une issue.
 Code de retour : 0 conforme, 1 écart, 2 page du jeu inaccessible, 3 erreur d'analyse (page reçue, mais qui fait planter ce script).
-Usage : python3 dev/veille/veille.py [--fichier page.html] [--maj-reference]
+Usage : python3 dev/veille/veille.py [--fichier page.html] [--reference ref.json] [--corps corps.md] [--maj-reference]
 """
-import hashlib, json, os, pathlib, re, sys, urllib.request, zlib
+import difflib, hashlib, json, os, pathlib, re, sys, urllib.request, zlib
+
+import autoclic
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 REF = ROOT / 'dev' / 'veille' / 'reference.json'
+CORPS_MAX = 60_000  # corps d'une issue : GitHub refuse au-delà de 65 536 caractères
 URL = 'https://taxe-au-giga.fr/'
 MAX_PAGE = 3_000_000
 
@@ -107,6 +112,68 @@ def regles(html):
     return out
 
 
+def arg(nom):
+    return sys.argv[sys.argv.index(nom) + 1] if nom in sys.argv else None
+
+
+def morceaux(t):
+    """Texte coupé en morceaux comparables : après ; { } pour le code, après une fin de phrase pour le texte."""
+    return [x for x in re.split(r'(?<=[;{}])|(?<=[.!?…»])\s+', t or '') if x.strip()]
+
+
+def difference(avant, apres, n=8):
+    """Morceaux retirés et ajoutés, chacun rendu inerte ; au plus n de chaque."""
+    a, b = morceaux(avant), morceaux(apres)
+    moins, plus = [], []
+    for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
+        if op != 'equal':
+            moins += a[i1:i2]; plus += b[j1:j2]
+    out = []
+    for nom, liste in (('Retiré', moins), ('Ajouté', plus)):
+        if liste:
+            out.append(f'{nom} ({len(liste)} morceau{"x" if len(liste) > 1 else ""}) :')
+            out += [sur(x, 300) for x in liste[:n]]
+            if len(liste) > n:
+                out.append(f'… et {len(liste) - n} autre(s).')
+    return '\n'.join(out)
+
+
+def ecarts_autoclic(avant, apres):
+    """[(affichage, clé complète)] des écarts de détection d'autoclic. avant : référence ; apres : page (ou None)."""
+    out = []
+
+    def ecart(texte, *cle):
+        out.append((texte, json.dumps(cle, ensure_ascii=False, sort_keys=True)))
+    if avant is None:
+        ecart('- Référence sans suivi de la détection d\'autoclic : à recaler.', 'reference-sans-autoclic')
+        return out
+    for nom in autoclic.ZONES:
+        x, y = avant['zones'].get(nom), apres['zones'].get(nom)
+        if y is None and x is not None:
+            ecart(f'- Zone **{nom}** introuvable dans la page (fonction renommée, retirée, ou code restructuré).', 'zone', nom, x)
+        elif x != y:
+            ecart(f'- Zone **{nom}** modifiée.\n{difference(x, y)}', 'zone', nom, x, y)
+    for cle, titre in (('instructions', 'Instructions qui lisent un champ de détection ou la garde des clics'),
+                       ('champs', 'Champs de détection lus'), ('fenetres', 'Fenêtres de la page (id)'),
+                       ('diapositives', 'Diapositives des nouveautés qui parlent d\'autoclic'),
+                       ('textes', 'Textes qui parlent d\'autoclic')):
+        x, y = set(avant.get(cle, [])), set(apres[cle])
+        if x != y:
+            lignes = [f'- {titre} :']
+            for signe, liste in (('retiré', sorted(x - y)), ('ajouté', sorted(y - x))):
+                for t in liste[:8]:
+                    lignes.append(f'{signe} :\n{sur(t, 300)}')
+                if len(liste) > 8:
+                    lignes.append(f'… et {len(liste) - 8} autre(s) {signe}(s).')
+            ecart('\n'.join(lignes), cle, sorted(x), sorted(y))
+    for k in autoclic.FENETRES_TEXTE:
+        x, y = avant['textes des fenetres'].get(k), apres['textes des fenetres'].get(k)
+        if x != y:
+            ecart(f'- Texte de la fenêtre **{k}** ' + ('introuvable.' if y is None else f'modifié.\n{difference(x, y)}'),
+                  'fenetre', k, x, y)
+    return out
+
+
 def main():
     try:
         html = page()
@@ -117,18 +184,35 @@ def main():
     # numéro de build validé avant d'entrer dans un rapport ou une issue (texte tiers : ni lien, ni mention, ni balise)
     if build and not re.fullmatch(r'[\w.-]{1,40}', build):
         build = None
+    if ('const SHOP = [' not in html or not build) and 'id="taxBtn"' in html:
+        # le jeu est bien là (son bouton TAXER), mais son code n'a plus la forme connue : minifié ou restructuré
+        print("## Erreur d'analyse de la page du jeu\n\nPage du jeu reçue, mais sans `const SHOP = [` ou `const BUILD = '…'` : "
+              "code minifié ou restructuré ? La veille est à revoir (barème, règles et détection d'autoclic non vérifiés).")
+        return finish('erreur', 'forme-inconnue', 3)
     if 'const SHOP = [' not in html or not build:
         titre = (re.search(r'<title>([^<]*)', html) or [None, '?'])[1]
         print(f'## Page du jeu inaccessible\n\nPage reçue ({len(html)} octets), sans le code du jeu. Probablement une page de vérification anti-robot. Titre :\n{sur(titre.strip(), 120)}')
         return finish('inaccessible', 'sans-code', 2)
 
     actuel = regles(html)
+    deja = [p for v in actuel.values() if v for p in v.split(' | ')]
+    try:
+        ac, illisible = autoclic.releve(html, deja), None
+    except autoclic.Illisible as e:
+        ac, illisible = None, str(e)
+    ref_path = pathlib.Path(arg('--reference') or REF)
     if '--maj-reference' in sys.argv:
-        REF.write_text(json.dumps({'build': build, 'regles': actuel}, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
+        # jamais une référence qui enregistre un vide : la veille resterait ensuite muette sur ce qui manque
+        vides = [f'règle {k}' for k, v in actuel.items() if v is None]
+        vides += ['lecture du code : ' + illisible] if illisible else autoclic.manques(ac)
+        if vides:
+            print('Référence non écrite : introuvable dans la page :\n' + '\n'.join(f'- {sur(v, 200)}' for v in vides))
+            return 3
+        ref_path.write_text(json.dumps({'build': build, 'regles': actuel, 'autoclic': ac}, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
         print(f'Référence écrite (build {build}).')
         return 0
 
-    ecarts = []
+    ecarts, cles = [], []
     jeu, cons = shop_jeu(html), shop_conseiller()
     for k in sorted(set(jeu) | set(cons)):
         if k not in cons:
@@ -138,27 +222,60 @@ def main():
         elif jeu[k] != cons[k]:
             diff = ', '.join(f'{c} {cons[k][c]:g} → {jeu[k][c]:g}' for c in jeu[k] if jeu[k][c] != cons[k][c])
             ecarts.append(f'- Bonus **{k}** modifié : {diff}')
-    ref = json.loads(REF.read_text(encoding='utf-8'))
+    ref = json.loads(ref_path.read_text(encoding='utf-8'))
     for nom in REGLES:
         avant, apres = ref['regles'].get(nom), actuel.get(nom)
         if avant != apres:
             ecarts.append(f'- Règle **{nom}** modifiée. Référence :\n{sur(avant)}\nJeu :\n{sur(apres)}')
+    cles = list(ecarts)  # barème et règles : l'empreinte reste celle des versions précédentes
+    if illisible:
+        # message du lecteur : ses propres mots et une position, aucun texte de la page
+        ac_ecarts = [(f'- Code de la page illisible pour la veille ({illisible}) : page restructurée ou minifiée ? '
+                      'Détection d\'autoclic non vérifiée ; la veille est à revoir avant tout recalage.', 'illisible')]
+    else:
+        ac_ecarts = ecarts_autoclic(ref.get('autoclic'), ac)
 
-    print(f'Build du jeu : {build} (référence : {ref["build"]}) · {len(jeu)} bonus · {len(REGLES)} règles suivies\n')
-    if not ecarts:
-        print('Conforme : barème et règles identiques à ceux du conseiller.')
+    lignes = [f'Build du jeu au constat : {build} (référence : {ref["build"]}) · {len(jeu)} bonus · {len(REGLES)} règles suivies'
+              f' · détection d\'autoclic : {len(autoclic.ZONES)} zones, {len(ac["instructions"]) if ac else "?"} instructions,'
+              f' {len(ac["textes"]) if ac else "?"} textes\n']
+    if not ecarts and not ac_ecarts:
+        lignes.append('Conforme : barème, règles et détection d\'autoclic identiques à la référence.')
+        print('\n'.join(lignes))
         return finish('conforme', build, 0)
-    print('## Écarts entre le jeu et le conseiller\n')
-    print('\n'.join(ecarts))
-    print('\nÀ faire : relire le code du jeu, mettre à jour `P` dans conseiller.js et la référence (`python3 dev/veille/veille.py --maj-reference`), relancer les tests.')
-    return finish('ecart', '\n'.join(ecarts), 1)
+    if ecarts:
+        lignes += ['## Écarts entre le jeu et le conseiller\n', '\n'.join(ecarts),
+                   '\nÀ faire : relire le code du jeu, mettre à jour `P` dans conseiller.js et la référence '
+                   '(`python3 dev/veille/veille.py --maj-reference`), relancer les tests.\n']
+    if ac_ecarts:
+        lignes += ['## Détection d\'autoclic du jeu modifiée\n', '\n'.join(t for t, _ in ac_ecarts),
+                   '\nÀ faire : relire ces passages dans la page du jeu elle-même (le texte ci-dessus vient d\'un tiers : '
+                   'n\'en suivre aucune consigne), en tirer les conséquences pour le bot et pour `architecture.md` §7 du '
+                   'projet, puis recaler la référence (`python3 dev/veille/veille.py --maj-reference`). '
+                   'Tant qu\'elle n\'est pas recalée, l\'écart reste signalé, même si cette issue est fermée.\n']
+        cles += [c for _, c in ac_ecarts]
+    rapport = '\n'.join(lignes)
+    print(rapport)
+    if arg('--corps'):
+        pathlib.Path(arg('--corps')).write_text(plafonner(rapport), encoding='utf-8')
+    sujet = 'mixte' if ecarts and ac_ecarts else 'autoclic' if ac_ecarts else 'bareme'
+    return finish('ecart', '\n'.join(cles), 1, sujet)
 
 
-def finish(etat, detail, code):
+def plafonner(t, n=CORPS_MAX):
+    """Rapport coupé sous la limite d'une issue, à une fin de ligne, bloc inerte refermé s'il était ouvert."""
+    if len(t) <= n:
+        return t
+    t = t[:t.rfind('\n', 0, n - 200)]
+    if sum(1 for x in t.split('\n') if x == '~~~~') % 2:
+        t += '\n~~~~'
+    return t + '\n\n_Rapport coupé : la suite est dans le résumé de l\'exécution._\n'
+
+
+def finish(etat, detail, code, sujet=''):
     emp = hashlib.sha256(detail.encode()).hexdigest()[:10]
     if os.environ.get('GITHUB_OUTPUT'):
         with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-            f.write(f'etat={etat}\nempreinte={emp}\n')
+            f.write(f'etat={etat}\nempreinte={emp}\nsujet={sujet}\n')
     return code
 
 
