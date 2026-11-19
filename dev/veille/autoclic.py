@@ -337,7 +337,9 @@ class _Page(html.parser.HTMLParser):
 
 
 def scripts(page):
-    return [m.group(1) for m in re.finditer(r'<script\b[^>]*>(.*?)</script\s*>', page, re.S | re.I)]
+    """Contenu des blocs <script>. Comme un navigateur : la balise de fin peut porter des blancs ou des attributs
+    (</script >, </script foo>), en majuscules ou non. Découpage pour lire, pas filtre de sécurité."""
+    return [m.group(1) for m in re.finditer(r'<script\b[^>]*>(.*?)</script\b[^>]*>', page, re.S | re.I)]
 
 
 def releve(page):

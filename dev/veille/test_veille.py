@@ -193,6 +193,8 @@ code, out = lancer(page(), '--maj-reference')  # référence des tests rétablie
 
 code, out = lancer(mute("'Méthode de clic (avertissement autoclick) : '", "'M\\xE9thode de clic (avertissement autoclick) : '"))
 verifie('échappement \\xE9 dans une chaîne : décodé, conforme', code == 0, out[-300:])
+code, out = lancer(mute("  const note = 'Méthode de clic (avertissement autoclick) : ';\n</script>", "  const note = 'Méthode de clic (avertissement autoclick) : ';\n</SCRIPT data-x=\"1\" >"))
+verifie('balise de fin </SCRIPT …> à attributs : blocs bien découpés, conforme', code == 0, out[-300:])
 code, out = lancer(page().replace("const BUILD = '2026-11-04n'", "const BUILD = '2026-11-05a'"))
 verifie('build seul changé : conforme', code == 0, out[-300:])
 ref = json.loads(REF_TEST.read_text(encoding='utf-8')); ref.pop('autoclic')
