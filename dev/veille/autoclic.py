@@ -363,8 +363,9 @@ def releve(page):
             instructions.add(sc.texte(d, f)); pris.append((d, f))
         for genre, d, f in sc.m:
             # fenêtre écrite dans une chaîne (HTML injecté par le script) : son id entre dans l'inventaire
-            if genre == 'chaine' and re.search(r'class="[^"]*\bbn-ov\b|role="dialog"|<dialog\b', src[d:f]):
-                fenetres |= set(re.findall(r'id="([\w-]{1,60})"', src[d:f])) or {'fenêtre sans id (script)'}
+            # (attributs entre guillemets, guillemets échappés ou apostrophes ; createElement n'est pas vu)
+            if genre == 'chaine' and re.search(r'class=\\?["\'][^"\']*\bbn-ov\b|role=\\?["\']dialog|<dialog\b', src[d:f]):
+                fenetres |= set(re.findall(r'id=\\?["\']([\w-]{1,60})', src[d:f])) or {'fenêtre sans id (script)'}
             if genre == 'chaine' and not any(a <= d < b for a, b in pris):
                 t = propre(decoder(src[d + 1:f - 1]))
                 if MOTS.search(t):

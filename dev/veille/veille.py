@@ -124,18 +124,30 @@ def morceaux(t):
     return [x for x in re.split(r'(?<=[;{}])|(?<=[.!?…»])\s+', t or '') if x.strip()]
 
 
+def extrait(x, autre, n=300):
+    """x coupé à n caractères autour de son premier écart avec autre, pour qu'un changement loin se voie."""
+    if len(x) <= n:
+        return x
+    k = next((i for i, (c1, c2) in enumerate(zip(x, autre, strict=False)) if c1 != c2), min(len(x), len(autre)))
+    a = max(0, min(k - n // 3, len(x) - n))
+    return ('…' if a else '') + x[a:a + n] + ('…' if a + n < len(x) else '')
+
+
 def difference(avant, apres, n=8):
-    """Morceaux retirés et ajoutés, chacun rendu inerte ; au plus n de chaque."""
+    """Morceaux retirés et ajoutés, chacun rendu inerte et coupé autour de ce qui change ; au plus n de chaque."""
     a, b = morceaux(avant), morceaux(apres)
     moins, plus = [], []
     for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
         if op != 'equal':
             moins += a[i1:i2]; plus += b[j1:j2]
+    # morceau modifié : retiré et ajouté de même rang, chacun montré autour de son premier écart avec l'autre
+    vis_m = [extrait(x, plus[i] if i < len(plus) else '') for i, x in enumerate(moins)]
+    vis_p = [extrait(x, moins[i] if i < len(moins) else '') for i, x in enumerate(plus)]
     out = []
-    for nom, liste in (('Retiré', moins), ('Ajouté', plus)):
+    for nom, liste in (('Retiré', vis_m), ('Ajouté', vis_p)):
         if liste:
             out.append(f'{nom} ({len(liste)} morceau{"x" if len(liste) > 1 else ""}) :')
-            out += [sur(x, 300) for x in liste[:n]]
+            out += [sur(x, 310) for x in liste[:n]]
             if len(liste) > n:
                 out.append(f'… et {len(liste) - n} autre(s).')
     return '\n'.join(out)
@@ -145,13 +157,16 @@ def changements(retires, ajoutes, n=8):
     """Éléments d'une liste retirés et ajoutés. Un élément modifié (retiré et ajouté proches) est montré par sa
     différence morceau par morceau, pour qu'un changement loin dans un long texte se voie."""
     out, libres = [], list(retires)
-    for b in ajoutes:
+    apparier = len(retires) * len(ajoutes) <= 400  # coût quadratique : pas d'appariement sur une page refondue
+    for b in (ajoutes if apparier else []):
         proche = max(libres, key=lambda a: difflib.SequenceMatcher(None, a, b, autojunk=False).ratio(), default=None)
         if proche is not None and difflib.SequenceMatcher(None, proche, b, autojunk=False).ratio() >= 0.6:
             libres.remove(proche)
             out.append(('modifié', difference(proche, b)))
         else:
             out.append(('ajouté', sur(b, 1500)))
+    if not apparier:
+        out += [('ajouté', sur(b, 1500)) for b in ajoutes]
     out += [('retiré', sur(a, 1500)) for a in libres]
     lignes = [f'{signe} :\n{t}' for signe, t in out[:n]]
     if len(out) > n:
@@ -273,7 +288,7 @@ def main():
     print(rapport)
     if arg('--corps'):
         pathlib.Path(arg('--corps')).write_text(plafonner(rapport), encoding='utf-8')
-    sujet = 'mixte' if ecarts and ac_ecarts else 'illisible' if illisible else 'autoclic' if ac_ecarts else 'bareme'
+    sujet = 'illisible' if illisible else 'mixte' if ecarts and ac_ecarts else 'autoclic' if ac_ecarts else 'bareme'
     return finish('ecart', '\n'.join(cles), 1, sujet)
 
 

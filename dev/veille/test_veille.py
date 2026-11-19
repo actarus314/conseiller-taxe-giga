@@ -17,7 +17,7 @@ REF = json.loads((ICI / 'reference.json').read_text(encoding='utf-8'))
 echecs = 0
 
 
-# Modèle de la détection d'autoclic (forme de la page du jeu, build 2026-11-18f) : six zones, dont une fléchée ;
+# Modèle de la détection d'autoclic (forme de la page du jeu, build 2026-11-18f) : sept zones, dont une fléchée ;
 # synchro à chaîne if…else ; gardes isTrusted et oneShot ; fenêtres ; diapositive ; textes ; et les pièges du lecteur
 # (expression régulière qui contient un guillemet, gabarit à ${…}, commentaire à mot-clé, plusieurs blocs <script>).
 AUTOCLIC = """<button id="taxBtn">TAXER</button>
@@ -172,6 +172,9 @@ CAS2 = [
     ('instruction après « c++ / 2 » (division, pas expression régulière)', mute('if (d.acTest) go();', 'if (d.acTest) stop();'), 'Instructions'),
     ('champ lu dans un gabarit', mute('${d.acGab}', '${d.acGab2}'), 'acGab2'),
     ('fenêtre injectée par le script', mute('id="pzOv"', 'id="pzOv2"'), 'pzOv2'),
+    ('fenêtre injectée, guillemets échappés', mute("const ratio = clicks / 2", "el.innerHTML = \"<div class=\\\"bn-ov\\\" id=\\\"esc1\\\"></div>\";\n  const ratio = clicks / 2"), 'esc1'),
+    ('fenêtre injectée, apostrophes et role=dialog', mute("const ratio = clicks / 2", "el.innerHTML = \"<div role='dialog' id='apo1'></div>\";\n  const ratio = clicks / 2"), 'apo1'),
+    ('texte à « triche » (hors « triche du compteur ») changé', mute('<dialog id="txDlg"><p>Facture</p>', '<dialog id="txDlg"><p>Facture</p><p>Toute triche est sanctionnée.</p>'), 'Textes'),
     ('règle annoncée à côté d\'un passage déjà suivi', mute('aucun autre classement', 'aucun autre classement. Un autoclicker récidiviste est banni'), 'Textes'),
 ]
 for nom, html, attendu in CAS2:
@@ -182,6 +185,10 @@ long_avant = 'x = 1;' * 80 + "say('autoclic 36e5');"
 code, out = lancer(mute("say(`clics : ${d.acGab}`);", "say(`clics : ${d.acGab}`); if (d.acLong) { " + long_avant + " }"), '--maj-reference')
 code, out = lancer(mute("say(`clics : ${d.acGab}`);", "say(`clics : ${d.acGab}`); if (d.acLong) { " + long_avant.replace('36e5', '72e5') + " }"))
 verifie('changement loin dans une longue instruction : visible dans le rapport', code == 1 and '72e5' in out and '36e5' in out, out[-500:])
+long_txt = 'Règle : ' + 'des pauses, ' * 70 + 'sinon 30 jours.'
+code, out = lancer(mute("say(`clics : ${d.acGab}`);", "say(`clics : ${d.acGab}`); say('" + long_txt + "');"), '--maj-reference')
+code, out = lancer(mute("say(`clics : ${d.acGab}`);", "say(`clics : ${d.acGab}`); say('" + long_txt.replace('30 jours', '90 jours') + "');"))
+verifie('changement loin dans un long morceau sans « ; » : visible dans le rapport', code == 1 and '90 jours' in out, out[-500:])
 code, out = lancer(page(), '--maj-reference')  # référence des tests rétablie
 
 code, out = lancer(mute("'Méthode de clic (avertissement autoclick) : '", "'M\\xE9thode de clic (avertissement autoclick) : '"))
@@ -196,6 +203,11 @@ verifie('référence sans suivi de l\'autoclic : écart', r.returncode == 1 and 
 o5 = TMP / 'o5'
 lancer(mute("const ov = $('acWarnOv');", "const ov = $('acWarnOv);"), sortie=o5)
 verifie('code illisible : sujet « illisible »', 'sujet=illisible' in o5.read_text())
+code, out = lancer(mute("const ov = $('acWarnOv');", "const ov = $('acWarnOv);"))
+verifie('code illisible : message sans balise <script> nue', '`<script>`' in out and ' <script> ' not in out, out[-300:])
+o6 = TMP / 'o6'
+lancer(mute("const ov = $('acWarnOv');", "const ov = $('acWarnOv);", page(shop=shop)), sortie=o6)
+verifie('code illisible avec écart de barème : sujet « illisible » (titre juste)', 'sujet=illisible' in o6.read_text())
 
 verifie('zones et fenêtres suivies : liste attendue',
         autoclic.ZONES == ('durWarn', 'acNotice', 'acShow', 'acPick', 'acWarnShow', 'acWarnClose', 'oneShot')
