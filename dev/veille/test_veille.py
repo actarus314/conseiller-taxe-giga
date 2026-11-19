@@ -11,7 +11,7 @@ import json, os, pathlib, re, subprocess, sys, tempfile
 
 ICI = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(ICI))
-import veille  # noqa: E402
+import autoclic, veille  # noqa: E402
 
 REF = json.loads((ICI / 'reference.json').read_text(encoding='utf-8'))
 echecs = 0
@@ -60,6 +60,10 @@ AUTOCLIC = """<button id="taxBtn">TAXER</button>
     }
   }
   function acWarnShow() { const ov = $('acWarnOv'); if (!acwInfo || !ov.hidden) return; ov.hidden = false; }
+  function acWarnClose(t) { acwInfo = null; $('acWarnOv').hidden = true; if (t) say(t); }
+  let k = c++ / 2; if (d.acTest) go(); k = j / 3;
+  say(`clics : ${d.acGab}`);
+  document.body.insertAdjacentHTML('beforeend', '<div class="bn-ov" id="pzOv" role="dialog"></div>');
   function oneShot(el, tell) { el.addEventListener('keydown', e => { if (e.repeat) { e.preventDefault(); return; } }); }
   oneShot(btn, true);
   btn.addEventListener('click', e => {
@@ -158,6 +162,49 @@ for nom, html, attendu in CAS:
     code, out = lancer(html)
     verifie(nom + ' : écart signalé', code == 1 and attendu in out, out[-400:])
 
+CAS2 = [
+    ('acNotice changée', mute('acAsk = !!n.ask && !acChoice;', 'acAsk = !!n.ask;'), 'acNotice'),
+    ('acShow changée', mute("if (!acAsk || !ov.hidden) return;", "if (!acAsk || !ov.hidden || busy) return;"), 'acShow'),
+    ('acWarnShow changée', mute("if (!acwInfo || !ov.hidden) return; ov.hidden = false;", "if (!acwInfo) return; ov.hidden = false;"), 'acWarnShow'),
+    ('acWarnClose changée', mute('acwInfo = null;', 'acwInfo = 0;'), 'acWarnClose'),
+    ('signature de durWarn changée', mute('function durWarn(x) {', 'function durWarn(x, lim = 5) {'), 'durWarn'),
+    ('texte de la fenêtre durOv changé', mute('<h2 id="durTitle">Avertissement</h2>', '<h2 id="durTitle">Alerte</h2>'), 'durOv'),
+    ('instruction après « c++ / 2 » (division, pas expression régulière)', mute('if (d.acTest) go();', 'if (d.acTest) stop();'), 'Instructions'),
+    ('champ lu dans un gabarit', mute('${d.acGab}', '${d.acGab2}'), 'acGab2'),
+    ('fenêtre injectée par le script', mute('id="pzOv"', 'id="pzOv2"'), 'pzOv2'),
+    ('règle annoncée à côté d\'un passage déjà suivi', mute('aucun autre classement', 'aucun autre classement. Un autoclicker récidiviste est banni'), 'Textes'),
+]
+for nom, html, attendu in CAS2:
+    code, out = lancer(html)
+    verifie(nom + ' : écart signalé', code == 1 and attendu in out, out[-400:])
+
+long_avant = 'x = 1;' * 80 + "say('autoclic 36e5');"
+code, out = lancer(mute("say(`clics : ${d.acGab}`);", "say(`clics : ${d.acGab}`); if (d.acLong) { " + long_avant + " }"), '--maj-reference')
+code, out = lancer(mute("say(`clics : ${d.acGab}`);", "say(`clics : ${d.acGab}`); if (d.acLong) { " + long_avant.replace('36e5', '72e5') + " }"))
+verifie('changement loin dans une longue instruction : visible dans le rapport', code == 1 and '72e5' in out and '36e5' in out, out[-500:])
+code, out = lancer(page(), '--maj-reference')  # référence des tests rétablie
+
+code, out = lancer(mute("'Méthode de clic (avertissement autoclick) : '", "'M\\xE9thode de clic (avertissement autoclick) : '"))
+verifie('échappement \\xE9 dans une chaîne : décodé, conforme', code == 0, out[-300:])
+code, out = lancer(page().replace("const BUILD = '2026-11-04n'", "const BUILD = '2026-11-05a'"))
+verifie('build seul changé : conforme', code == 0, out[-300:])
+ref = json.loads(REF_TEST.read_text(encoding='utf-8')); ref.pop('autoclic')
+REF_SANS = TMP / 'ref-sans.json'; REF_SANS.write_text(json.dumps(ref), encoding='utf-8')
+f = TMP / 'page.html'; f.write_text(page(), encoding='utf-8')
+r = subprocess.run([sys.executable, str(ICI / 'veille.py'), '--fichier', str(f), '--reference', str(REF_SANS)], capture_output=True, text=True)
+verifie('référence sans suivi de l\'autoclic : écart', r.returncode == 1 and 'Référence sans suivi' in r.stdout, r.stdout[-300:])
+o5 = TMP / 'o5'
+lancer(mute("const ov = $('acWarnOv');", "const ov = $('acWarnOv);"), sortie=o5)
+verifie('code illisible : sujet « illisible »', 'sujet=illisible' in o5.read_text())
+
+verifie('zones et fenêtres suivies : liste attendue',
+        autoclic.ZONES == ('durWarn', 'acNotice', 'acShow', 'acPick', 'acWarnShow', 'acWarnClose', 'oneShot')
+        and autoclic.FENETRES_TEXTE == ('acOv', 'durOv', 'acWarnOv'))
+ac = REF.get('autoclic') or {}
+verifie('reference.json : section autoclic complète (zones, fenêtres, champs du jeu)',
+        bool(ac) and not autoclic.manques(ac) and set(ac['zones']) == set(autoclic.ZONES)
+        and {'acDur', 'acNotice', 'acWarn', 'autoclick'} <= set(ac['champs']) and ac['textes'] and ac['instructions'])
+
 code, out = lancer(mute('if (x.vol) {', '// commentaire neuf, avec autoclic\n      if (x.vol)   {'))
 verifie('reformatage et commentaire seuls : conforme', code == 0, out[-300:])
 code, out = lancer(mute('// « autoclic » en commentaire', '// autre commentaire sur l’autoclicker'))
@@ -177,9 +224,9 @@ o4 = TMP / 'o4'
 lancer(mute('Plus de 175 000 clics en 8 h', 'Plus de 150 000 clics en 8 h', page(shop=shop)), sortie=o4)
 verifie('sujet « mixte »', 'sujet=mixte' in o4.read_text())
 
-code, out = lancer(mute('🤖 Autoclick : ce qui est interdit', '🤖 Autoclick @quelquun ~~~~ ::error::x [lien](https://exemple.invalid)'))
-verifie('texte tiers piégé dans un texte balayé : inerte dans le rapport',
-        code == 1 and '@quelquun' not in out and '\n::' not in out and out.count('~~~~\n') >= 2, out[-400:])
+code, out = lancer(mute('🤖 Autoclick : ce qui est interdit', '::error::autoclic @quelquun ~~~~ fin [lien](https://exemple.invalid)'))
+verifie('texte tiers piégé dans un texte balayé : inerte dans le rapport (mention, commande « :: », bloc)',
+        code == 1 and '@quelquun' not in out and '\n::' not in out and '~~~~ fin' not in out, out[-400:])
 
 avant = REF_TEST.read_text(encoding='utf-8')
 code, out = lancer(mute('function durWarn(x) {', 'function durAlert(x) {'), '--maj-reference')
@@ -188,9 +235,10 @@ verifie('recalage refusé si une zone manque (référence inchangée)', code == 
 code, out = lancer(page().replace('const SHOP = [', 'var SHOP=['))
 verifie('code du jeu méconnaissable (minifié) : erreur d\'analyse, pas « inaccessible »', code == 3 and 'minifié' in out, out[-300:])
 
-long = 'x\n~~~~\n' + 'a' * 70000 + '\n~~~~\n'
+long = 'x\n~~~~\n' + ('a' * 99 + '\n') * 800 + '~~~~\n'  # 80 000 caractères, en lignes
 c = veille.plafonner(long)
-verifie('corps d\'issue plafonné, bloc inerte refermé', len(c) <= veille.CORPS_MAX and c.count('~~~~') % 2 == 0, len(c))
+verifie('corps d\'issue plafonné sous la limite de GitHub (65 536, marge pour le lien), bloc refermé',
+        len(c) <= 65_000 and c.count('~~~~') % 2 == 0, len(c))
 
 
 def plante():

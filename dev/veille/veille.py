@@ -15,7 +15,10 @@ Usage : python3 dev/veille/veille.py [--fichier page.html] [--reference ref.json
 """
 import difflib, hashlib, json, os, pathlib, re, sys, urllib.request, zlib
 
-import autoclic
+try:
+    import autoclic
+except Exception as e:  # noqa: BLE001 — rendu comme erreur d'analyse par principal(), jamais comme page inaccessible
+    autoclic, ERREUR_IMPORT = None, e
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 REF = ROOT / 'dev' / 'veille' / 'reference.json'
@@ -138,6 +141,24 @@ def difference(avant, apres, n=8):
     return '\n'.join(out)
 
 
+def changements(retires, ajoutes, n=8):
+    """Éléments d'une liste retirés et ajoutés. Un élément modifié (retiré et ajouté proches) est montré par sa
+    différence morceau par morceau, pour qu'un changement loin dans un long texte se voie."""
+    out, libres = [], list(retires)
+    for b in ajoutes:
+        proche = max(libres, key=lambda a: difflib.SequenceMatcher(None, a, b, autojunk=False).ratio(), default=None)
+        if proche is not None and difflib.SequenceMatcher(None, proche, b, autojunk=False).ratio() >= 0.6:
+            libres.remove(proche)
+            out.append(('modifié', difference(proche, b)))
+        else:
+            out.append(('ajouté', sur(b, 1500)))
+    out += [('retiré', sur(a, 1500)) for a in libres]
+    lignes = [f'{signe} :\n{t}' for signe, t in out[:n]]
+    if len(out) > n:
+        lignes.append(f'… et {len(out) - n} autre(s).')
+    return lignes
+
+
 def ecarts_autoclic(avant, apres):
     """[(affichage, clé complète)] des écarts de détection d'autoclic. avant : référence ; apres : page (ou None)."""
     out = []
@@ -159,13 +180,7 @@ def ecarts_autoclic(avant, apres):
                        ('textes', 'Textes qui parlent d\'autoclic')):
         x, y = set(avant.get(cle, [])), set(apres[cle])
         if x != y:
-            lignes = [f'- {titre} :']
-            for signe, liste in (('retiré', sorted(x - y)), ('ajouté', sorted(y - x))):
-                for t in liste[:8]:
-                    lignes.append(f'{signe} :\n{sur(t, 300)}')
-                if len(liste) > 8:
-                    lignes.append(f'… et {len(liste) - 8} autre(s) {signe}(s).')
-            ecart('\n'.join(lignes), cle, sorted(x), sorted(y))
+            ecart('\n'.join([f'- {titre} :'] + changements(sorted(x - y), sorted(y - x))), cle, sorted(x), sorted(y))
     for k in autoclic.FENETRES_TEXTE:
         x, y = avant['textes des fenetres'].get(k), apres['textes des fenetres'].get(k)
         if x != y:
@@ -195,9 +210,10 @@ def main():
         return finish('inaccessible', 'sans-code', 2)
 
     actuel = regles(html)
-    deja = [p for v in actuel.values() if v for p in v.split(' | ')]
+    if autoclic is None:
+        raise ERREUR_IMPORT
     try:
-        ac, illisible = autoclic.releve(html, deja), None
+        ac, illisible = autoclic.releve(html), None
     except autoclic.Illisible as e:
         ac, illisible = None, str(e)
     ref_path = pathlib.Path(arg('--reference') or REF)
@@ -230,7 +246,7 @@ def main():
     cles = list(ecarts)  # barème et règles : l'empreinte reste celle des versions précédentes
     if illisible:
         # message du lecteur : ses propres mots et une position, aucun texte de la page
-        ac_ecarts = [(f'- Code de la page illisible pour la veille ({illisible}) : page restructurée ou minifiée ? '
+        ac_ecarts = [(f'- Code de la page illisible pour la veille ({illisible.replace("<script>", "`<script>`")}) : page restructurée ou minifiée ? '
                       'Détection d\'autoclic non vérifiée ; la veille est à revoir avant tout recalage.', 'illisible')]
     else:
         ac_ecarts = ecarts_autoclic(ref.get('autoclic'), ac)
@@ -257,7 +273,7 @@ def main():
     print(rapport)
     if arg('--corps'):
         pathlib.Path(arg('--corps')).write_text(plafonner(rapport), encoding='utf-8')
-    sujet = 'mixte' if ecarts and ac_ecarts else 'autoclic' if ac_ecarts else 'bareme'
+    sujet = 'mixte' if ecarts and ac_ecarts else 'illisible' if illisible else 'autoclic' if ac_ecarts else 'bareme'
     return finish('ecart', '\n'.join(cles), 1, sujet)
 
 

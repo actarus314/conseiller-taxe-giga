@@ -86,14 +86,25 @@ jobs:
           if [ "$ETAT" = inaccessible ] && [ "${ECHECS:-0}" -lt 2 ]; then
             echo "Premier échec d'accès : pas d'issue, la relance suivante est sautée."; exit 0
           fi
-          if gh issue list --label veille --state open --limit 100 --json title --jq '.[].title' | grep -qF "[$EMP]"; then
-            echo "Issue déjà ouverte pour ce constat [$EMP]."; exit 0
+          # écart : l'issue de ce constat remplace toutes les autres issues de veille encore ouvertes
+          remplacer() {
+            gh issue list --label veille --state open --limit 100 --json number,title \
+              --jq ".[] | select(.title | contains(\"[$EMP]\") | not) | .number" | while read -r n; do
+              gh issue close "$n" --comment "Remplacée par #$1 ($RUN)."
+            done
+          }
+          ouverte=$(gh issue list --label veille --state open --limit 100 --json number,title --jq ".[] | select(.title | contains(\"[$EMP]\")) | .number" | head -1)
+          if [ -n "$ouverte" ]; then
+            echo "Issue déjà ouverte pour ce constat [$EMP] : #$ouverte."
+            if [ "$ETAT" = ecart ]; then remplacer "$ouverte"; fi
+            exit 0
           fi
           case "$ETAT" in
             ecart)
               case "$SUJET" in
                 autoclic) titre="Veille : la détection d'autoclic du jeu a changé [$EMP]" ;;
                 mixte) titre="Veille : le jeu ne correspond plus au conseiller, et sa détection d'autoclic a changé [$EMP]" ;;
+                illisible) titre="Veille : le code du jeu n'a plus la forme connue, détection d'autoclic non vérifiée [$EMP]" ;;
                 *) titre="Veille : le jeu ne correspond plus au conseiller [$EMP]" ;;
               esac ;;
             erreur) titre="Veille : erreur d'analyse de la page du jeu [$EMP]" ;;
@@ -105,11 +116,7 @@ jobs:
           url=$(gh issue create --title "$titre" --label veille --body-file issue.md)
           nouvelle=${url##*/}
           # écart : la nouvelle issue (différence cumulée depuis la référence) remplace celles encore ouvertes
-          if [ "$ETAT" = ecart ]; then
-            for n in $(gh issue list --label veille --state open --limit 100 --json number --jq '.[].number'); do
-              if [ "$n" != "$nouvelle" ]; then gh issue close "$n" --comment "Remplacée par #$nouvelle ($RUN)."; fi
-            done
-          fi
+          if [ "$ETAT" = ecart ]; then remplacer "$nouvelle"; fi
       - name: Noter l'heure de fin
         id: fin
         if: always()

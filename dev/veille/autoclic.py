@@ -15,12 +15,12 @@ le mettrait en défaut, et la veille le dirait (écart).
 """
 import bisect, html.parser, re
 
-ZONES = ('durWarn', 'acNotice', 'acShow', 'acPick', 'acWarnShow', 'oneShot')
+ZONES = ('durWarn', 'acNotice', 'acShow', 'acPick', 'acWarnShow', 'acWarnClose', 'oneShot')
 FENETRES_TEXTE = ('acOv', 'durOv', 'acWarnOv')
 # champs de détection : convention du jeu (et du bot, qui s'arrête sur tout champ « ac » + majuscule non vide)
 CHAMP = re.compile(r'\.(ac[A-Z][\w$]*|autoclick)\b')
 INSTR = re.compile(r'\.(?:ac[A-Z][\w$]*|autoclick)\b|\bisTrusted\b|(?<!function )\boneShot\s*\(')
-MOTS = re.compile(r'auto-?cli(?:c|ck)|trich|sans (?:la moindre |aucune )?pause|des pauses|sous surveillance'
+MOTS = re.compile(r'auto-?cli(?:c|ck)|trich(?!e du compteur)|sans (?:la moindre |aucune )?pause|des pauses|sous surveillance'
                   r'|comportement anormal', re.I)
 AVANT_REGEX = set('(,=:[!&|?{};+-*%~^<>')
 MOTS_AVANT_REGEX = {'return', 'typeof', 'case', 'do', 'else', 'in', 'of', 'new', 'delete', 'void', 'throw', 'yield',
@@ -141,7 +141,9 @@ def lire(s):
                 j += 1
             mot, prec, i = s[i:j], 'a', j
             continue
-        prec, mot = c, ''
+        # après ++ ou -- (opérande déjà lue), un / est une division, pas une expression régulière
+        prec = 'a' if c in '+-' and s[i - 1:i] == c and prec == c else c
+        mot = ''
         i += 1
     code_jusqua(n)
     return morceaux
@@ -180,7 +182,12 @@ class Script:
         return self.m[x][0] if x >= 0 and p < self.m[x][2] else 'code'
 
     def dans_code(self, rx):
-        return [m for m in rx.finditer(self.s) if self.genre(m.start()) == 'code']
+        """Correspondances dans le code, ou dans un gabarit (ses expressions ${…} sont du code : approximation)."""
+        return [m for m in rx.finditer(self.s) if self.genre(m.start()) == 'code' or self.dans_gabarit(m.start())]
+
+    def dans_gabarit(self, p):
+        x = bisect.bisect_right(self.debuts, p) - 1
+        return x >= 0 and self.m[x][0] == 'chaine' and self.s[self.m[x][1]] == '`' and p < self.m[x][2]
 
     def _suite(self, k):
         return re.match(r'\s*(else|catch|finally)\b', self.s[k:]) is not None
@@ -223,16 +230,17 @@ class Script:
         rx = re.compile(rf'\bfunction\s+{n}\s*\(|(?<![\w$.]){n}\s*=\s*(?:async\s+)?(?:function\b|(?:\([^()]*\)|[\w$]+)\s*=>)')
         out = []
         for m in self.dans_code(rx):
+            d = m.start() + m.group(0).index(nom) + len(nom)  # signature comprise : paramètres, « = function », flèche
             if m.group(0).startswith('function') or m.group(0).rstrip().endswith('function'):
                 k = next((k for k, c, *_ in self.marques if k >= m.end() and c == '{'), None)
                 if k is None:
                     continue
-                out.append((k, self.bloc(k)))
+                out.append((d, self.bloc(k)))
             else:  # fonction fléchée : corps entre accolades, ou expression jusqu'à la fin de l'instruction
                 j = m.end()
                 while j < len(self.s) and self.s[j].isspace():
                     j += 1
-                out.append((j, self.bloc(j)) if self.s[j:j + 1] == '{' else (j, self.instruction(j)[1]))
+                out.append((d, self.bloc(j)) if self.s[j:j + 1] == '{' else (d, self.instruction(j)[1]))
         return out
 
     def texte(self, d, f):
@@ -332,11 +340,11 @@ def scripts(page):
     return [m.group(1) for m in re.finditer(r'<script\b[^>]*>(.*?)</script\s*>', page, re.S | re.I)]
 
 
-def releve(page, deja=()):
-    """Ce que la page porte de la détection d'autoclic. deja : passages déjà suivis ailleurs (non recomptés).
-    Lève Illisible si un bloc de script ne se lit pas."""
+def releve(page):
+    """Ce que la page porte de la détection d'autoclic. Lève Illisible si un bloc de script ne se lit pas.
+    Un texte déjà suivi par une règle de veille.py l'est aussi ici : un changement y fait deux écarts, jamais zéro."""
     zones = {nom: [] for nom in ZONES}
-    instructions, champs, chaines = set(), set(), set()
+    instructions, champs, chaines, fenetres = set(), set(), set(), set()
     for n, src in enumerate(scripts(page), 1):
         try:
             sc = Script(src)
@@ -354,19 +362,21 @@ def releve(page, deja=()):
             d, f = sc.instruction(m.start())
             instructions.add(sc.texte(d, f)); pris.append((d, f))
         for genre, d, f in sc.m:
+            # fenêtre écrite dans une chaîne (HTML injecté par le script) : son id entre dans l'inventaire
+            if genre == 'chaine' and re.search(r'class="[^"]*\bbn-ov\b|role="dialog"|<dialog\b', src[d:f]):
+                fenetres |= set(re.findall(r'id="([\w-]{1,60})"', src[d:f])) or {'fenêtre sans id (script)'}
             if genre == 'chaine' and not any(a <= d < b for a, b in pris):
                 t = propre(decoder(src[d + 1:f - 1]))
                 if MOTS.search(t):
                     chaines.add(t)
     p = _Page()
     p.feed(page); p.close()
-    deja = [x for x in deja if len(x) >= 20]
-    textes = sorted(t for t in chaines | p.textes if not any(x in t or (len(t) >= 20 and t in x) for x in deja))
+    textes = sorted(chaines | p.textes)
     return {
         'zones': {nom: (' | '.join(sorted(set(v))) if v else None) for nom, v in zones.items()},
         'instructions': sorted(instructions),
         'champs': sorted(champs),
-        'fenetres': sorted(p.fenetres),
+        'fenetres': sorted(p.fenetres | fenetres),
         'textes des fenetres': {k: p.textes_fen.get(k) for k in FENETRES_TEXTE},
         'diapositives': sorted(p.diapos),
         'textes': textes,
