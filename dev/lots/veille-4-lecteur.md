@@ -4,10 +4,11 @@ Préparé le 19/11/2026. Type : **mineur**, outillage de surveillance. Il change
 
 ## Objet
 
-Deux fausses alertes connues de `dev/veille/autoclic.py`, écrites en limite le 19/11 (`dev/contexte.md`, puce **Veille**) :
+Deux fausses alertes connues de `dev/veille/autoclic.py`, écrites en limite le 19/11, et un défaut du découpage des `${…}` écrit en limite le 20/11 (`dev/contexte.md`, puce **Veille**) :
 
 1. un reformatage à l'intérieur d'une expression `${…}` de gabarit fait un écart : ces expressions sont normalisées comme du texte, pas comme du code ;
-2. passer une chaîne de `'…'` à `"…"` fait un écart. La forme unique doit aussi traiter les guillemets échappés (`'it\'s'` contre `"it's"`).
+2. passer une chaîne de `'…'` à `"…"` fait un écart. La forme unique doit aussi traiter les guillemets échappés (`'it\'s'` contre `"it's"`) ;
+3. le découpage d'une expression `${…}` (`_fin_expr`) ne connaît ni les commentaires ni les expressions régulières : un `}` dans l'un d'eux la coupe au mauvais endroit, sans erreur. Depuis le lot V2, qui relit chaque `${…}` comme un script à part pour y trouver les déstructurations, cela donne le plus souvent « code illisible » (`${ s.replace(/}/g, "") }`, `${ a /* } */ }` : fausse alerte, et ni la détection d'autoclic ni le reste de la page ne sont suivis tant que c'est illisible, recalage refusé), et dans un cas un faux « conforme » (`${ f(1) // }` puis, plus loin dans le même `${…}`, une déstructuration `({ acX } = d)`, qui n'est pas vue). Essai d'un relecteur du 20/11, sur sa copie : faire découper les `${…}` par `lire` lui-même (une dizaine de lignes) règle ces cas, tests verts, sabotages non joués. Ce découpage sert à tous les gabarits de la page : la référence peut changer, à recaler dans ce lot.
 
 ## Contraintes
 
@@ -19,6 +20,7 @@ Deux fausses alertes connues de `dev/veille/autoclic.py`, écrites en limite le 
 Sur une copie de la vraie page, hors dépôt :
 
 - pas d'écart pour un reformatage dans un `${…}`, un changement de style de guillemets, ou des guillemets échappés équivalents ;
+- les trois `${…}` du point 3 lus sans « illisible », la déstructuration du cas silencieux vue ;
 - un écart pour un caractère changé dans une chaîne, dans un `${…}`, ou dans une chaîne à guillemets échappés ;
 - les cas des lots précédents restent verts.
 
