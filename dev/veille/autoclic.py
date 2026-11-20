@@ -20,8 +20,9 @@ FENETRES_TEXTE = ('acOv', 'durOv', 'acWarnOv')
 # champs de détection : convention du jeu (et du bot, qui s'arrête sur tout champ « ac » + majuscule non vide),
 # lus par un point (d.acDur) ou par crochets à chaîne littérale (d['acDur'])
 CHAMP = re.compile(r'\.(ac[A-Z][\w$]*|autoclick)\b|\[\s*([\'"`])(ac[A-Z][\w$]*|autoclick)\2\s*\]')
-# … ou par déstructuration dans une déclaration (const { acDur, autoclick: x } = d ; sans accolades imbriquées)
-DESTRUCT = re.compile(r'\b(?:const|let|var)\s*\{([^{}]*)\}\s*=(?!=)')
+# … ou par déstructuration dans une déclaration (const { acDur, autoclick: x } = d), lue sur le découpage du script :
+# accolades appariées dans le code seul, commentaires et chaînes déjà délimités (_destructurations)
+DESTRUCT = re.compile(r'\b(?:const|let|var)\s*\{')
 NOM_CHAMP = re.compile(r'(?:^|,)\s*([\'"]?)(ac[A-Z][\w$]*|autoclick)\1\s*(?=[,:=]|$)')  # clé, pas nom local
 # instructions suivies : champ lu, garde des clics, clé du choix gardé, minuteries des fenêtres d'autoclic
 INSTR = re.compile(r'\.(?:ac[A-Z][\w$]*|autoclick)\b|\[\s*([\'"`])(?:ac[A-Z][\w$]*|autoclick)\1\s*\]|\bisTrusted\b'
@@ -352,6 +353,38 @@ def scripts(page):
     return [m.group(1) for m in re.finditer(r'<script\b[^>]*>(.*?)</script\b[^>]*>', page, re.S | re.I)]
 
 
+def _destructurations(sc):
+    """[(début, position du « = », clés)] des déclarations par déstructuration d'objet du script. Les clés sont le
+    texte entre les accolades, réécrit depuis les morceaux du lecteur : code tel quel, commentaire → espace, chaîne →
+    '<nom>' si elle ne contient qu'un nom de champ de détection, sinon '' (rien d'une chaîne n'est lu comme du code)."""
+    out = []
+    for m in DESTRUCT.finditer(sc.s):
+        k = m.end() - 1
+        if sc.genre(m.start()) != 'code' or sc.genre(k) != 'code':
+            continue
+        fin = sc.bloc(k) - 1  # accolade fermante appariée (code seul)
+        j = fin + 1
+        while j < len(sc.s) and (sc.s[j].isspace() or sc.genre(j) == 'com'):
+            j += 1
+        if sc.s[j:j + 1] != '=' or sc.s[j + 1:j + 2] in ('=', '>'):
+            continue  # pas une déclaration par déstructuration (for…of, comparaison)
+        cles = []
+        for x in range(bisect.bisect_right(sc.debuts, k) - 1, len(sc.m)):
+            genre, d, f = sc.m[x]
+            if d >= fin:
+                break
+            d, f = max(d, k + 1), min(f, fin)
+            if genre == 'code':
+                cles.append(sc.s[d:f])
+            elif genre == 'com':
+                cles.append(' ')
+            else:
+                nom = sc.s[d + 1:f - 1] if f - d >= 2 and sc.s[d] in '\'"' and sc.s[f - 1] == sc.s[d] else ''
+                cles.append(f"'{nom}'" if re.fullmatch(r'ac[A-Z][\w$]*|autoclick', nom) else "''")
+        out.append((m.start(), j, ''.join(cles)))
+    return out
+
+
 def _fenetre_script(src, m):
     """Nom d'une fenêtre créée par le script (ROLE) : balise et classe de l'élément, lues à sa création
     (mk('div', 'classe') du jeu, ou createElement) dans les 3000 caractères qui précèdent."""
@@ -383,14 +416,13 @@ def releve(page):
                 zones[nom].append(sc.texte(d, f)); pris.append((d, f))
         for m in sc.dans_code(CHAMP):
             champs.add(m.group(1) or m.group(3))
-        for m in sc.dans_code(DESTRUCT):
-            # commentaires retirés avant de lire les clés (« { ok, // note\n acX } »)
-            noms = [n for _, n in NOM_CHAMP.findall(re.sub(r'/\*.*?\*/|//[^\n]*', ' ', m.group(1), flags=re.S))]
+        for debut, egal, cles in _destructurations(sc):
+            noms = [n for _, n in NOM_CHAMP.findall(cles)]
             champs.update(noms)
-            if noms and not any(d <= m.start() < f for d, f in pris):
+            if noms and not any(d <= debut < f for d, f in pris):
                 # déclaration entière : du mot-clé à la fin de l'instruction qui suit le « = » (les accolades de la
                 # déstructuration ne sont pas un bloc)
-                d, f = m.start(), sc.instruction(m.end())[1]
+                d, f = debut, sc.instruction(egal + 1)[1]
                 instructions.append(sc.texte(d, f)); pris.append((d, f))
         routes = [d for genre, d, f in sc.m if genre == 'chaine' and ROUTES.search(src[d:f])]
         for p in sorted([m.start() for m in sc.dans_code(INSTR)] + routes):

@@ -375,6 +375,33 @@ verifie('aucun code de compte dans le dépôt (pseudos permis ; tirets, espaces 
         CODE_COMPTE.search('GOBE' + ' ABCD 1234 EFGH 5678') and CODE_COMPTE.search('gobe' + 'abcd1234efgh5678')
         and not any(CODE_COMPTE.search(x.read_text(encoding='utf-8', errors='ignore')) for x in fichiers), len(fichiers))
 
+# lecture des clés d'une déstructuration sur le découpage du lecteur (commentaires et chaînes délimités)
+DESTRUCTURES = [
+    ("const { ok,\n // champ\n acX } = d;", ['acX']),
+    ('const { /* c */ acX } = d;', ['acX']),
+    ('const { ok, acX /* x */ } = d;', ['acX']),
+    ('const { ok, acX // x\n } = d;', ['acX']),
+    ("const { 'a//b': s, acZ } = d;", ['acZ']),
+    ("const { ok = '//', acV } = d;", ['acV']),
+    ("const { 'a/*b': s, acW, 'c*/d': t } = d;", ['acW']),
+    ("const { u = 'https://x', acA } = d;", ['acA']),
+    ('const { ok, // }\n acB } = d;', ['acB']),
+    ('const { acA, /* } */ acB } = d;', ['acA', 'acB']),
+    ("const { 'acQ': s, \"acR\" : r } = d;", ['acQ', 'acR']),
+    ('const { acK /* c */ : l } = d;', ['acK']),
+    ('const { ok = 4 / 2 / 1, acDV } = d;', ['acDV']),
+    ('const { x: acY } = d;', []),
+    ("const { u = 'a, acX', ok } = d;", []),
+    ("const { ok = ', acS, ' } = d;", []),
+    ('const { ok = `${a}, acX`, acT } = d;', ['acT']),
+    ('for (const { acF } of liste) f(acF);', []),
+]
+for code, attendu in DESTRUCTURES:
+    r = autoclic.releve(f'<script>{code}</script>')
+    verifie(f'déstructuration lue sur le découpage : {code!r} → {attendu}', r['champs'] == attendu
+            and (bool(attendu) == any(code.split('=')[0].strip()[:8].replace(' ', '') in x for x in r['instructions'])),
+            (r['champs'], r['instructions']))
+
 long_avant = 'x = 1;' * 80 + "say('autoclic 36e5');"
 code, out = lancer(mute("say(`clics : ${d.acGab}`);", "say(`clics : ${d.acGab}`); if (d.acLong) { " + long_avant + " }"), '--maj-reference')
 code, out = lancer(mute("say(`clics : ${d.acGab}`);", "say(`clics : ${d.acGab}`); if (d.acLong) { " + long_avant.replace('36e5', '72e5') + " }"))

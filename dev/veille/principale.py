@@ -91,8 +91,8 @@ def _objet(sc, k):
 
 def _instructions(sc, rx, hors=(), chaines=False):
     """Textes des instructions qui contiennent une correspondance de rx : dans le code (et les gabarits), ou dans les
-    chaînes avec chaines=True ; jamais dans les étendues hors. Une correspondance prise
-    dans une instruction déjà retenue n'en fait pas une seconde."""
+    chaînes avec chaines=True ; jamais dans les étendues hors. Une correspondance prise dans une instruction déjà
+    retenue n'en fait pas une seconde."""
     out, pris = [], list(hors)
     for m in rx.finditer(sc.s):
         p = m.start()
