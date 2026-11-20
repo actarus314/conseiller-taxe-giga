@@ -1,21 +1,21 @@
-# Lot V3 — veille : modules du boss (et du globe) et page `/regles`
+# Lot V3 — veille : modules du boss et du globe, page `/regles`
 
-Préparé le 19/11/2026, relu en contexte neuf le même jour. Type : **mineur**, outillage de surveillance (requêtes nouvelles au site). Relecture de fin de lot : **ciblée Sonnet** en contexte neuf, puis contre-vérification si elle relève un bloquant ou un « à corriger ». Prérequis : **lot V2 livré** (`dev/lots/veille-2-page.md` : mêmes fichiers ; V2 suit déjà le chargeur du module et sa version `?v=`).
+Préparé le 19/11/2026, relu en contexte neuf le même jour ; faits revérifiés le 20/11 (bot 2.1.42 qui pilote le globe, tailles, versions). Type : **mineur**, outillage de surveillance (requêtes nouvelles au site). Relecture de fin de lot : **ciblée Sonnet** en contexte neuf, puis contre-vérification si elle relève un bloquant ou un « à corriger ». Prérequis : **lot V2 livré** (`dev/lots/veille-2-page.md` : mêmes fichiers ; V2 suit déjà le chargeur du module et sa version `?v=`).
 
 ## Objet
 
-Le lot V2 suit la version `?v=` du module du boss, qui change probablement à chaque déploiement (une seule observation au 19/11 : à confirmer dans ce lot), sans dire ce qui a changé. Ce lot dit ce qui a changé dans le module du boss, et suit les sections de la page `/regles` qui parlent d'autoclic (texte affiché aux joueurs). Les deux demandent des requêtes de plus au site.
+Le lot V2 suit la version `?v=` des modules du boss et du globe, sans dire ce qui a changé. Celle du boss semble être la date de dépôt de ses fichiers (une observation : 1794501311 = 12/11/2026 16:35:11 UTC, `Last-Modified` 16:35:12 GMT, inchangé le 20/11), celle du globe est un compteur (28 → 29 le 19/11, `Last-Modified` 19/11 13:49:14 GMT). Ce lot dit ce qui a changé dans ces modules, et suit les sections de la page `/regles` qui parlent d'autoclic (texte affiché aux joueurs). Les deux demandent des requêtes de plus au site.
 
 ## Décision à soumettre à Romain en tête de lot (rien ne se code avant sa réponse)
 
-**Quand la veille télécharge-t-elle le module du boss et `/regles` ?** Elle passe toutes les ~15 min, depuis les machines de GitHub, et fait une seule requête aujourd'hui ; l'hébergeur bloque parfois les robots quand son trafic monte (`dev/contexte.md`, « Veille et 403 »).
+**Quand la veille télécharge-t-elle les modules du boss et du globe, et `/regles` ?** Elle passe toutes les ~15 min, depuis les machines de GitHub, et fait une seule requête aujourd'hui ; l'hébergeur bloque parfois les robots quand son trafic monte (`dev/contexte.md`, « Veille et 403 »).
 
 Faits qui bornent les voies, relevés le 19/11 :
 
 - la référence ne change qu'au recalage manuel. Après un déploiement du module, « `?v=` différent de la référence » reste vrai à chaque passage jusqu'au recalage ;
 - le build de la page diffère déjà de la référence (19a contre 18f) sans écart, donc « quand le build change » reviendrait à « à chaque passage » ;
 - l'état gardé d'un passage à l'autre (`sauter`, `echecs`) est remis à zéro par le lancement horaire et par chaque envoi sur `main` qui touche la veille (`dev/veille/**`, `veille.yml`, `conseiller.js` : valeurs par défaut de `veille.yml`). Il ne peut pas compter des heures ni des jours. Une voie sans état reste possible par l'horloge (télécharger seulement dans une plage fixe de chaque heure ou de chaque jour), avec deux limites à mesurer : plusieurs passages peuvent tomber dans une même plage (lancement horaire, envois, intervalle réel de plus de 15 min), et elle ne peut pas compter des échecs qui durent ;
-- tailles : module, `boss-event-net.js` 176 007 octets et `boss-site.js` 28 507 octets (≈ 62 Ko compressés à deux) ; `/regles`, 21 113 octets (≈ 7 Ko compressés) ; `monde.js` non mesuré (à mesurer si le point 2 s'active).
+- tailles : module, `boss-event-net.js` 176 007 octets et `boss-site.js` 28 507 octets (≈ 62 Ko compressés à deux) ; `/regles`, 21 113 octets (≈ 7 Ko compressés) ; `monde.js` 147 956 octets (≈ 48 Ko compressés, mesuré le 20/11). L'envoi par le globe est une tâche ponctuelle du bot (jusqu'à 174/174 pays, `architecture.md` §11) : dire ce que vaut encore son suivi une fois la tâche finie.
 
 Voies à présenter avec leur coût mesuré (requêtes et volume par jour) et leur délai de détection : à chaque passage ; sur une plage horaire (une fois par heure, ou une fois par jour) ; et, pour le module, seulement quand `?v=` diffère de la référence (donc à chaque passage jusqu'au recalage). Vérifier ces faits dans le lot avant de les présenter, puis s'arrêter jusqu'à la réponse.
 
@@ -33,7 +33,7 @@ Voies à présenter avec leur coût mesuré (requêtes et volume par jour) et le
    - **ce que le bot utilise** (inventaire tiré du dépôt bot) : sélecteurs, gestionnaires capturés, globales (`window.bossEv`, `window.bossReopen`, `BOSS_SERVER`, contrat `window.TaxeBoss` côté module), textes lus.
 
    Dans le dépôt public (`reference.json`, issues) : pas de copie des 200 Ko (zones et empreintes seulement), et des noms de zones neutres, sans rien qui décrive le bot ni ses fichiers. L'issue dit quelles zones ont changé, ou seulement le reste du module. Limite à écrire : un module modifié sans changement de `?v=` n'est vu que si la voie choisie le télécharge quand même.
-2. **Module du globe** (`/monde/monde.js?v=…`) : **seulement si** Romain a décidé entre-temps que le bot pilote le globe (décision en attente au 19/11, `architecture.md` §11). Même traitement que le module du boss, inventaire tiré du bot. Sinon, ne rien faire : V2 suit déjà sa version.
+2. **Module du globe** (`/monde/monde.js?v=…`) : le bot le pilote depuis 2.1.42 (19/11, `architecture.md` §5 et §11). Même traitement que le module du boss, inventaire tiré du bot, sous réserve de la décision ci-dessus (tâche ponctuelle).
 3. **`/regles`** : sections qui parlent d'autoclic. Au 19/11 : `#autoclick` (≈ 1 000 caractères de texte), `#resume` (« Interdit : un autoclicker… »), `#faq` (retour au classement, touche Entrée maintenue, avertissement) et `#limites` ; `#appel` est à examiner. Chaque section est suivie en entier, normalisée, et rendue inerte par `sur()` dans les rapports.
 
    `#appel` contient des pseudos (« Gobe-Octet sournois #732 ») et `#reprise` un gabarit « GOBE-XXXX-… » : ce ne sont pas des codes de compte, mais un contrôle des codes insensible à la casse les trouverait. Ne pas suivre `#reprise`, et distinguer les pseudos.
