@@ -355,7 +355,7 @@ def forme(t, clair=False):
 
 def contenu(t, clair=False):
     """Texte montré d'une chaîne entière (sans délimiteurs), sur la même forme unique que forme() ; clair : blancs
-    échappés rendus en clair (pour chercher un mot-clé, jamais pour comparer)."""
+    échappés et échappements d'identité rendus en clair (pour chercher un mot-clé, jamais pour comparer)."""
     if t[:1] == '`':
         return _gabarit(t, '', clair)
     return _litteral(t[1:-1], '', False, clair)

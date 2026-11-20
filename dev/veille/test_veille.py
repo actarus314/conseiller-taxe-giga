@@ -456,8 +456,11 @@ FORMES = [
 # formes exactes : ce qu'une forme doit garder écrit tel quel
 for src, attendu in (("'\\uD83D'", "'\\uD83D'"), ("'\\uDE00\\uD83D'", "'\\uDE00\\uD83D'"), ("'\\uD83D\\uDE00'", "'😀'"),
                      ("'sans\\xa0pause'", "'sans\\xa0pause'"), ('`$\\{a}`', '`\\$\\{a}`')):
-    f = autoclic.Script(src).texte(0, len(src))
-    verifie(f'forme exacte : {src} → {attendu}', f == attendu, f)
+    try:
+        f = autoclic.Script(src).texte(0, len(src))
+    except autoclic.Illisible as e:
+        f = f'illisible : {e}'
+    verifie(f'forme exacte : {src} → {attendu}', f == attendu, ascii(f))
 for a, b, egal in FORMES:
     try:
         fa, fb = (autoclic.Script(x).texte(0, len(x)) for x in (a, b))
