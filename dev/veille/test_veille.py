@@ -448,7 +448,16 @@ FORMES = [
     ("'a\\\nb'", "'ab'", True), ("'a\\\nb'", "'a\\ b'", False), ("'\\uD83D\\uDE00'", "'😀'", True),
     ("'\\uD83D'", "'?'", False), ('a + ++b', 'a++ + b', False), ('a - --b', 'a-- - b', False),
     ('`${ a + ++b }`', '`${ a++ + b }`', False), ("'a  b'", "'a b'", True),
+    # contre-vérification du lot V4 : « $ » d'un gabarit, continuations CR, CRLF, LS, PS
+    ('`$\\\n{a}`', '`${a}`', False), ('`$\\\n{a}`', '`\\${a}`', True), ('`$x`', '`\\$x`', True),
+    ("'a\\\rb'", "'ab'", True), ("'a\\\r\nb'", "'ab'", True), ("'a\\\u2028b'", "'ab'", True),
+    ("'a\\\u2029b'", "'ab'", True), ('`a\\\r\nb`', '`ab`', True),
 ]
+# formes exactes : ce qu'une forme doit garder écrit tel quel
+for src, attendu in (("'\\uD83D'", "'\\uD83D'"), ("'\\uDE00\\uD83D'", "'\\uDE00\\uD83D'"), ("'\\uD83D\\uDE00'", "'😀'"),
+                     ("'sans\\xa0pause'", "'sans\\xa0pause'"), ('`$\\{a}`', '`\\$\\{a}`')):
+    f = autoclic.Script(src).texte(0, len(src))
+    verifie(f'forme exacte : {src} → {attendu}', f == attendu, f)
 for a, b, egal in FORMES:
     try:
         fa, fb = (autoclic.Script(x).texte(0, len(x)) for x in (a, b))
@@ -457,9 +466,16 @@ for a, b, egal in FORMES:
     verifie(f'forme unique : {a} {"=" if egal else "≠"} {b}', (fa == fb) == egal, (fa, fb))
 
 # balayage : un blanc écrit en échappement ne cache pas le mot-clé (relecture du lot V4)
-for src in ("'sans\\xa0pause'", "'sans\\x20pause'", "'Faites des\\u0020pauses'", "'8 h sans\\npause'", "`sans\\tpause ${x}`"):
+# (source, texte enregistré : la forme unique, jamais la version en clair qui sert à chercher)
+BALAYES = [
+    ("'sans\\xa0pause'", 'sans\\xa0pause'), ("'sans\\x20pause'", 'sans\\x20pause'), ("'Faites des\\u0020pauses'", 'Faites des\\u0020pauses'),
+    ("'8 h sans\\npause'", '8 h sans\\npause'), ("`sans\\tpause ${x}`", 'sans\\tpause ${x}'), ("'sans\\ pause'", 'sans\\ pause'),
+    ("'auto\\click'", 'auto\\click'), ("`${ c ? 'sans\\x20pause' : '' }`", "${c?'sans\\x20pause':''}"),
+    ("`a ${ `des\\xa0pauses` } b`", 'a ${`des\\xa0pauses`} b'),
+]
+for src, attendu in BALAYES:
     r = autoclic.releve(f'<script>t = {src};</script>')
-    verifie(f'balayage : mot-clé trouvé malgré un blanc échappé ({src})', len(r['textes']) == 1, r['textes'])
+    verifie(f'balayage : mot-clé trouvé malgré un blanc échappé ({src})', r['textes'] == [attendu], r['textes'])
 
 code, out = lancer(mute("'Méthode de clic (avertissement autoclick) : '", "'M\\xE9thode de clic (avertissement autoclick) : '"))
 verifie('échappement \\xE9 dans une chaîne : décodé, conforme', code == 0, out[-300:])

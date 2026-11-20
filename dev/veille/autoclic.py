@@ -50,7 +50,7 @@ def _fin_chaine(s, i):
     while j < n:
         c = s[j]
         if c == '\\':
-            j += 2; continue
+            j += 3 if s.startswith('\r\n', j + 1) else 2; continue  # continuation CRLF : un seul échappement
         if c == q:
             return j + 1
         if c == '\n':
@@ -255,7 +255,7 @@ class Script:
                 out.append((d, self.bloc(j)) if self.s[j:j + 1] == '{' else (d, self.instruction(j)[1]))
         return out
 
-    def texte(self, d, f):
+    def texte(self, d, f, clair=False):
         """Texte normalisé de s[d:f] : commentaires retirés, blancs du code réduits, chaînes sous leur forme unique."""
         out, code = [], []
         x = max(0, bisect.bisect_right(self.debuts, d) - 1)
@@ -271,7 +271,7 @@ class Script:
             out.append(compacter(''.join(code))); code = []
             t = self.s[a2:b2]
             if genre == 'chaine':  # forme unique d'une chaîne entière ; un morceau coupé (jamais attendu) reste brut
-                t = propre(forme(t) if (a2, b2) == (a, b) else decoder(t))
+                t = propre(forme(t, clair) if (a2, b2) == (a, b) else decoder(t))
             out.append(t)
         out.append(compacter(''.join(code)))
         return ''.join(out).strip()
@@ -292,9 +292,11 @@ def _litteral(t, delim, gabarit, clair=False):
     """Texte littéral d'une chaîne (sans ses délimiteurs), forme unique : un guillemet ou un accent grave, échappé ou
     non (\\', \\x27…), est rendu en clair, puis réécrit échappé s'il est le délimiteur delim ('' : texte montré) ;
     \\xHH, \\uHHHH, \\u{…} décodés (paire de substituts réunie), sauf barre, blancs, caractères de commande, substitut
-    isolé (et « $ », « { » d'un gabarit), gardés tels quels ; continuation de ligne (\\ puis fin de ligne) retirée ;
+    isolé, gardés tels quels ; dans un gabarit, tout « $ » du texte s'écrit \\$ (un texte
+    « ${ » ne prend jamais la forme d'une expression) ; continuation de ligne (\\ puis fin de ligne) retirée ;
     tout autre échappement (\\n, \\\\…) gardé tel quel. Deux valeurs différentes gardent deux formes (les blancs, eux,
-    sont ensuite réduits par propre). clair : blancs échappés rendus en clair aussi (recherche des mots-clés seule)."""
+    sont ensuite réduits par propre). clair : blancs échappés et échappements d'identité rendus en clair aussi
+    (recherche des mots-clés seule, jamais pour comparer)."""
     out, i, n = [], 0, len(t)
     while i < n:
         c = t[i]
@@ -308,7 +310,7 @@ def _litteral(t, delim, gabarit, clair=False):
                     if 0xDC00 <= k2 < 0xE000:
                         k, j = 0x10000 + (k - 0xD800) * 0x400 + (k2 - 0xDC00), m2.end()
                 ch = chr(k) if k <= 0x10FFFF else ''
-                if not ch or 0xD800 <= k < 0xE000 or ch == '\\' or (gabarit and ch in '${') \
+                if not ch or 0xD800 <= k < 0xE000 or ch == '\\' \
                         or ((ch.isspace() or ch < ' ') and not (clair and ch.isspace())):
                     out.append(t[i:j]); i = j; continue
                 c, i = ch, j
@@ -316,13 +318,13 @@ def _litteral(t, delim, gabarit, clair=False):
                 c, i = t[i + 1], i + 2
             elif t[i + 1] in '\n\u2028\u2029' or t.startswith('\r\n', i + 1) or t[i + 1] == '\r':
                 i += 3 if t.startswith('\r\n', i + 1) else 2; continue  # continuation de ligne : rien
-            elif clair and t[i + 1] in 'ntrvf':
-                c, i = ' ', i + 2
+            elif clair and t[i + 1] not in 'bxu0123456789':  # recherche seule : \n… et \<blanc> en espace, \c en c
+                c, i = (' ' if t[i + 1] in 'ntrvf' or t[i + 1].isspace() else t[i + 1]), i + 2
             else:
                 out.append(t[i:i + 2]); i += 2; continue
         else:
             i += 1
-        out.append('\\' + c if c == delim else c)
+        out.append('\\' + c if c == delim or (gabarit and c == '$') else c)
     return ''.join(out)
 
 
@@ -335,7 +337,7 @@ def _gabarit(t, delim, clair=False):
         elif t.startswith('${', i):
             e = _fin_expr(t, i + 2)
             x = t[i + 2:e - 1]
-            out += [_litteral(t[a:i], delim, True, clair), '${', Script(x).texte(0, len(x)), '}']
+            out += [_litteral(t[a:i], delim, True, clair), '${', Script(x).texte(0, len(x), clair), '}']
             i = a = e
         else:
             i += 1
@@ -343,12 +345,12 @@ def _gabarit(t, delim, clair=False):
     return delim + ''.join(out) + delim
 
 
-def forme(t):
+def forme(t, clair=False):
     """Forme unique d'une chaîne entière (délimiteurs compris) : '…' ou "…" deviennent '…', guillemets échappés
     équivalents compris ; un gabarit garde ses accents graves, ses expressions ${…} normalisées comme du code."""
     if t[:1] == '`':
-        return _gabarit(t, '`')
-    return "'" + _litteral(t[1:-1], "'", False) + "'"
+        return _gabarit(t, '`', clair)
+    return "'" + _litteral(t[1:-1], "'", False, clair) + "'"
 
 
 def contenu(t, clair=False):
