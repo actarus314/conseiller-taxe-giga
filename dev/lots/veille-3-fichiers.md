@@ -19,6 +19,8 @@ Faits qui bornent les voies, relevés le 19/11 :
 
 Voies à présenter avec leur coût mesuré (requêtes et volume par jour) et leur délai de détection : à chaque passage ; sur une plage horaire (une fois par heure, ou une fois par jour) ; et, pour le module, seulement quand `?v=` diffère de la référence (donc à chaque passage jusqu'au recalage). Vérifier ces faits dans le lot avant de les présenter, puis s'arrêter jusqu'à la réponse.
 
+**Tranché par Romain le 20/11/2026** (« ok » à la proposition) : module du boss quand `?v=` diffère de la référence et une fois par jour dans une plage ; `/regles` une fois par jour ; globe une fois par jour tant que le bot s'en sert, puis arrêt. Mesures présentées (20/11, 09:47) : 96 lancements en 24 h, 15,3 min médianes entre deux passages ; module du boss 62,4 Ko compressés (deux requêtes), globe 48,4 Ko, `/regles` 7,0 Ko, page principale 175 Ko ; une plage de 15 min a raté une heure sur 24, une plage de 16 min aucune (une heure sur 24 à deux passages).
+
 ## À lire d'abord
 
 - Le cahier V2 et ce que V2 a livré (`CHANGELOG.md`, puce **Veille** de `dev/contexte.md`, foyer des choix de la veille).

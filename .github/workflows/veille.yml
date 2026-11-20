@@ -6,6 +6,10 @@
 # Page inaccessible (le site bloque parfois les robots quand son trafic monte) : un seul essai, puis la relance suivante est
 # sautée (passage sans requête au site) ; l'issue n'est ouverte qu'au deuxième échec de suite. L'état passe d'un passage
 # au suivant par les entrées du lancement (sauter, echecs).
+# Fichiers à part (modules du boss et du globe, /regles ; dev/veille/fichiers.py) : lus une fois par jour, le module du
+# boss aussi tant que sa version ?v= diffère de la référence, tous à un envoi sur main ou sur demande (entrée fichiers) ;
+# un fichier non lu est relu aux passages suivants (entrée rattrapage), et signalé au troisième échec de suite. Leurs
+# issues portent l'étiquette veille-fichiers, tenues à part de celles de la page principale.
 # Cadence : la veille se relance elle-même après le délai de l'environnement « attente-veille » (réglé dans
 # Settings → Environments), la planification de GitHub n'étant pas fiable ; le passage horaire sert de secours
 # pour relancer la chaîne si elle casse.
@@ -23,6 +27,14 @@ on:
         description: Échecs d'accès de suite avant ce passage
         type: string
         default: '0'
+      rattrapage:
+        description: Fichiers à part à relire après un échec, avec leur nombre d'échecs de suite (boss:1,regles:2)
+        type: string
+        default: ''
+      fichiers:
+        description: Lire aussi tous les fichiers à part (modules du boss et du globe, /regles)
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths: ['dev/veille/**', '.github/workflows/veille.yml', 'conseiller.js']
@@ -45,6 +57,7 @@ jobs:
       fin: ${{ steps.fin.outputs.t }}
       etat: ${{ steps.v.outputs.etat }}
       echecs: ${{ steps.v.outputs.echecs }}
+      rattrapage: ${{ steps.v.outputs.rattrapage }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -54,15 +67,21 @@ jobs:
         env:
           SAUTER: ${{ inputs.sauter }}
           AVANT: ${{ inputs.echecs }}
+          RATT: ${{ inputs.rattrapage }}
+          TOUS: ${{ github.event_name == 'push' || inputs.fichiers == true }}
         run: |
           case "$AVANT" in ''|*[!0-9]*) AVANT=0 ;; esac
           AVANT=$((10#$AVANT))
+          case "$RATT" in *[!a-z0-9:,]*) RATT='' ;; esac
           if [ "$SAUTER" = true ]; then
             echo "Passage sauté après un échec d'accès : aucune requête au site." >> "$GITHUB_STEP_SUMMARY"
-            { echo "etat=saute"; echo "echecs=$AVANT"; } >> "$GITHUB_OUTPUT"; exit 0
+            { echo "etat=saute"; echo "echecs=$AVANT"; echo "rattrapage=$RATT"; echo "fichiers_etat=rien"; } >> "$GITHUB_OUTPUT"; exit 0
           fi
           # un seul essai : après un échec, c'est la relance suivante qui est sautée
-          python3 dev/veille/veille.py --corps corps.md > rapport.md || true
+          # fichiers à part : lus selon la plage du jour, la version du module du boss et le rattrapage ; tous à un
+          # envoi sur main ou sur demande
+          tous=(); if [ "$TOUS" = true ]; then tous=(--tous); fi
+          python3 dev/veille/veille.py --corps corps.md --corps-fichiers corps-fichiers.md --rattrapage "$RATT" "${tous[@]}" > rapport.md || true
           etat=$(grep -o '^etat=.*' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2)
           if [ "$etat" = inaccessible ]; then echo "echecs=$((AVANT + 1))" >> "$GITHUB_OUTPUT"; else echo "echecs=0" >> "$GITHUB_OUTPUT"; fi
           # rapport (contenu tiers) dans le résumé seulement, jamais sur la sortie standard : pas de commandes « :: » injectables
@@ -119,6 +138,50 @@ jobs:
           nouvelle=${url##*/}
           # écart : la nouvelle issue (différence cumulée depuis la référence) remplace celles encore ouvertes
           if [ "$ETAT" = ecart ]; then remplacer "$nouvelle"; fi
+      - name: Ouvrir ou refermer les issues des fichiers à part
+        # tenues à part (étiquette veille-fichiers) : un échec ou un écart d'un fichier à part ne referme ni ne remplace
+        # jamais une issue de la page principale, et l'inverse
+        if: steps.v.outputs.etat != 'saute'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ETAT: ${{ steps.v.outputs.fichiers_etat }}
+          TAGS: ${{ steps.v.outputs.fichiers_etiquettes }}
+          COMPLET: ${{ steps.v.outputs.fichiers_complet }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          case "$TAGS" in *[!a-z0-9\ -]*) echo "::warning::Étiquettes d'issue de forme inattendue : rien n'est fait."; exit 0 ;; esac
+          gh label create veille-fichiers --color FFD23F --description "Alerte de la veille : modules du boss et du globe, /regles" --force >/dev/null
+          ouvertes() { gh issue list --label veille-fichiers --state open --limit 100 --json number,title; }
+          case "$ETAT" in
+            conforme)
+              # tous les fichiers à part lus ce passage, et conformes : leurs issues se referment
+              for n in $(ouvertes | jq -r '.[].number'); do gh issue close "$n" --comment "Fichiers à part conformes de nouveau ($RUN)."; done
+              exit 0 ;;
+            ecart|inaccessible) ;;
+            *) echo "Fichiers à part : $ETAT (aucune issue ouverte ni refermée)."; exit 0 ;;
+          esac
+          liste=$(ouvertes)
+          # issue exacte (mêmes étiquettes) ; sinon, chaque étiquette déjà portée par une issue ouverte ?
+          exacte=$(echo "$liste" | jq -r --arg t "[$TAGS]" '.[] | select(.title | endswith($t)) | .number' | head -1)
+          manque=false
+          for t in $TAGS; do
+            if [ -z "$(echo "$liste" | jq -r --arg t "$t" '.[] | select(.title | contains($t)) | .number' | head -1)" ]; then manque=true; fi
+          done
+          if [ -z "$exacte" ] && { [ "$manque" = true ] || { [ "$ETAT" = ecart ] && [ "$COMPLET" = true ]; }; }; then
+            if [ "$ETAT" = ecart ]; then titre="Veille : un fichier à part du jeu a changé (module du boss, du globe ou /regles) [$TAGS]"
+            else titre="Veille : un fichier à part du jeu reste inaccessible [$TAGS]"; fi
+            if [ ! -s corps-fichiers.md ]; then cp rapport.md corps-fichiers.md; fi
+            { cat corps-fichiers.md; echo; echo "Exécution : $RUN"; } > issue-fichiers.md
+            url=$(gh issue create --title "$titre" --label veille-fichiers --body-file issue-fichiers.md)
+            exacte=${url##*/}
+          fi
+          # passage complet avec écart : son issue (différence cumulée de tous les fichiers) remplace les autres ;
+          # passage partiel, ou échec qui dure : rien n'est refermé
+          if [ "$ETAT" = ecart ] && [ "$COMPLET" = true ] && [ -n "$exacte" ]; then
+            for n in $(echo "$liste" | jq -r --arg e "$exacte" '.[] | select((.number | tostring) != $e) | .number'); do
+              gh issue close "$n" --comment "Remplacée par #$exacte ($RUN)."
+            done
+          fi
       - name: Noter l'heure de fin
         id: fin
         if: always()
@@ -145,6 +208,7 @@ jobs:
           FIN: ${{ needs.veille.outputs.fin }}
           ETAT: ${{ needs.veille.outputs.etat }}
           ECHECS: ${{ needs.veille.outputs.echecs }}
+          RATT: ${{ needs.veille.outputs.rattrapage }}
         run: |
           # garde-fous contre une boucle : heure de fin connue, délai réel depuis la fin du contrôle, 6 passages par heure au plus (délai de 15 min, plus les passages lancés par un envoi)
           if [ -z "$FIN" ]; then echo "::warning::Heure de fin de la veille inconnue : pas de relance."; exit 0; fi
@@ -160,8 +224,9 @@ jobs:
           # après un échec d'accès, le passage suivant est sauté (aucune requête au site) : prochain essai réel deux délais plus tard
           sauter=false; if [ "$ETAT" = inaccessible ]; then sauter=true; fi
           case "$ECHECS" in ''|*[!0-9]*) ECHECS=0 ;; esac
+          case "$RATT" in *[!a-z0-9:,]*) RATT='' ;; esac
           for essai in 1 2 3 4; do
-            if gh workflow run veille.yml --ref main -R "$GITHUB_REPOSITORY" -f sauter="$sauter" -f echecs="$ECHECS"; then exit 0; fi
+            if gh workflow run veille.yml --ref main -R "$GITHUB_REPOSITORY" -f sauter="$sauter" -f echecs="$ECHECS" -f rattrapage="$RATT"; then exit 0; fi
             echo "::warning::Relance refusée par GitHub (essai $essai sur 4)"
             if [ "$essai" -lt 4 ]; then sleep 30; fi
           done

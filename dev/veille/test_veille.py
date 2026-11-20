@@ -7,11 +7,11 @@ chaque passage de règle tel qu'il est noté dans dev/veille/reference.json, et 
 une référence tirée de cette page fabriquée, pas à dev/veille/reference.json.
 Usage : python3 dev/veille/test_veille.py
 """
-import contextlib, io, json, os, pathlib, re, subprocess, sys, tempfile
+import contextlib, datetime, io, json, os, pathlib, re, subprocess, sys, tempfile
 
 ICI = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(ICI))
-import autoclic, principale, veille  # noqa: E402
+import autoclic, fichiers, principale, veille  # noqa: E402
 
 REF = json.loads((ICI / 'reference.json').read_text(encoding='utf-8'))
 echecs = 0
@@ -353,7 +353,8 @@ def urlopen_compte(req, timeout=None):
 
 
 argv, vrai = sys.argv, veille.urllib.request.urlopen
-sys.argv, veille.urllib.request.urlopen = ['veille.py', '--reference', str(REF_TEST)], urlopen_compte
+# hors de la plage du jour des fichiers à part (sinon le passage les lit aussi : voir plus bas)
+sys.argv, veille.urllib.request.urlopen = ['veille.py', '--reference', str(REF_TEST), '--maintenant', '2026-11-20T12:00:00Z'], urlopen_compte
 try:
     with contextlib.redirect_stdout(io.StringIO()):
         code = veille.main()
@@ -370,10 +371,10 @@ verifie('contrôle des codes de compte : trouve un code, pas un pseudo',
         CODE_COMPTE.search('GOBE' + '-ABCD-1234-EFGH-5678') and CODE_COMPTE.search('gobe' + '-abcd-1234-efgh-5678')
         and not CODE_COMPTE.search('Gobe-Octet sournois #732') and not CODE_COMPTE.search("'Gobe-Octet','Contrôleur'"))
 RACINE = ICI.parents[1]
-fichiers = [x for x in RACINE.rglob('*') if x.is_file() and not {'.git', 'node_modules'} & set(x.relative_to(RACINE).parts)]
+du_depot = [x for x in RACINE.rglob('*') if x.is_file() and not {'.git', 'node_modules'} & set(x.relative_to(RACINE).parts)]
 verifie('aucun code de compte dans le dépôt (pseudos permis ; tirets, espaces ou rien entre les groupes)',
         CODE_COMPTE.search('GOBE' + ' ABCD 1234 EFGH 5678') and CODE_COMPTE.search('gobe' + 'abcd1234efgh5678')
-        and not any(CODE_COMPTE.search(x.read_text(encoding='utf-8', errors='ignore')) for x in fichiers), len(fichiers))
+        and not any(CODE_COMPTE.search(x.read_text(encoding='utf-8', errors='ignore')) for x in du_depot), len(du_depot))
 
 # lecture des motifs de déstructuration sur le découpage du lecteur (commentaires et chaînes délimités) :
 # (code, champs attendus, instruction enregistrée attendue — texte normalisé, ou None)
@@ -490,9 +491,324 @@ def plante():
     raise ValueError('nombre illisible')
 
 
-veille.main = plante
+main_vrai, veille.main = veille.main, plante
 code = veille.principal()
+veille.main = main_vrai
 verifie("plantage de l'analyse : état « erreur » (code 3), distinct d'une page inaccessible", code == 3)
+
+# ---------- fichiers à part (modules du boss et du globe, /regles) ----------
+# Modèles écrits pour ces tests, à la forme des fichiers du jeu (20/11/2026) : chaque zone suivie y est, avec des pièges
+# du lecteur (chaîne à accolade, commentaire, gabarit). Aucune copie des fichiers du jeu dans le dépôt.
+BOSS_NET = """/* BossEvent : scène du combat */
+var BossEvent = (function () {
+  function mount(host, opts) {
+    var root = host.shadowRoot || host.attachShadow({ mode: "open" });
+    var HTML = "<div class=\\"focus\\" id=\\"focus\\"><button id=\\"start\\">Rejoindre</button><button id=\\"bossBtn\\"></button>"
+      + "<div id=\\"squads\\"></div><div id=\\"bonuses\\"></div><button id=\\"superBtn\\">Super</button><div id=\\"end\\"></div>"
+      + "<button id=\\"closeEnd\\" hidden>Fermer</button></div>";
+    root.innerHTML = HTML;
+    var $ = function (id) { return root.getElementById(id); };
+    var P2 = 0.5, CAP3 = 14, CAP = 6, WIN = 1500; // plafonds { par seconde }
+    var S = null, ME = 0, squads = [];
+    var hit = function (t) { return []; }; // autre « hit », local : pas dans la zone des coups
+    function gate() {
+      var t = S.t;
+      if (t < S.stunUntil) { S.refused++; return false; }
+      var sec = Math.floor(t / 1000);
+      if (sec !== S.sec) { S.sec = sec; S.n = 0; }
+      if (S.n >= (S.fever || S.press ? CAP3 : CAP)) { S.refused++; return false; }
+      S.n++; S.counted++;
+      return true;
+    }
+    function hit(x, y, real) { if (!gate()) return false; S.dmg += 1; return true; }
+    function clickSquad(q, e) { if (q.sealed) { q.hp -= 1; } }
+    function launchSuper() { if (S.charge >= 1) { S.charge = 0; $("superBtn").classList.remove("full"); } }
+    function closeFocus() { host.hidden = true; if (opts.onClose) opts.onClose(); }
+    squads.forEach(function (q) {
+      q.w.addEventListener("click", function (e) { e.stopPropagation(); if (e.isTrusted) clickSquad(q, e); });
+    });
+    $("bossBtn").addEventListener("click", function (e) { if (!e.isTrusted) return; if (hit(e.clientX, e.clientY, true)) $("bossBtn").classList.add("broke"); });
+    $("superBtn").addEventListener("click", function (e) { if (e.isTrusted) launchSuper(); });
+    $("start").textContent = S && S.done ? "Retourner cliquer" : `Rejoindre ${opts.pseudo}`;
+    $("end").className = "win";
+    return {
+      me: function () { return S ? { ms: Math.round(S.t), on: S.on, dmg: S.dmg, cl: S.counted } : null; },
+      probe: function () { return { state: S ? S.state : "", pt: 0, fever: !!(S && S.fever), me: ME }; },
+      close: closeFocus,
+      state: function () { return { hp: S ? S.hp / S.hp0 : 1 }; },
+    };
+  }
+  return { mount: mount };
+})();
+"""
+BOSS_SITE = """(function () {
+  var T = window.TaxeBoss, SV = window.BOSS_SERVER, ev = null;
+  var hostEl = document.getElementById('bossHost');
+  function open(o) { ev = window.bossEv = BossEvent.mount(hostEl, o); T.lock(true); }
+  window.bossReopen = function () { open({}); };
+  document.addEventListener('visibilitychange', function () { if (ev && document.hidden) ev.close(); });
+})();
+"""
+MONDE = """export const preload = () => 1;
+const KEY = 'taxe-giga-cp';
+export function play(o) {
+  const w = document.createElement('div'); w.className = 'mw'; w.setAttribute('role', 'dialog'); w.setAttribute('aria-label', 'Le tour du monde');
+  w.innerHTML = `<div class="mw-prog"><em>0 / 174</em></div><div class="mw-paper"></div><div class="mw-cool" hidden></div>`;
+  const paper = w.querySelector('.mw-paper');
+  function launchFree() { const c = 'DE'; fetch(o.envoisUrl, { method: 'POST', body: JSON.stringify({ c }) }); localStorage.setItem('taxe-giga-monde-pays', '[]'); }
+  function goFree() { w.querySelector('.mw-cool').hidden = false; paper.textContent = 'Pliez la facture'; }
+  paper.addEventListener('keydown', e => { if (e.key === 'Enter') { paper.classList.add('f3'); launchFree(); } });
+  w.addEventListener('click', e => { if (e.target.closest('.mw-cx')) goFree(); });
+}
+"""
+REGLES = """<!doctype html><html><head><title>Règles</title><style>section { margin: 0 }</style></head><body>
+<nav><a href="#resume">En bref</a></nav>
+<section id="resume"><h2 id="h-resume">En bref</h2><p>Interdit : un <b>autoclicker</b>, une macro.</p></section>
+<section id="limites"><h2>Les limites</h2><p>1 030 clics comptés par minute au plus.</p></section>
+<section id="autoclick"><h2>L’autoclick</h2><div><p>Un premier avertissement.</p><p>Une pause de 10 minutes.</p></div></section>
+<section id="reprise"><h2>Reprendre une partie</h2><p>Votre code secret ( GOBE-XXXX-… ).</p></section>
+<section id="appel"><h2>Faites appel</h2><p>Votre pseudo (par exemple « Gobe-Octet sournois #732 »).</p></section>
+<section id="faq"><h2>Questions</h2><details><summary>Entrée maintenue ?</summary><p>Un vrai appui à chaque taxe.</p></details>
+<section class="q"><p>Sous-section.</p></section><p>Classement de tous les temps conservé.</p></section>
+</body></html>
+"""
+MODELES = {'boss-event-net': BOSS_NET, 'boss-site': BOSS_SITE, 'monde': MONDE, 'regles': REGLES}
+PAGE_F = page()  # page principale fabriquée (versions ?v= des modules : celles de PRINCIPALE)
+
+
+def copies(**mutes):
+    """Arguments --fichier-… avec les modèles, chacun muté par (avant, après) si donné ; None : copie non fournie."""
+    out = []
+    for nom, texte in MODELES.items():
+        m = mutes.get(nom.replace('-', '_'), ())
+        if m is None:
+            continue
+        for avant, apres in ([m] if m and isinstance(m[0], str) else m):
+            assert avant in texte, (nom, avant)
+            texte = texte.replace(avant, apres, 1)
+        f = TMP / f'copie-{nom}'
+        f.write_text(texte, encoding='utf-8')
+        out += [f'--fichier-{nom}', str(f)]
+    return out
+
+
+def sorties(o):
+    return dict(x.split('=', 1) for x in o.read_text().splitlines() if '=' in x)
+
+
+of = TMP / 'of'
+code, out = lancer(PAGE_F, '--maj-reference', *copies())
+reff = json.loads(REF_TEST.read_text(encoding='utf-8')).get('fichiers') or {}
+verifie('fichiers à part : référence des tests écrite avec les trois fichiers, rien d\'absent',
+        code == 0 and set(reff) == {'boss', 'globe', 'regles'} and not any(fichiers.manques(k, reff[k]) for k in reff), out[-400:])
+verifie('fichiers à part : #reprise non suivie (gabarit de code de compte), les cinq autres sections le sont',
+        set(reff['regles']['sections']) == {'resume', 'limites', 'autoclick', 'appel', 'faq'} and 'GOBE-XXXX' not in json.dumps(reff, ensure_ascii=False)
+        and 'Gobe-Octet' in reff['regles']['sections']['appel'])
+verifie('fichiers à part : zones et empreintes seulement, pas de copie des fichiers',
+        all('empreinte' in reff[k][p] and len(reff[k][p]['empreinte']) == 16 for k in ('boss', 'globe') for p in reff[k]))
+of.unlink(missing_ok=True)
+code, out = lancer(PAGE_F, *copies(), sortie=of)
+s = sorties(of)
+verifie('fichiers à part conformes : état « conforme », passage complet, page principale conforme',
+        code == 0 and s.get('etat') == 'conforme' and s.get('fichiers_etat') == 'conforme' and s.get('fichiers_complet') == 'true', (s, out[-300:]))
+of.unlink()
+code, out = lancer(PAGE_F, *copies(monde=None), sortie=of)
+s = sorties(of)
+verifie('un fichier à part non lu : état « partiel », jamais « conforme » pour l\'ensemble', s.get('fichiers_etat') == 'partiel'
+        and 'module du globe : non lu' in out and 'tous lus' not in out, (s, out[-300:]))
+
+CAS_F = [
+    ('module du boss : plafond de cadence (CAP) changé', dict(boss_event_net=('CAP = 6,', 'CAP = 8,')), 'constantes du combat'),
+    ('module du boss : compte des coups changé', dict(boss_event_net=('S.n++; S.counted++;', 'S.n += 2; S.counted++;')), 'compte et refus des coups'),
+    ('module du boss : garde isTrusted retirée', dict(boss_event_net=('if (e.isTrusted) launchSuper();', 'launchSuper();')), 'gardes isTrusted'),
+    ('module du boss : interface rendue changée', dict(boss_event_net=('probe: function () { return { state:', 'probe: function () { return { etat:')), 'interface rendue'),
+    ('module du boss : élément de la scène renommé', dict(boss_event_net=('id=\\"superBtn\\"', 'id=\\"superB\\"')), 'gabarit HTML'),
+    ('module du boss : texte du bouton changé', dict(boss_event_net=('"Retourner cliquer"', '"Revenir au jeu"')), 'textes écrits dans la scène'),
+    ('module du boss : classe d\'état changée', dict(boss_event_net=('classList.add("broke")', 'classList.add("cassé")')), 'changements de classe'),
+    ('module du boss : globale renommée', dict(boss_site=('ev = window.bossEv = ', 'ev = window.bossEvent = ')), 'globales posées'),
+    ('module du boss : contrat de la page changé', dict(boss_site=('T.lock(true)', 'T.verrou(true)')), 'contrat de la page'),
+    ('module du boss : hôte de la scène renommé', dict(boss_site=("'bossHost'", "'bossHote'")), 'hôte de la scène'),
+    ('module du boss : écouteur ajouté', dict(boss_site=("  window.bossReopen", "  hostEl.addEventListener('keydown', function () {});\n  window.bossReopen")), 'écouteurs'),
+    ('module du boss : partie non suivie changée (empreinte seule)', dict(boss_event_net=('return root.getElementById(id);', 'return root.querySelector("#" + id);')), 'modifié hors des zones suivies'),
+    ('module du boss : écouteur de boss-site.js changé', dict(boss_site=('if (ev && document.hidden)', 'if (ev && !document.hidden)')), 'écouteurs'),
+    ('module du boss : fonction suivie disparue', dict(boss_event_net=('function closeFocus()', 'function fermer()')), 'introuvable'),
+    ('module du boss : coup sur le boss changé', dict(boss_event_net=('S.dmg += 1;', 'S.dmg += 2;')), 'coup sur le boss (hit)'),
+    ('module du boss : fonction déclarée réécrite en flèche (zone introuvable, pas l\'autre « hit »)',
+     dict(boss_event_net=('function hit(x, y, real) {', 'var hit2 = function (x, y, real) {')), 'coup sur le boss (hit)** introuvable'),
+    ('module du boss : autre « hit » local changé (hors des zones suivies)', dict(boss_event_net=('return []; };', 'return [1]; };')), 'modifié hors des zones suivies'),
+    ('module du globe : lancement libre changé', dict(monde=("const c = 'DE';", "const c = 'FR';")), 'lancement libre'),
+    ('module du globe : classe de la fenêtre renommée', dict(monde=("'.mw-cx'", "'.mw-close'")), 'classes de la fenêtre'),
+    ('module du globe : clé du stockage changée', dict(monde=("'taxe-giga-monde-pays'", "'taxe-giga-pays'")), 'stockage du navigateur'),
+    ('module du globe : clé du stockage déclarée en constante changée', dict(monde=("const KEY = 'taxe-giga-cp';", "const KEY = 'taxe-giga-code';")), 'clés du stockage du jeu'),
+    ('module du globe : envoi changé', dict(monde=("fetch(o.envoisUrl,", "fetch('/monde/e.php',")), 'envois au serveur'),
+    ('module du globe : fenêtre renommée', dict(monde=("'Le tour du monde'", "'Le globe'")), 'fenêtre du globe'),
+    ('module du globe : export renommé', dict(monde=('export function play(o)', 'export function jouer(o)')), 'noms exportés'),
+    ('module du globe : partie non suivie changée (empreinte seule)', dict(monde=('export const preload = () => 1;', 'export const preload = () => 2;')), 'modifié hors des zones suivies'),
+    ('/regles : section #resume changée', dict(regles=('une macro.', 'une macro, un script.')), 'section **#resume** modifiée'),
+    ('/regles : section #limites changée', dict(regles=('1 030 clics', '1 200 clics')), 'section **#limites** modifiée'),
+    ('/regles : section #autoclick changée (bloc imbriqué)', dict(regles=('Une pause de 10 minutes.', 'Une pause de 30 minutes.')), 'section **#autoclick** modifiée'),
+    ('/regles : section #appel changée', dict(regles=('Faites appel', 'Écrivez-nous')), 'section **#appel** modifiée'),
+    ('/regles : section #faq changée', dict(regles=('Un vrai appui', 'Un appui')), 'section **#faq** modifiée'),
+    ('/regles : #faq changée après une section imbriquée', dict(regles=('tous les temps conservé', 'tous les temps perdu')), 'section **#faq** modifiée'),
+    ('/regles : section #autoclick disparue', dict(regles=('<section id="autoclick">', '<section id="autoclic">')), '#autoclick** introuvable'),
+    ('/regles : section ajoutée', dict(regles=('<section id="faq">', '<section id="bots"><p>Classement</p></section><section id="faq">')), 'liste des sections'),
+    ('module du boss illisible (chaîne non fermée)', dict(boss_site=("'bossHost'", "'bossHost")), 'illisible'),
+]
+for nom, mutes, attendu in CAS_F:
+    of.unlink(missing_ok=True)
+    code, out = lancer(PAGE_F, *copies(**mutes), sortie=of)
+    s = sorties(of)
+    verifie(f'écart nommé : {nom}', s.get('fichiers_etat') == 'ecart' and attendu in out and s.get('etat') == 'conforme', (s, out[-500:]))
+for nom, mutes in [('commentaire et reformatage dans un module', dict(boss_event_net=('var S = null, ME = 0', '// note\n    var S=null,   ME = 0'))),
+                   ('/regles : section #reprise changée (non suivie)', dict(regles=('Votre code secret', 'Votre code'))),
+                   ('/regles : texte hors section changé', dict(regles=('<a href="#resume">En bref</a>', '<a href="#resume">Résumé</a>')))]:
+    of.unlink(missing_ok=True)
+    code, out = lancer(PAGE_F, *copies(**mutes), sortie=of)
+    verifie(f'sans écart : {nom}', sorties(of).get('fichiers_etat') == 'conforme', out[-400:])
+of.unlink(missing_ok=True)
+code, out = lancer(PAGE_F, *copies(regles=('Faites appel', '::error::@quelquun ~~~~ [lien](https://exemple.invalid)')), sortie=of)
+verifie('texte tiers piégé dans /regles : inerte dans le rapport', '@quelquun' not in out and '\n::' not in out and '~~~~ [lien]' not in out, out[-400:])
+o1, o2 = TMP / 'of1', TMP / 'of2'
+for o, b in ((o1, '2026-11-04n'), (o2, '2026-11-05a')):
+    o.unlink(missing_ok=True)
+    lancer(PAGE_F.replace("const BUILD = '2026-11-04n'", f"const BUILD = '{b}'"), *copies(regles=('1 030 clics', '1 200 clics')), sortie=o)
+verifie('étiquette d\'issue des fichiers indépendante du build, par fichier', sorties(o1)['fichiers_etiquettes'] == sorties(o2)['fichiers_etiquettes']
+        and re.fullmatch(r'regles-[0-9a-f]{10}', sorties(o1)['fichiers_etiquettes']), sorties(o1))
+of.unlink(missing_ok=True)
+lancer(PAGE_F, *copies(regles=('1 030 clics', '1 200 clics'), monde=("const c = 'DE';", "const c = 'FR';")), sortie=of)
+verifie('deux fichiers changés : une étiquette chacun', re.fullmatch(r'globe-[0-9a-f]{10} regles-[0-9a-f]{10}', sorties(of)['fichiers_etiquettes']), sorties(of))
+avant = REF_TEST.read_text(encoding='utf-8')
+code, out = lancer(PAGE_F, '--maj-reference', *copies(boss_event_net=('function hit(', 'function frappe(')))
+verifie('recalage refusé si une zone d\'un module manque (référence inchangée)', code == 3 and 'hit' in out and REF_TEST.read_text(encoding='utf-8') == avant, out[-300:])
+code, out = lancer(PAGE_F, '--maj-reference', *copies(regles=('<section id="faq">', '<section id="questions">')))
+verifie('recalage refusé si une section de /regles manque', code == 3 and '#faq' in out and REF_TEST.read_text(encoding='utf-8') == avant, out[-300:])
+code, out = lancer(PAGE_F, '--maj-reference')
+verifie('recalage hors réseau sans copies : fichiers à part repris de l\'ancienne référence',
+        code == 0 and json.loads(REF_TEST.read_text(encoding='utf-8')).get('fichiers') == reff and 'repris' in out, out[-300:])
+ref = json.loads(REF_TEST.read_text(encoding='utf-8')); ref.pop('fichiers')
+REF_SANS3 = TMP / 'ref-sans3.json'; REF_SANS3.write_text(json.dumps(ref), encoding='utf-8')
+r = subprocess.run([sys.executable, str(ICI / 'veille.py'), '--fichier', str(TMP / 'page.html'), '--reference', str(REF_SANS3), *copies()],
+                   capture_output=True, text=True)
+verifie('référence sans suivi des fichiers à part : écart (jamais « conforme »)', 'Référence sans suivi du module du boss' in r.stdout, r.stdout[-300:])
+
+rf = REF.get('fichiers') or {}
+verifie('reference.json : section fichiers complète (boss, globe, /regles ; zones attendues, rien d\'absent)',
+        set(rf) == {'boss', 'globe', 'regles'} and not any(fichiers.manques(k, rf[k]) for k in rf)
+        and all(set(rf[k][p]['zones']) == {z for z, _, _ in fichiers.ZONES[p]} for k in ('boss', 'globe') for p in fichiers.FICHIERS[k][1]))
+
+# quand lire : plage du jour, version du module du boss, rattrapage, demande
+H = datetime.datetime
+
+
+def plan(t, tous=False, ratt='', vp='1', vr='1'):
+    return set(fichiers.a_lire(H.fromisoformat(t), tous, fichiers.rattrapage_lu(ratt), vp, vr))
+
+
+verifie('plan : dans la plage du jour, les trois fichiers ; hors plage, aucun',
+        plan('2026-11-20T03:10:00+00:00') == {'boss', 'globe', 'regles'} and plan('2026-11-20T03:24:00+00:00') == set()
+        and plan('2026-11-20T03:07:59+00:00') == set() and plan('2026-11-20T04:10:00+01:00') == {'boss', 'globe', 'regles'})
+verifie('plan : version ?v= du boss différente de la référence → module du boss à chaque passage',
+        plan('2026-11-20T12:00:00+00:00', vp='2') == {'boss'} and plan('2026-11-20T12:00:00+00:00', vp=None) == set())
+verifie('plan : rattrapage jusqu\'au troisième échec, puis attente de la plage',
+        plan('2026-11-20T12:00:00+00:00', ratt='regles:1,globe:2') == {'regles', 'globe'} and plan('2026-11-20T12:00:00+00:00', ratt='regles:3') == set()
+        and plan('2026-11-20T03:10:00+00:00', ratt='regles:3') == {'boss', 'globe', 'regles'})
+verifie('plan : tous sur demande (envoi sur main, lancement manuel)', plan('2026-11-20T12:00:00+00:00', tous=True) == {'boss', 'globe', 'regles'})
+verifie('rattrapage : entrée de forme inattendue ignorée', fichiers.rattrapage_lu('boss:1,x:2,regles:0,globe:2;rm,regles:12') == {'boss': 1}
+        and fichiers.rattrapage_ecrit({'regles': 2, 'boss': 1}) == 'boss:1,regles:2')
+fichiers.SUIVI_GLOBE = False
+verifie('plan : globe non suivi quand SUIVI_GLOBE est faux', plan('2026-11-20T03:10:00+00:00', tous=True) == {'boss', 'regles'})
+fichiers.SUIVI_GLOBE = True
+# requêtes par jour : passages toutes les 15,3 min (mesuré le 20/11/2026), départ à chaque minute d'un quart d'heure
+par_jour = []
+for depart in range(16):
+    t, n = H(2026, 11, 20, 0, depart, tzinfo=datetime.timezone.utc), 0
+    while t < H(2026, 11, 21, 0, depart, tzinfo=datetime.timezone.utc):
+        n += sum(len(fichiers.FICHIERS[k][1]) for k in fichiers.a_lire(t, False, {}, '1', '1'))
+        t += datetime.timedelta(minutes=15.3)
+    par_jour.append(n)
+verifie('requêtes de plus par jour (passages à 15,3 min) : 4, ou 8 quand deux passages tombent dans la plage',
+        set(par_jour) <= {4, 8} and 4 in par_jour, par_jour)
+
+
+# requêtes comptées sur des passages complets (urlopen remplacé) : adresses, échecs, page principale inaccessible
+class Refus(Exception):
+    pass
+
+
+def passage(*args, refus=(), page_html=None, sortie=None):
+    """Un passage de veille.principal() sans réseau ; refus : adresses qui échouent (403). [adresses demandées]."""
+    demandes = []
+
+    def ouvre(req, timeout=None):
+        u = req.full_url
+        demandes.append(u)
+        if any(x in u for x in refus):
+            raise veille.urllib.error.HTTPError(u, 403, 'Forbidden', {}, None)
+        chemin = u.split('taxe-au-giga.fr', 1)[1].split('?')[0]
+        return Reponse((page_html or PAGE_F if chemin == '/' else MODELES[{'/boss/boss-event-net.js': 'boss-event-net', '/boss/boss-site.js': 'boss-site',
+                                                                          '/monde/monde.js': 'monde', '/regles': 'regles'}[chemin]]).encode())
+    veille.SORTIES_FICHIERS.clear()
+    env, argv, vrai = os.environ.get('GITHUB_OUTPUT'), sys.argv, veille.urllib.request.urlopen
+    if sortie:
+        sortie.unlink(missing_ok=True); os.environ['GITHUB_OUTPUT'] = str(sortie)
+    else:
+        os.environ.pop('GITHUB_OUTPUT', None)
+    sys.argv, veille.urllib.request.urlopen = ['veille.py', '--reference', str(REF_TEST), *args], ouvre
+    try:
+        with contextlib.redirect_stdout(io.StringIO()) as sortie_std:
+            code = veille.principal()
+    finally:
+        sys.argv, veille.urllib.request.urlopen = argv, vrai
+        if env is None:
+            os.environ.pop('GITHUB_OUTPUT', None)
+        else:
+            os.environ['GITHUB_OUTPUT'] = env
+    return code, demandes, sortie_std.getvalue()
+
+
+v_boss = principale.releve(PAGE_F)['version du module du boss']
+v_globe = principale.releve(PAGE_F)['version du module du globe']
+code, d, _ = passage('--maintenant', '2026-11-20T12:00:00Z')
+verifie('hors plage : une seule requête au site (page principale)', d == [veille.URL], d)
+code, d, out = passage('--maintenant', '2026-11-20T03:10:00Z', sortie=of)
+verifie('dans la plage : page principale puis les quatre fichiers à part, versions ?v= de la page',
+        d == [veille.URL, f'{fichiers.RACINE}/boss/boss-event-net.js?v={v_boss}', f'{fichiers.RACINE}/boss/boss-site.js?v={v_boss}',
+              f'{fichiers.RACINE}/monde/monde.js?v={v_globe}', f'{fichiers.RACINE}/regles'] and sorties(of)['fichiers_etat'] == 'conforme', (d, out[-300:]))
+code, d, _ = passage('--maintenant', '2026-11-20T12:00:00Z', '--tous')
+verifie('sur demande (--tous) : cinq requêtes', len(d) == 5, d)
+code, d, out = passage('--maintenant', '2026-11-20T12:00:00Z', '--rattrapage', 'regles:1', sortie=of)
+s = sorties(of)
+verifie('rattrapage réussi : /regles seule relue, rattrapage vidé', d == [veille.URL, f'{fichiers.RACINE}/regles'] and s['rattrapage'] == '' and s['fichiers_etat'] == 'partiel', (d, s))
+code, d, out = passage('--maintenant', '2026-11-20T03:10:00Z', refus=('/regles',), sortie=of)
+s = sorties(of)
+verifie('/regles injoignable une fois : ni issue (état « partiel »), rattrapage regles:1, page principale conforme',
+        s['fichiers_etat'] == 'partiel' and s['rattrapage'] == 'regles:1' and s['etat'] == 'conforme' and code == 0 and 'non lu' in out, (s, out[-400:]))
+code, d, out = passage('--maintenant', '2026-11-20T03:25:00Z', '--rattrapage', 'regles:2', refus=('/regles',), sortie=of)
+s = sorties(of)
+verifie('/regles injoignable une troisième fois de suite : signalé (état « inaccessible »)',
+        s['fichiers_etat'] == 'inaccessible' and s['rattrapage'] == 'regles:3' and s['fichiers_etiquettes'] == 'inaccessible-regles', s)
+code, d, out = passage('--maintenant', '2026-11-20T03:40:00Z', '--rattrapage', 'regles:3', sortie=of)
+verifie('après le signalement : plus de relance hors plage (zéro requête de plus), rattrapage gardé',
+        d == [veille.URL] and sorties(of)['rattrapage'] == 'regles:3' and sorties(of)['fichiers_etat'] == 'rien', (d, sorties(of)))
+code, d, out = passage('--maintenant', '2026-11-20T03:10:00Z', refus=('boss-event-net',), sortie=of)
+verifie('module en deux parties : arrêt au premier échec (pas de requête pour la seconde)',
+        f'{fichiers.RACINE}/boss/boss-site.js?v={v_boss}' not in d and sorties(of)['rattrapage'] == 'boss:1', d)
+page_ecart = mute('Plus de 175 000 clics en 8 h', 'Plus de 150 000 clics en 8 h')
+code, d, out = passage('--maintenant', '2026-11-20T03:10:00Z', refus=('/boss/',), page_html=page_ecart, sortie=of)
+s = sorties(of)
+verifie('module injoignable et écart de la page principale : l\'écart reste signalé, état des fichiers à part distinct',
+        code == 1 and s['etat'] == 'ecart' and s['sujet'] == 'autoclic' and s['fichiers_etat'] == 'partiel', s)
+code, d, out = passage('--maintenant', '2026-11-20T03:10:00Z', '--rattrapage', 'globe:1', page_html='<html><title>Un instant</title></html>', sortie=of)
+verifie('page principale inaccessible : aucune requête de plus, rattrapage transmis tel quel',
+        d == [veille.URL] and sorties(of)['rattrapage'] == 'globe:1' and sorties(of)['fichiers_etat'] == 'rien', (d, sorties(of)))
+vrai_modeles = dict(MODELES); MODELES['monde'] = '<html><title>Vérification</title></html>'
+code, d, out = passage('--maintenant', '2026-11-20T03:10:00Z', sortie=of)
+MODELES.update(vrai_modeles)
+verifie('module reçu en HTML (vérification anti-robot) : échec d\'accès, pas un écart', sorties(of)['fichiers_etat'] == 'partiel'
+        and sorties(of)['rattrapage'] == 'globe:1', sorties(of))
+code, d, out = passage('--maintenant', '2026-11-20T12:00:00Z', page_html=PAGE_F.replace(f'?v={v_boss}', '?v=1794600000'), sortie=of)
+verifie('version ?v= du boss changée : écart de la page principale, module du boss lu à ce passage',
+        sorties(of)['etat'] == 'ecart' and len(d) == 3 and all('/boss/' in x and '?v=1794600000' in x for x in d[1:]), d)
 
 print('\nTout est passé' if not echecs else f'\n{echecs} échec(s)')
 sys.exit(1 if echecs else 0)

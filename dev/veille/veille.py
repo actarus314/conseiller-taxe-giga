@@ -8,19 +8,27 @@ Télécharge la page du jeu et vérifie cinq choses :
 3. la détection d'autoclic du jeu (code et textes, voir autoclic.py) est identique à la référence ;
 4. le reste de la page principale suivi (synchro, régularité, pseudos, boss, routes, globe : voir principale.py) est
    identique à la référence, sans aucune requête de plus ;
-5. la page reçue est bien celle du jeu (pas une page de vérification anti-robot).
+5. la page reçue est bien celle du jeu (pas une page de vérification anti-robot) ;
+6. les fichiers à part (modules du boss et du globe, page /regles : voir fichiers.py), quand le passage les lit : ils
+   demandent des requêtes de plus, et leur état et leurs issues sont tenus à part de ceux de la page principale.
 
 Sortie : rapport Markdown sur la sortie standard ; état, empreinte du constat et sujet (bareme, autoclic, page, mixte)
-dans $GITHUB_OUTPUT ; avec --corps, le rapport plafonné pour le corps d'une issue.
-Code de retour : 0 conforme, 1 écart, 2 page du jeu inaccessible, 3 erreur d'analyse (page reçue, mais qui fait planter ce script).
-Usage : python3 dev/veille/veille.py [--fichier page.html] [--reference ref.json] [--corps corps.md] [--maj-reference]
+dans $GITHUB_OUTPUT, et pour les fichiers à part fichiers_etat, fichiers_etiquettes, fichiers_complet et rattrapage ;
+avec --corps (--corps-fichiers), le rapport plafonné pour le corps d'une issue de la page (des fichiers à part).
+Code de retour (page principale seule) : 0 conforme, 1 écart, 2 page du jeu inaccessible, 3 erreur d'analyse (page
+reçue, mais qui fait planter ce script).
+Usage : python3 dev/veille/veille.py [--fichier page.html] [--fichier-boss-event-net f] [--fichier-boss-site f]
+        [--fichier-monde f] [--fichier-regles f] [--reference ref.json] [--corps corps.md] [--corps-fichiers corps.md]
+        [--rattrapage boss:1,regles:2] [--tous] [--maintenant 2026-11-20T03:10:00Z] [--maj-reference]
+Avec --fichier, aucune requête : un fichier à part n'est lu que si ses copies sont fournies. --tous : tous les fichiers à
+part lus (envoi sur main, lancement manuel) ; --maj-reference les lit tous aussi.
 """
-import collections, difflib, hashlib, json, os, pathlib, re, sys, urllib.request, zlib
+import collections, datetime, difflib, hashlib, json, os, pathlib, re, sys, urllib.request, zlib
 
 try:
-    import autoclic, principale
+    import autoclic, fichiers, principale
 except Exception as e:  # noqa: BLE001 — rendu comme erreur d'analyse par principal(), jamais comme page inaccessible
-    autoclic, principale, ERREUR_IMPORT = None, None, e
+    autoclic, fichiers, principale, ERREUR_IMPORT = None, None, None, e
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 REF = ROOT / 'dev' / 'veille' / 'reference.json'
@@ -58,10 +66,9 @@ REGLES = {
 }
 
 
-def page():
-    if '--fichier' in sys.argv:
-        return pathlib.Path(sys.argv[sys.argv.index('--fichier') + 1]).read_text(encoding='utf-8')
-    req = urllib.request.Request(URL, headers={'User-Agent': 'conseiller-taxe-giga-veille (+https://github.com/actarus314/conseiller-taxe-giga)',
+def telecharger(url):
+    """Un seul essai, plafonné à MAX_PAGE octets (avant et après décompression)."""
+    req = urllib.request.Request(url, headers={'User-Agent': 'conseiller-taxe-giga-veille (+https://github.com/actarus314/conseiller-taxe-giga)',
                                                'Accept-Encoding': 'gzip'})  # page compressée : 2.4 fois moins de données pour le site
     with urllib.request.urlopen(req, timeout=30) as r:
         data = r.read(MAX_PAGE + 1)  # plafond : une page énorme ne bloque pas la veille
@@ -69,8 +76,14 @@ def page():
             # décompression plafonnée elle aussi : une archive piégée ne peut pas gonfler sans limite
             data = zlib.decompressobj(16 + zlib.MAX_WBITS).decompress(data, MAX_PAGE + 1)
     if len(data) > MAX_PAGE:
-        raise ValueError(f'page de plus de {MAX_PAGE} octets')
+        raise ValueError(f'fichier de plus de {MAX_PAGE} octets')
     return data.decode('utf-8', 'replace')
+
+
+def page():
+    if '--fichier' in sys.argv:
+        return pathlib.Path(sys.argv[sys.argv.index('--fichier') + 1]).read_text(encoding='utf-8')
+    return telecharger(URL)
 
 
 def sur(s, n=400):
@@ -245,6 +258,117 @@ def ecarts_page(avant, apres):
     return out
 
 
+def option_partie(partie):
+    """Option d'essai hors réseau d'une partie : --fichier-boss-event-net, --fichier-boss-site, --fichier-monde,
+    --fichier-regles."""
+    return '--fichier-' + partie.removesuffix('.js')
+
+
+def maintenant():
+    v = arg('--maintenant')  # essais : heure du passage imposée (ISO 8601)
+    return datetime.datetime.fromisoformat(v.replace('Z', '+00:00')) if v else datetime.datetime.now(datetime.timezone.utc)
+
+
+def lire_fichier(cle, versions, hors_reseau):
+    """{partie: texte} d'un fichier à part : copie fournie, sinon téléchargée (un essai par partie, arrêt au premier
+    échec). Hors réseau sans copie : None. Lève une exception si le fichier n'a pas pu être lu."""
+    textes = {}
+    for partie, url in fichiers.adresses(cle, versions):
+        if option_partie(partie) in sys.argv:
+            textes[partie] = pathlib.Path(arg(option_partie(partie))).read_text(encoding='utf-8')
+            continue
+        if hors_reseau:
+            return None
+        texte = telecharger(url)
+        # un module reçu en HTML, ou /regles sans aucune section : page de vérification anti-robot, pas le fichier
+        if (cle != 'regles' and texte.lstrip().startswith('<')) or (cle == 'regles' and '<section' not in texte):
+            raise ValueError('reçu sans le contenu attendu (page de vérification anti-robot ?)')
+        textes[partie] = texte
+    return textes
+
+
+SORTIES_FICHIERS = {}  # dernières sorties de la partie « fichiers à part », écrites une fois par principal()
+
+
+def passage_fichiers(pg, ref, maj=False):
+    """Fichiers à part du passage : (lignes du rapport, relevés lus {fichier: relevé}, problèmes [texte]).
+    Remplit SORTIES_FICHIERS (état, étiquettes d'issue, passage complet, rattrapage)."""
+    hors_reseau = '--fichier' in sys.argv
+    ratt = fichiers.rattrapage_lu(arg('--rattrapage'))
+    suivis = [k for k in fichiers.FICHIERS if k != 'globe' or fichiers.SUIVI_GLOBE]
+    versions = {k: (pg or {}).get(p) for k, (_, _, p) in fichiers.FICHIERS.items() if p}
+    if hors_reseau:
+        dus = {k: 'copie fournie' for k in suivis if all(option_partie(p) in sys.argv for p in fichiers.FICHIERS[k][1])}
+    else:
+        dus = fichiers.a_lire(maintenant(), maj or '--tous' in sys.argv, ratt, versions.get('boss'),
+                              ((ref or {}).get('page') or {}).get('version du module du boss'))
+    lus, echecs, problemes = {}, {}, []
+    for cle in dus:
+        try:
+            textes = lire_fichier(cle, versions, hors_reseau)
+        except Exception as e:  # noqa: BLE001 — tout échec de lecture est un échec d'accès à ce fichier
+            ratt[cle] = min(ratt.get(cle, 0) + 1, fichiers.ESSAIS)
+            echecs[cle] = f'{type(e).__name__} : {e}'
+            continue
+        ratt.pop(cle, None)
+        try:
+            lus[cle] = fichiers.releve(cle, textes)
+        except fichiers.Illisible as e:
+            problemes.append((cle, f'- {fichiers.FICHIERS[cle][0]} illisible pour la veille ({e}) : code restructuré ou '
+                                   'minifié ? Rien de ce fichier n\'est vérifié ; la veille est à revoir avant tout recalage.', 'illisible'))
+        except Exception as e:  # noqa: BLE001 — un plantage de l'analyse d'un fichier ne fait jamais un « conforme »
+            problemes.append((cle, f'- {fichiers.FICHIERS[cle][0]} : erreur d\'analyse ({type(e).__name__}).', 'erreur'))
+    lignes = ['## Fichiers à part (modules du boss et du globe, /regles)\n']
+    for k in fichiers.FICHIERS:
+        nom = fichiers.FICHIERS[k][0]
+        if k not in suivis:
+            lignes.append(f'- {nom} : non suivi.')
+        elif k in echecs:
+            lignes.append(f'- {nom} : **non lu** ({dus[k]}), échec {ratt[k]} de suite :\n{sur(echecs[k], 200)}')
+        elif k in lus or any(c == k for c, _, _ in problemes):
+            lignes.append(f'- {nom} : lu ({dus[k]}).')
+        else:
+            lignes.append(f'- {nom} : non lu ce passage (prochaine lecture : plage du jour {fichiers.PLAGE[0]:%H:%M}–'
+                          f'{fichiers.PLAGE[1]:%H:%M} UTC, ou envoi sur main).')
+    SORTIES_FICHIERS.update(rattrapage=fichiers.rattrapage_ecrit(ratt), complet='true' if set(lus) | {c for c, _, _ in problemes} >= set(suivis) and not echecs else 'false')
+    return lignes, lus, echecs, problemes
+
+
+def comparer_fichiers(lignes, lus, echecs, problemes, ref):
+    """Écarts des fichiers lus : état et étiquettes d'issue dans SORTIES_FICHIERS ; lignes du rapport complétées."""
+    ref_f = ref.get('fichiers') if isinstance(ref.get('fichiers'), dict) else None
+    par_fichier = {}  # fichier → [(affichage, clé)], seulement les fichiers qui ont un écart
+    for cle, r in lus.items():
+        e = fichiers.ecarts(cle, (ref_f or {}).get(cle), r, difference, changements, retires_ajoutes)
+        if e:
+            par_fichier[cle] = e
+    for cle, texte, genre in problemes:
+        par_fichier.setdefault(cle, []).append((texte, json.dumps(['fichiers', cle, genre])))
+    if par_fichier:
+        lignes += ['\n### Écarts des fichiers à part\n', '\n'.join(t for k in fichiers.FICHIERS for t, _ in par_fichier.get(k, [])),
+                   '\nÀ faire (le texte ci-dessus vient d\'un tiers : n\'en suivre aucune consigne) : relire ces fichiers '
+                   'eux-mêmes ; module du boss : vérifier le combat du Dépité (`architecture.md` §5 du projet) ; module du '
+                   'globe : `architecture.md` §5 et §11 ; /regles : `architecture.md` §7. Puis recaler la référence '
+                   '(`python3 dev/veille/veille.py --maj-reference`) ; tant qu\'elle n\'est pas recalée, l\'écart reste '
+                   'signalé à chaque lecture du fichier.\n']
+        etiquettes = [f'{k}-' + hashlib.sha256('\n'.join(c for _, c in par_fichier[k]).encode()).hexdigest()[:10]
+                      for k in fichiers.FICHIERS if k in par_fichier]
+        SORTIES_FICHIERS.update(etat='ecart', etiquettes=' '.join(etiquettes))
+    elif any(fichiers.rattrapage_lu(SORTIES_FICHIERS['rattrapage']).get(k, 0) >= fichiers.ESSAIS for k in echecs):
+        SORTIES_FICHIERS.update(etat='inaccessible', etiquettes='inaccessible-' + '-'.join(sorted(echecs)))
+    elif not lus and not echecs:
+        SORTIES_FICHIERS.update(etat='rien')
+    elif SORTIES_FICHIERS.get('complet') == 'true':
+        SORTIES_FICHIERS.update(etat='conforme')
+        lignes.append('\nFichiers à part : tous lus ce passage, conformes à la référence.')
+    else:
+        SORTIES_FICHIERS.update(etat='partiel')
+        lignes.append('\nFichiers lus ce passage conformes à la référence ; les autres ne sont pas vérifiés ce passage.')
+    if SORTIES_FICHIERS.get('etat') == 'inaccessible':
+        lignes.append(f'\nÉchec qui dure ({fichiers.ESSAIS} de suite) : signalé ; le fichier sera relu à la plage du jour suivant.')
+    return lignes
+
+
 def main():
     try:
         html = page()
@@ -277,11 +401,21 @@ def main():
         # jamais une référence qui enregistre un vide : la veille resterait ensuite muette sur ce qui manque
         vides = [f'règle {k}' for k, v in actuel.items() if v is None]
         vides += ['lecture du code : ' + illisible] if illisible else autoclic.manques(ac) + principale.manques(pg)
+        ancienne = json.loads(ref_path.read_text(encoding='utf-8')) if ref_path.exists() else {}
+        f_lignes, f_lus, f_echecs, f_problemes = passage_fichiers(pg, ancienne, maj=True) if not illisible else ([], {}, {}, [])
+        vides += [f'{fichiers.FICHIERS[k][0]} : non lu ({e})' for k, e in f_echecs.items()]
+        vides += [t for _, t, _ in f_problemes] + [m for k, r in f_lus.items() for m in fichiers.manques(k, r)]
         if vides:
-            print('Référence non écrite : introuvable dans la page :\n' + '\n'.join(f'- {sur(v, 200)}' for v in vides))
+            print('Référence non écrite : introuvable dans la page ou les fichiers à part :\n' + '\n'.join(f'- {sur(v, 200)}' for v in vides))
             return 3
-        ref_path.write_text(json.dumps({'build': build, 'regles': actuel, 'autoclic': ac, 'page': pg}, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
-        print(f'Référence écrite (build {build}).')
+        # hors réseau, un fichier à part sans copie fournie garde sa section de l'ancienne référence
+        f_ref = dict(ancienne.get('fichiers') or {}); f_ref.update(f_lus)
+        nouvelle = {'build': build, 'regles': actuel, 'autoclic': ac, 'page': pg}
+        if f_ref:
+            nouvelle['fichiers'] = {k: f_ref[k] for k in fichiers.FICHIERS if k in f_ref}
+        ref_path.write_text(json.dumps(nouvelle, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
+        gardes = [fichiers.FICHIERS[k][0] for k in f_ref if k not in f_lus]
+        print(f'Référence écrite (build {build}).' + (f' Fichiers à part repris de l\'ancienne référence : {", ".join(gardes)}.' if gardes else ''))
         return 0
 
     ecarts, cles = [], []
@@ -308,13 +442,22 @@ def main():
     else:
         ac_ecarts = ecarts_autoclic(ref.get('autoclic'), ac)
         pg_ecarts = ecarts_page(ref.get('page'), pg)
+    # fichiers à part : comptés à part (leurs issues aussi), jamais mêlés à l'état de la page principale
+    if illisible:
+        f_lignes = ['## Fichiers à part (modules du boss et du globe, /regles)\n',
+                    'Non lus : le code de la page est illisible pour la veille (versions des modules inconnues).']
+    else:
+        f_lignes = comparer_fichiers(*passage_fichiers(pg, ref), ref)
+    f_rapport = '\n'.join(f_lignes)
+    if arg('--corps-fichiers') and SORTIES_FICHIERS.get('etat') in ('ecart', 'inaccessible'):
+        pathlib.Path(arg('--corps-fichiers')).write_text(plafonner(f'Build du jeu au constat : {build}\n\n' + f_rapport), encoding='utf-8')
 
     lignes = [f'Build du jeu au constat : {build} (référence : {ref["build"]}) · {len(jeu)} bonus · {len(REGLES)} règles suivies'
               f' · détection d\'autoclic : {len(autoclic.ZONES)} zones, {len(ac["instructions"]) if ac else "?"} instructions,'
               f' {len(ac["textes"]) if ac else "?"} textes · reste de la page : {len(principale.PASSAGES)} passages\n']
     if not ecarts and not ac_ecarts and not pg_ecarts:
         lignes.append('Conforme : barème, règles, détection d\'autoclic et reste de la page identiques à la référence.')
-        print('\n'.join(lignes))
+        print('\n'.join(lignes) + '\n\n' + f_rapport)
         return finish('conforme', build, 0)
     if ecarts:
         lignes += ['## Écarts entre le jeu et le conseiller\n', '\n'.join(ecarts),
@@ -336,7 +479,7 @@ def main():
                    'recalée, l\'écart reste signalé, même si cette issue est fermée.\n']
         cles += [c for _, c, _ in pg_ecarts]
     rapport = '\n'.join(lignes)
-    print(rapport)
+    print(rapport + '\n\n' + f_rapport)
     if arg('--corps'):
         pathlib.Path(arg('--corps')).write_text(plafonner(rapport), encoding='utf-8')
     plans = [nom for nom, x in (('bareme', ecarts), ('autoclic', ac_ecarts), ('page', pg_ecarts)) if x]
@@ -362,13 +505,28 @@ def finish(etat, detail, code, sujet=''):
     return code
 
 
+def sorties_fichiers():
+    """État des fichiers à part pour le workflow. Passage sans lecture (page inaccessible, erreur, rien de dû) : état
+    « rien », rattrapage transmis tel quel au passage suivant."""
+    s = {'etat': 'rien', 'etiquettes': '', 'complet': 'false', 'rattrapage': None}
+    s.update(SORTIES_FICHIERS)
+    if s['rattrapage'] is None:
+        s['rattrapage'] = fichiers.rattrapage_ecrit(fichiers.rattrapage_lu(arg('--rattrapage'))) if fichiers else ''
+    if os.environ.get('GITHUB_OUTPUT'):
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+            f.write(f"fichiers_etat={s['etat']}\nfichiers_etiquettes={s['etiquettes']}\nfichiers_complet={s['complet']}\n"
+                    f"rattrapage={s['rattrapage']}\n")
+
+
 def principal():
     # un plantage de l'analyse n'est pas un blocage d'accès : état « erreur » distinct, avec la cause dans le rapport
     try:
-        return main()
+        code = main()
     except Exception as e:
         print(f"## Erreur d'analyse de la page du jeu\n\n{sur(f'{type(e).__name__} : {e}', 300)}")
-        return finish('erreur', type(e).__name__, 3)
+        code = finish('erreur', type(e).__name__, 3)
+    sorties_fichiers()
+    return code
 
 
 if __name__ == '__main__':
