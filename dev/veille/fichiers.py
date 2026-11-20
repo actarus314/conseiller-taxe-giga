@@ -2,7 +2,7 @@
 
 Chacun demande des requêtes de plus au site. Quand (décision de Romain du 20/11/2026, `dev/lots/veille-3-fichiers.md`) :
 - module du boss : à chaque passage tant que sa version ?v= dans la page diffère de la référence (déploiement pas encore
-  recalé), et une fois par jour dans la plage PLAGE ;
+  recalé ; sauf après ESSAIS échecs de suite), et une fois par jour dans la plage PLAGE ;
 - page /regles et module du globe : une fois par jour dans la plage PLAGE ; le globe tant que SUIVI_GLOBE est vrai ;
 - tous à chaque envoi sur main qui touche la veille, et sur demande (lancement manuel, recalage) ;
 - un fichier qui n'a pas pu être lu est relu au passage suivant (rattrapage), au plus ESSAIS fois de suite ; au-delà,
@@ -47,7 +47,8 @@ _COMMUN = [
     ('clés du stockage du jeu (taxe-giga-…)', 'chaines', r'\btaxe-giga-[\w-]+', False),
 ]
 ZONES = {
-    'boss-event-net.js': _COMMUN + [
+    # les gardes isTrusted sont des contrôles propres au module du boss : requises dans boss-event-net.js
+    'boss-event-net.js': [z[:3] + (True,) if z[0] == 'gardes isTrusted' else z for z in _COMMUN] + [
         ('constantes du combat (déclaration de CAP et CAP3)', 'liste', r'\bCAP3?\s*=(?![=>])', True),
         ('racine de la scène (attachShadow)', 'liste', r'\battachShadow\s*\(', True),
         ('compte et refus des coups (gate)', 'fonction', 'gate', True),

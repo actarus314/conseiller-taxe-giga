@@ -7,7 +7,8 @@
 # sautée (passage sans requête au site) ; l'issue n'est ouverte qu'au deuxième échec de suite. L'état passe d'un passage
 # au suivant par les entrées du lancement (sauter, echecs).
 # Fichiers à part (modules du boss et du globe, /regles ; dev/veille/fichiers.py) : lus une fois par jour, le module du
-# boss aussi tant que sa version ?v= diffère de la référence, tous à un envoi sur main ou sur demande (entrée fichiers) ;
+# boss aussi tant que sa version ?v= diffère de la référence (sauf après trois échecs de suite), tous à un envoi sur main
+# qui touche la veille ou sur demande (entrée fichiers) ;
 # un fichier non lu est relu aux passages suivants (entrée rattrapage), et signalé au troisième échec de suite. Leurs
 # issues portent l'étiquette veille-fichiers, tenues à part de celles de la page principale.
 # Cadence : la veille se relance elle-même après le délai de l'environnement « attente-veille » (réglé dans
