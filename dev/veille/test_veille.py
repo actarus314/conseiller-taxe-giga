@@ -375,32 +375,42 @@ verifie('aucun code de compte dans le dépôt (pseudos permis ; tirets, espaces 
         CODE_COMPTE.search('GOBE' + ' ABCD 1234 EFGH 5678') and CODE_COMPTE.search('gobe' + 'abcd1234efgh5678')
         and not any(CODE_COMPTE.search(x.read_text(encoding='utf-8', errors='ignore')) for x in fichiers), len(fichiers))
 
-# lecture des clés d'une déstructuration sur le découpage du lecteur (commentaires et chaînes délimités)
+# lecture des motifs de déstructuration sur le découpage du lecteur (commentaires et chaînes délimités) :
+# (code, champs attendus, instruction enregistrée attendue — texte normalisé, ou None)
 DESTRUCTURES = [
-    ("const { ok,\n // champ\n acX } = d;", ['acX']),
-    ('const { /* c */ acX } = d;', ['acX']),
-    ('const { ok, acX /* x */ } = d;', ['acX']),
-    ('const { ok, acX // x\n } = d;', ['acX']),
-    ("const { 'a//b': s, acZ } = d;", ['acZ']),
-    ("const { ok = '//', acV } = d;", ['acV']),
-    ("const { 'a/*b': s, acW, 'c*/d': t } = d;", ['acW']),
-    ("const { u = 'https://x', acA } = d;", ['acA']),
-    ('const { ok, // }\n acB } = d;', ['acB']),
-    ('const { acA, /* } */ acB } = d;', ['acA', 'acB']),
-    ("const { 'acQ': s, \"acR\" : r } = d;", ['acQ', 'acR']),
-    ('const { acK /* c */ : l } = d;', ['acK']),
-    ('const { ok = 4 / 2 / 1, acDV } = d;', ['acDV']),
-    ('const { x: acY } = d;', []),
-    ("const { u = 'a, acX', ok } = d;", []),
-    ("const { ok = ', acS, ' } = d;", []),
-    ('const { ok = `${a}, acX`, acT } = d;', ['acT']),
-    ('for (const { acF } of liste) f(acF);', []),
+    ("const { ok,\n // champ\n acX } = d;", ['acX'], 'const{ok,acX}=d;'),
+    ('const { /* c */ acX } = d;', ['acX'], 'const{acX}=d;'),
+    ('const { ok, acX /* x */ } = d;', ['acX'], 'const{ok,acX}=d;'),
+    ('const { ok, acX // x\n } = d;', ['acX'], 'const{ok,acX}=d;'),
+    ("const { 'a//b': s, acZ } = d;", ['acZ'], "const{'a//b':s,acZ}=d;"),
+    ("const { ok = '//', acV } = d;", ['acV'], "const{ok='//',acV}=d;"),
+    ("const { 'a/*b': s, acW, 'c*/d': t } = d;", ['acW'], "const{'a/*b':s,acW,'c*/d':t}=d;"),
+    ("const { u = 'https://x', acA } = d;", ['acA'], "const{u='https://x',acA}=d;"),
+    ('const { ok, // }\n acB } = d;', ['acB'], 'const{ok,acB}=d;'),
+    ('const { acA, /* } */ acB } = d;', ['acA', 'acB'], 'const{acA,acB}=d;'),
+    ("const { 'acQ': s, \"acR\" : r } = d;", ['acQ', 'acR'], "const{'acQ':s,\"acR\":r}=d;"),
+    ("const { 'a\\x63S': s } = d;", ['acS'], "const{'acS':s}=d;"),
+    ('const { acK /* c */ : l } = d;', ['acK'], 'const{acK:l}=d;'),
+    ('const { ok = 4 / 2 / 1, acDV } = d;', ['acDV'], 'const{ok=4/2/1,acDV}=d;'),
+    ('let {acX}=d;', ['acX'], 'let{acX}=d;'),
+    ('const /* c */ { acX } = d;', ['acX'], 'const{acX}=d;'),
+    ('const { a } = x, { acB } = y;', ['acB'], 'const{a}=x,{acB}=y;'),
+    ('let a = 1, { acB } = y;', ['acB'], 'let a=1,{acB}=y;'),
+    ('const { acX } = d, { acY } = e;', ['acX', 'acY'], 'const{acX}=d,{acY}=e;'),
+    ('const { a: { acN } } = d;', ['acN'], 'const{a:{acN}}=d;'),
+    ('if (x) { y(); } ({ acP } = d);', ['acP'], '{acP}=d'),
+    ('x = `${(() => { const { acG } = d; return 1; })()}`;', ['acG'], 'const{acG}=d;'),
+    ('const { ...acL } = d;', [], None),
+    ('const { x: acY } = d;', [], None),
+    ("const { u = 'a, acX', ok } = d;", [], None),
+    ("const { ok = ', acS, ' } = d;", [], None),
+    ('const { ok = `${a}, acX`, acT } = d;', ['acT'], 'const{ok=`${a}, acX`,acT}=d;'),
+    ('for (const { acF } of liste) f(acF);', [], None),
 ]
-for code, attendu in DESTRUCTURES:
+for code, attendu, instr in DESTRUCTURES:
     r = autoclic.releve(f'<script>{code}</script>')
-    verifie(f'déstructuration lue sur le découpage : {code!r} → {attendu}', r['champs'] == attendu
-            and (bool(attendu) == any(code.split('=')[0].strip()[:8].replace(' ', '') in x for x in r['instructions'])),
-            (r['champs'], r['instructions']))
+    verifie(f'déstructuration lue sur le découpage : {code!r} → {attendu}',
+            r['champs'] == attendu and r['instructions'] == ([instr] if instr else []), (r['champs'], r['instructions']))
 
 long_avant = 'x = 1;' * 80 + "say('autoclic 36e5');"
 code, out = lancer(mute("say(`clics : ${d.acGab}`);", "say(`clics : ${d.acGab}`); if (d.acLong) { " + long_avant + " }"), '--maj-reference')

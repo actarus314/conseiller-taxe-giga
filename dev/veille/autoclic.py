@@ -19,13 +19,12 @@ ZONES = ('durWarn', 'acNotice', 'acShow', 'acPick', 'acWarnShow', 'acWarnClose',
 FENETRES_TEXTE = ('acOv', 'durOv', 'acWarnOv')
 # champs de détection : convention du jeu (et du bot, qui s'arrête sur tout champ « ac » + majuscule non vide),
 # lus par un point (d.acDur) ou par crochets à chaîne littérale (d['acDur'])
-CHAMP = re.compile(r'\.(ac[A-Z][\w$]*|autoclick)\b|\[\s*([\'"`])(ac[A-Z][\w$]*|autoclick)\2\s*\]')
-# … ou par déstructuration dans une déclaration (const { acDur, autoclick: x } = d), lue sur le découpage du script :
-# accolades appariées dans le code seul, commentaires et chaînes déjà délimités (_destructurations)
-DESTRUCT = re.compile(r'\b(?:const|let|var)\s*\{')
-NOM_CHAMP = re.compile(r'(?:^|,)\s*([\'"]?)(ac[A-Z][\w$]*|autoclick)\1\s*(?=[,:=]|$)')  # clé, pas nom local
+CHAMP = re.compile(r'(?<!\.\.)\.(ac[A-Z][\w$]*|autoclick)\b|\[\s*([\'"`])(ac[A-Z][\w$]*|autoclick)\2\s*\]')
+# … ou par déstructuration (const { acDur, autoclick: x } = d ; ({ acX } = d) ; const a = 1, { acX } = d ; paramètre
+# avec valeur par défaut) : tout motif « { … } = » du code, lu sur le découpage du script (_destructurations)
+NOM_CHAMP = re.compile(r'(?:^|[,{])\s*([\'"]?)(ac[A-Z][\w$]*|autoclick)\1\s*(?=[,:=}]|$)')  # clé, pas nom local
 # instructions suivies : champ lu, garde des clics, clé du choix gardé, minuteries des fenêtres d'autoclic
-INSTR = re.compile(r'\.(?:ac[A-Z][\w$]*|autoclick)\b|\[\s*([\'"`])(?:ac[A-Z][\w$]*|autoclick)\1\s*\]|\bisTrusted\b'
+INSTR = re.compile(r'(?<!\.\.)\.(?:ac[A-Z][\w$]*|autoclick)\b|\[\s*([\'"`])(?:ac[A-Z][\w$]*|autoclick)\1\s*\]|\bisTrusted\b'
                    r'|(?<!function )\boneShot\s*\(|\bAC_KEY\b|\b(?:setInterval|setTimeout)\s*\(\s*(?:ac[A-Z][\w$]*|durWarn)\b')
 # envois au serveur qui portent la méthode de clic d'un joueur averti (adresse dans une chaîne)
 ROUTES = re.compile(r'/api/feedback\b')
@@ -353,21 +352,23 @@ def scripts(page):
     return [m.group(1) for m in re.finditer(r'<script\b[^>]*>(.*?)</script\b[^>]*>', page, re.S | re.I)]
 
 
-def _destructurations(sc):
-    """[(début, position du « = », clés)] des déclarations par déstructuration d'objet du script. Les clés sont le
-    texte entre les accolades, réécrit depuis les morceaux du lecteur : code tel quel, commentaire → espace, chaîne →
-    '<nom>' si elle ne contient qu'un nom de champ de détection, sinon '' (rien d'une chaîne n'est lu comme du code)."""
+def _destructurations(sc, decal=0):
+    """[(début, fin, instruction, clés)] des motifs de déstructuration d'objet du script : toute accolade du code dont
+    la fermante appariée est suivie d'un « = » simple (seule forme valide : déclaration, déclarateur après une virgule,
+    affectation entre parenthèses, paramètre par défaut). Les clés sont le texte entre les accolades, réécrit depuis
+    les morceaux du lecteur : code tel quel, commentaire → espace, chaîne → '<nom>' si elle ne contient (échappements
+    décodés) qu'un nom de champ de détection, sinon '' (rien d'une chaîne n'est lu comme du code). Les expressions
+    ${…} des gabarits sont lues de même, comme des scripts à part. Positions décalées de decal."""
     out = []
-    for m in DESTRUCT.finditer(sc.s):
-        k = m.end() - 1
-        if sc.genre(m.start()) != 'code' or sc.genre(k) != 'code':
+    for t, (k, c, h0, _) in enumerate(sc.marques):
+        if c != '{':
             continue
         fin = sc.bloc(k) - 1  # accolade fermante appariée (code seul)
         j = fin + 1
         while j < len(sc.s) and (sc.s[j].isspace() or sc.genre(j) == 'com'):
             j += 1
         if sc.s[j:j + 1] != '=' or sc.s[j + 1:j + 2] in ('=', '>'):
-            continue  # pas une déclaration par déstructuration (for…of, comparaison)
+            continue
         cles = []
         for x in range(bisect.bisect_right(sc.debuts, k) - 1, len(sc.m)):
             genre, d, f = sc.m[x]
@@ -379,9 +380,35 @@ def _destructurations(sc):
             elif genre == 'com':
                 cles.append(' ')
             else:
-                nom = sc.s[d + 1:f - 1] if f - d >= 2 and sc.s[d] in '\'"' and sc.s[f - 1] == sc.s[d] else ''
+                nom = decoder(sc.s[d + 1:f - 1]) if f - d >= 2 and sc.s[d] in '\'"' and sc.s[f - 1] == sc.s[d] else ''
                 cles.append(f"'{nom}'" if re.fullmatch(r'ac[A-Z][\w$]*|autoclick', nom) else "''")
-        out.append((m.start(), j, ''.join(cles)))
+        # énoncé : depuis le « ; » de même hauteur qui précède, l'ouvrant qui l'enferme ou la fin d'un bloc voisin
+        # (une fermante de même hauteur suivie d'un « = » simple ferme un motif voisin, une ) ou ] une expression
+        # voisine : on les traverse), jusqu'au « ; » de même hauteur qui suit le « = » ou à la fermeture du bloc
+        h = h0 - 1
+        debut = 0
+        for kk, cc, hh, _ in reversed(sc.marques[:t]):
+            if hh < h or (hh == h and cc in ';{(['):
+                debut = kk + 1; break
+            if hh == h and cc == '}' and not re.match(r'(?:\s|/\*.*?\*/)*=(?![=>])', sc.s[kk + 1:], re.S):
+                debut = kk + 1; break
+        t2 = bisect.bisect_left(sc.pos, j)
+        fin2 = next((kk + 1 if cc == ';' else kk for kk, cc, hh, _ in sc.marques[t2:]
+                     if hh < h or (cc == ';' and hh == h)), len(sc.s))
+        out.append((decal + debut, decal + fin2, sc.texte(debut, fin2), ''.join(cles)))
+    for genre, d, f in sc.m:  # expressions ${…} des gabarits
+        if genre != 'chaine' or sc.s[d] != '`':
+            continue
+        i = d + 1
+        while i < f:
+            if sc.s[i] == '\\':
+                i += 2
+            elif sc.s.startswith('${', i):
+                e = _fin_expr(sc.s, i + 2)
+                out += _destructurations(Script(sc.s[i + 2:e - 1]), decal + i + 2)
+                i = e
+            else:
+                i += 1
     return out
 
 
@@ -416,14 +443,11 @@ def releve(page):
                 zones[nom].append(sc.texte(d, f)); pris.append((d, f))
         for m in sc.dans_code(CHAMP):
             champs.add(m.group(1) or m.group(3))
-        for debut, egal, cles in _destructurations(sc):
+        for debut, fin, texte, cles in _destructurations(sc):
             noms = [n for _, n in NOM_CHAMP.findall(cles)]
             champs.update(noms)
             if noms and not any(d <= debut < f for d, f in pris):
-                # déclaration entière : du mot-clé à la fin de l'instruction qui suit le « = » (les accolades de la
-                # déstructuration ne sont pas un bloc)
-                d, f = debut, sc.instruction(egal + 1)[1]
-                instructions.append(sc.texte(d, f)); pris.append((d, f))
+                instructions.append(texte); pris.append((debut, fin))
         routes = [d for genre, d, f in sc.m if genre == 'chaine' and ROUTES.search(src[d:f])]
         for p in sorted([m.start() for m in sc.dans_code(INSTR)] + routes):
             if any(d <= p < f for d, f in pris):
