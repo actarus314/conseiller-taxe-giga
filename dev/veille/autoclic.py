@@ -33,7 +33,7 @@ ROUTES = re.compile(r'/api/feedback\b')
 ROLE = re.compile(r'([\w$]+)\.setAttribute\(\s*([\'"])role\2\s*,\s*([\'"])dialog\3\s*\)|\bcreateElement\(\s*([\'"])dialog\4\s*\)')
 MOTS = re.compile(r'auto-?cli(?:c|ck)|trich(?!e du compteur)|sans (?:la moindre |aucune )?pause|des pauses|sous surveillance'
                   r'|comportement anormal', re.I)
-AVANT_REGEX = set('(,=:[!&|?{};+-*%~^<>')
+AVANT_REGEX = set('(,=:[!&|?{};+-*%~^<>/')  # « / » : après l'opérateur de division (a / /re/.source)
 MOTS_AVANT_REGEX = {'return', 'typeof', 'case', 'do', 'else', 'in', 'of', 'new', 'delete', 'void', 'throw', 'yield',
                     'await', 'instanceof'}
 VIDES = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr'}
@@ -288,23 +288,36 @@ def decoder(t):
 _ECHAP = re.compile(r'\\x([0-9a-fA-F]{2})|\\u([0-9a-fA-F]{4})|\\u\{([0-9a-fA-F]{1,6})\}')
 
 
-def _litteral(t, delim, gabarit):
+def _litteral(t, delim, gabarit, clair=False):
     """Texte littéral d'une chaîne (sans ses délimiteurs), forme unique : un guillemet ou un accent grave, échappé ou
     non (\\', \\x27…), est rendu en clair, puis réécrit échappé s'il est le délimiteur delim ('' : texte montré) ;
-    \\xHH, \\uHHHH, \\u{…} décodés, sauf barre, blancs et caractères de commande (et « $ », « { » d'un gabarit), gardés
-    tels quels ; tout autre échappement (\\n, \\\\…) gardé tel quel. Deux valeurs différentes gardent deux formes."""
+    \\xHH, \\uHHHH, \\u{…} décodés (paire de substituts réunie), sauf barre, blancs, caractères de commande, substitut
+    isolé (et « $ », « { » d'un gabarit), gardés tels quels ; continuation de ligne (\\ puis fin de ligne) retirée ;
+    tout autre échappement (\\n, \\\\…) gardé tel quel. Deux valeurs différentes gardent deux formes (les blancs, eux,
+    sont ensuite réduits par propre). clair : blancs échappés rendus en clair aussi (recherche des mots-clés seule)."""
     out, i, n = [], 0, len(t)
     while i < n:
         c = t[i]
         if c == '\\' and i + 1 < n:
             m = _ECHAP.match(t, i)
             if m:
-                ch = chr(int(m.group(1) or m.group(2) or m.group(3), 16))
-                if ch == '\\' or ch.isspace() or ch < ' ' or (gabarit and ch in '${'):
-                    out.append(m.group(0)); i = m.end(); continue
-                c, i = ch, m.end()
+                k, j = int(m.group(1) or m.group(2) or m.group(3), 16), m.end()
+                if 0xD800 <= k < 0xDC00:  # substitut haut : réuni au bas qui le suit, s'il y en a un
+                    m2 = _ECHAP.match(t, j)
+                    k2 = int(m2.group(2) or m2.group(3) or '0', 16) if m2 and not m2.group(1) else 0
+                    if 0xDC00 <= k2 < 0xE000:
+                        k, j = 0x10000 + (k - 0xD800) * 0x400 + (k2 - 0xDC00), m2.end()
+                ch = chr(k) if k <= 0x10FFFF else ''
+                if not ch or 0xD800 <= k < 0xE000 or ch == '\\' or (gabarit and ch in '${') \
+                        or ((ch.isspace() or ch < ' ') and not (clair and ch.isspace())):
+                    out.append(t[i:j]); i = j; continue
+                c, i = ch, j
             elif t[i + 1] in '\'"`':
                 c, i = t[i + 1], i + 2
+            elif t[i + 1] in '\n\u2028\u2029' or t.startswith('\r\n', i + 1) or t[i + 1] == '\r':
+                i += 3 if t.startswith('\r\n', i + 1) else 2; continue  # continuation de ligne : rien
+            elif clair and t[i + 1] in 'ntrvf':
+                c, i = ' ', i + 2
             else:
                 out.append(t[i:i + 2]); i += 2; continue
         else:
@@ -313,7 +326,7 @@ def _litteral(t, delim, gabarit):
     return ''.join(out)
 
 
-def _gabarit(t, delim):
+def _gabarit(t, delim, clair=False):
     """Gabarit `…` en forme unique : texte littéral par _litteral, chaque expression ${…} normalisée comme du code."""
     out, a, i, n = [], 1, 1, len(t) - 1
     while i < n:
@@ -322,11 +335,11 @@ def _gabarit(t, delim):
         elif t.startswith('${', i):
             e = _fin_expr(t, i + 2)
             x = t[i + 2:e - 1]
-            out += [_litteral(t[a:i], delim, True), '${', Script(x).texte(0, len(x)), '}']
+            out += [_litteral(t[a:i], delim, True, clair), '${', Script(x).texte(0, len(x)), '}']
             i = a = e
         else:
             i += 1
-    out.append(_litteral(t[a:n], delim, True))
+    out.append(_litteral(t[a:n], delim, True, clair))
     return delim + ''.join(out) + delim
 
 
@@ -338,17 +351,21 @@ def forme(t):
     return "'" + _litteral(t[1:-1], "'", False) + "'"
 
 
-def contenu(t):
-    """Texte montré d'une chaîne entière (sans délimiteurs), sur la même forme unique que forme()."""
+def contenu(t, clair=False):
+    """Texte montré d'une chaîne entière (sans délimiteurs), sur la même forme unique que forme() ; clair : blancs
+    échappés rendus en clair (pour chercher un mot-clé, jamais pour comparer)."""
     if t[:1] == '`':
-        return _gabarit(t, '')
-    return _litteral(t[1:-1], '', False)
+        return _gabarit(t, '', clair)
+    return _litteral(t[1:-1], '', False, clair)
 
 
 def compacter(t):
-    """Code : blancs réduits à un espace, retirés quand ils ne séparent pas deux mots (« else if » garde le sien)."""
+    """Code : blancs réduits à un espace, retirés quand ils ne séparent pas deux mots (« else if » garde le sien) ni
+    deux « + » ou deux « - » (a + ++b n'est pas a++ + b)."""
     t = re.sub(r'\s+', ' ', t).strip()
-    return re.sub(r'(?<![\w$]) | (?![\w$])', '', t)
+    mot = re.compile(r'[\w$]')
+    garde = lambda m: ' ' if (mot.match(m.group(1)) and mot.match(m.group(2))) or (m.group(1) == m.group(2) and m.group(1) in '+-') else ''
+    return re.sub(r'(?<=(.)) (?=(.))', garde, t)
 
 
 def propre(t):
@@ -527,7 +544,7 @@ def releve(page):
                 fenetres |= set(re.findall(r'id=\\?["\']([\w-]{1,60})', src[d:f])) or {'fenêtre sans id (script)'}
             if genre == 'chaine' and not any(a <= d < b for a, b in pris):
                 t = propre(contenu(src[d:f]))
-                if MOTS.search(t):
+                if MOTS.search(t) or MOTS.search(propre(contenu(src[d:f], True))):
                     chaines.add(t)
     p = _Page()
     p.feed(page); p.close()

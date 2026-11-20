@@ -412,6 +412,7 @@ DESTRUCTURES = [
     ('x = `${ s.replace(/}/g, "") }`; const { acR } = d;', ['acR'], 'const{acR}=d;'),
     ('x = `${ a /* } */ }`; const { acC } = d;', ['acC'], 'const{acC}=d;'),
     ('x = `${ `${ b /* } */ }` }`; const { acI } = d;', ['acI'], 'const{acI}=d;'),
+    ('x = `${ a / /}/.source.length + (({ acX } = d), 0) } fin`;', ['acX'], '{acX}=d'),
 ]
 for code, attendu, instr in DESTRUCTURES:
     try:
@@ -442,6 +443,11 @@ FORMES = [
     ('`\\${a}`', '`${a}`', False), ('`\\x24{a}`', '`${a}`', False), ('`$\\{a}`', '`${a}`', False),
     ('`a${b}c`', '`a${c}b`', False), ('`${ a + 1 }`', '`${ a + 2 }`', False), ("`${ f('y') }`", "`${ f('z') }`", False),
     ("'a`b'", "'a\\'b'", False), ('`a\\`b`', "'a`b'", False),
+    # relecture du lot V4 : continuation de ligne, paire de substituts, substitut isolé, opérateurs ++ et --, et les
+    # blancs d'une chaîne, réduits à un espace (choix gardé, écrit en limite : un réindentage de gabarit HTML est muet)
+    ("'a\\\nb'", "'ab'", True), ("'a\\\nb'", "'a\\ b'", False), ("'\\uD83D\\uDE00'", "'😀'", True),
+    ("'\\uD83D'", "'?'", False), ('a + ++b', 'a++ + b', False), ('a - --b', 'a-- - b', False),
+    ('`${ a + ++b }`', '`${ a++ + b }`', False), ("'a  b'", "'a b'", True),
 ]
 for a, b, egal in FORMES:
     try:
@@ -449,6 +455,11 @@ for a, b, egal in FORMES:
     except autoclic.Illisible as e:
         fa, fb = f'illisible : {e}', None
     verifie(f'forme unique : {a} {"=" if egal else "≠"} {b}', (fa == fb) == egal, (fa, fb))
+
+# balayage : un blanc écrit en échappement ne cache pas le mot-clé (relecture du lot V4)
+for src in ("'sans\\xa0pause'", "'sans\\x20pause'", "'Faites des\\u0020pauses'", "'8 h sans\\npause'", "`sans\\tpause ${x}`"):
+    r = autoclic.releve(f'<script>t = {src};</script>')
+    verifie(f'balayage : mot-clé trouvé malgré un blanc échappé ({src})', len(r['textes']) == 1, r['textes'])
 
 code, out = lancer(mute("'Méthode de clic (avertissement autoclick) : '", "'M\\xE9thode de clic (avertissement autoclick) : '"))
 verifie('échappement \\xE9 dans une chaîne : décodé, conforme', code == 0, out[-300:])
