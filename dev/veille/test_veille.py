@@ -555,6 +555,8 @@ export function play(o) {
   const w = document.createElement('div'); w.className = 'mw'; w.setAttribute('role', 'dialog'); w.setAttribute('aria-label', 'Le tour du monde');
   w.innerHTML = `<div class="mw-prog"><em>0 / 174</em></div><div class="mw-paper"></div><div class="mw-cool" hidden></div>`;
   const paper = w.querySelector('.mw-paper');
+  const btn = (c, t) => { const b = document.createElement('button'); b.className = c; b.textContent = t; return b; };
+  const go = btn('go', 'Continuer ➜'), skip = btn('go mw-x', 'Passer ⏭');
   function launchFree() { const c = 'DE'; fetch(o.envoisUrl, { method: 'POST', body: JSON.stringify({ c }) }); localStorage.setItem('taxe-giga-monde-pays', '[]'); }
   function goFree() { w.querySelector('.mw-cool').hidden = false; paper.textContent = 'Pliez la facture'; }
   paper.addEventListener('keydown', e => { if (e.key === 'Enter') { paper.classList.add('f3'); launchFree(); } });
@@ -642,6 +644,11 @@ CAS_F = [
     ('module du globe : clé du stockage déclarée en constante changée', dict(monde=("const KEY = 'taxe-giga-cp';", "const KEY = 'taxe-giga-code';")), 'clés du stockage du jeu'),
     ('module du globe : envoi changé', dict(monde=("fetch(o.envoisUrl,", "fetch('/monde/e.php',")), 'envois au serveur'),
     ('module du globe : fenêtre renommée', dict(monde=("'Le tour du monde'", "'Le globe'")), 'fenêtre du globe'),
+    ('module du boss : mode de la racine de la scène changé', dict(boss_event_net=('attachShadow({ mode: "open" })', 'attachShadow({ mode: "closed" })')), 'racine de la scène'),
+    ('module du globe : libellé de bouton changé', dict(monde=("btn('go', 'Continuer ➜')", "btn('go', 'Suite ➜')")), 'boutons de la fenêtre'),
+    ('module du globe : classe racine mw changée', dict(monde=("w.className = 'mw';", "w.className = 'globe';")), 'classes de la fenêtre'),
+    ('module du globe : élément créé changé', dict(monde=("const w = document.createElement('div');", "const w = document.createElement('section');")), 'éléments créés par le module'),
+    ('module du globe : structure écrite changée (em de la progression)', dict(monde=('<em>0 / 174</em>', '<span>0 / 174</span>')), 'structure écrite dans la fenêtre'),
     ('module du globe : export renommé', dict(monde=('export function play(o)', 'export function jouer(o)')), 'noms exportés'),
     ('module du globe : partie non suivie changée (empreinte seule)', dict(monde=('export const preload = () => 1;', 'export const preload = () => 2;')), 'modifié hors des zones suivies'),
     ('/regles : section #resume changée', dict(regles=('une macro.', 'une macro, un script.')), 'section **#resume** modifiée'),
@@ -694,7 +701,7 @@ verifie('référence sans suivi des fichiers à part : écart (jamais « conform
 rf = REF.get('fichiers') or {}
 verifie('reference.json : section fichiers complète (boss, globe, /regles ; zones attendues, rien d\'absent)',
         set(rf) == {'boss', 'globe', 'regles'} and not any(fichiers.manques(k, rf[k]) for k in rf)
-        and all(set(rf[k][p]['zones']) == {z for z, _, _ in fichiers.ZONES[p]} for k in ('boss', 'globe') for p in fichiers.FICHIERS[k][1]))
+        and all(set(rf[k][p]['zones']) == {z[0] for z in fichiers.ZONES[p]} for k in ('boss', 'globe') for p in fichiers.FICHIERS[k][1]))
 
 # quand lire : plage du jour, version du module du boss, rattrapage, demande
 H = datetime.datetime
@@ -712,6 +719,11 @@ verifie('plan : version ?v= du boss différente de la référence → module du 
 verifie('plan : rattrapage jusqu\'au troisième échec, puis attente de la plage',
         plan('2026-11-20T12:00:00+00:00', ratt='regles:1,globe:2') == {'regles', 'globe'} and plan('2026-11-20T12:00:00+00:00', ratt='regles:3') == set()
         and plan('2026-11-20T03:10:00+00:00', ratt='regles:3') == {'boss', 'globe', 'regles'})
+verifie('plan : plage de 16 min, bornes comprises au début, exclues à la fin',
+        datetime.datetime.combine(datetime.date(2026, 11, 20), fichiers.PLAGE[1]) - datetime.datetime.combine(datetime.date(2026, 11, 20), fichiers.PLAGE[0]) == datetime.timedelta(minutes=16)
+        and plan('2026-11-20T03:23:59+00:00') == {'boss', 'globe', 'regles'} and plan('2026-11-20T03:08:00+00:00') == {'boss', 'globe', 'regles'})
+verifie('plan : version ?v= différente mais module du boss à son troisième échec → attend la plage',
+        plan('2026-11-20T12:00:00+00:00', ratt='boss:3', vp='2') == set() and plan('2026-11-20T12:00:00+00:00', ratt='boss:2', vp='2') == {'boss'})
 verifie('plan : tous sur demande (envoi sur main, lancement manuel)', plan('2026-11-20T12:00:00+00:00', tous=True) == {'boss', 'globe', 'regles'})
 verifie('rattrapage : entrée de forme inattendue ignorée', fichiers.rattrapage_lu('boss:1,x:2,regles:0,globe:2;rm,regles:12') == {'boss': 1}
         and fichiers.rattrapage_ecrit({'regles': 2, 'boss': 1}) == 'boss:1,regles:2')
@@ -735,7 +747,7 @@ class Refus(Exception):
     pass
 
 
-def passage(*args, refus=(), page_html=None, sortie=None):
+def passage(*args, refus=(), page_html=None, sortie=None, erreur=None):
     """Un passage de veille.principal() sans réseau ; refus : adresses qui échouent (403). [adresses demandées]."""
     demandes = []
 
@@ -743,7 +755,7 @@ def passage(*args, refus=(), page_html=None, sortie=None):
         u = req.full_url
         demandes.append(u)
         if any(x in u for x in refus):
-            raise veille.urllib.error.HTTPError(u, 403, 'Forbidden', {}, None)
+            raise veille.urllib.error.HTTPError(u, 403, erreur or 'Forbidden', {}, None)
         chemin = u.split('taxe-au-giga.fr', 1)[1].split('?')[0]
         return Reponse((page_html or PAGE_F if chemin == '/' else MODELES[{'/boss/boss-event-net.js': 'boss-event-net', '/boss/boss-site.js': 'boss-site',
                                                                           '/monde/monde.js': 'monde', '/regles': 'regles'}[chemin]]).encode())
@@ -809,6 +821,35 @@ verifie('module reçu en HTML (vérification anti-robot) : échec d\'accès, pas
 code, d, out = passage('--maintenant', '2026-11-20T12:00:00Z', page_html=PAGE_F.replace(f'?v={v_boss}', '?v=1794600000'), sortie=of)
 verifie('version ?v= du boss changée : écart de la page principale, module du boss lu à ce passage',
         sorties(of)['etat'] == 'ecart' and len(d) == 3 and all('/boss/' in x and '?v=1794600000' in x for x in d[1:]), d)
+
+code, d, out = passage('--maintenant', '2026-11-20T03:25:00Z', '--rattrapage', 'regles:2', refus=('/regles',), sortie=of)
+s = sorties(of)
+verifie('échec qui dure seul : étiquette « inaccessible-regles » seulement', s['fichiers_etiquettes'] == 'inaccessible-regles', s)
+MODELES['boss-event-net'] = BOSS_NET.replace('CAP = 6,', 'CAP = 8,')
+code, d, out = passage('--maintenant', '2026-11-20T03:10:00Z', '--rattrapage', 'regles:2', refus=('/regles',), sortie=of)
+s = sorties(of)
+verifie('échec qui dure à côté d\'un écart d\'un autre fichier : signalé aussi (étiquette à lui)',
+        s['fichiers_etat'] == 'ecart' and s['fichiers_etiquettes'].split()[-1] == 'inaccessible-regles' and s['fichiers_etiquettes'].startswith('boss-')
+        and 'Échec qui dure' in out, (s, out[-300:]))
+code, d, out = passage('--maintenant', '2026-11-20T03:10:00Z', '--rattrapage', 'globe:1', refus=('/regles',), sortie=of)
+verifie('premier échec à côté d\'un écart : pas d\'étiquette « inaccessible »', 'inaccessible' not in sorties(of)['fichiers_etiquettes'], sorties(of))
+MODELES['boss-event-net'] = BOSS_NET
+code, d, out = passage('--maintenant', '2026-11-20T03:10:00Z', refus=('/regles',), erreur='::error:: @quelquun ~~~~ fin', sortie=of)
+verifie('message d\'échec d\'un fichier (texte du site) inerte dans le rapport', 'non lu' in out and '@quelquun' not in out and '\n::' not in out
+        and '~~~~ fin' not in out, out[-400:])
+avant = REF_TEST.read_text(encoding='utf-8')
+code, d, out = passage('--maj-reference', refus=('/regles',))
+verifie('recalage refusé si un fichier à part n\'a pas pu être lu (référence inchangée)', code == 3 and 'non lu' in out
+        and REF_TEST.read_text(encoding='utf-8') == avant, out[-300:])
+code, d, out = passage('--fichier', str(TMP / 'page.html'), '--fichier-regles', str(TMP / 'copie-regles'), '--maintenant', '2026-11-20T03:10:00Z', '--tous')
+verifie('hors réseau (--fichier) : aucune requête, même dans la plage et avec --tous', d == [], d)
+code, out = lancer(PAGE_F, '--maj-reference', *copies(boss_event_net=('probe: function () { return { state:', 'sonde: function () { return { state:')))
+verifie('recalage refusé si une zone d\'inventaire requise est vide (interface rendue)', code == 3 and 'interface rendue' in out
+        and REF_TEST.read_text(encoding='utf-8') == avant, out[-300:])
+etq = []
+for m in (('CAP = 6,', 'CAP = 7,'), ('CAP = 6,', 'CAP = 9,')):
+    of.unlink(missing_ok=True); lancer(PAGE_F, *copies(boss_event_net=m), sortie=of); etq.append(sorties(of)['fichiers_etiquettes'])
+verifie('deux écarts différents d\'un même fichier : deux étiquettes différentes', etq[0] != etq[1] and all(e.startswith('boss-') for e in etq), etq)
 
 print('\nTout est passé' if not echecs else f'\n{echecs} échec(s)')
 sys.exit(1 if echecs else 0)

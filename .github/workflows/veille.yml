@@ -168,7 +168,8 @@ jobs:
             if [ -z "$(echo "$liste" | jq -r --arg t "$t" '.[] | select(.title | contains($t)) | .number' | head -1)" ]; then manque=true; fi
           done
           if [ -z "$exacte" ] && { [ "$manque" = true ] || { [ "$ETAT" = ecart ] && [ "$COMPLET" = true ]; }; }; then
-            if [ "$ETAT" = ecart ]; then titre="Veille : un fichier à part du jeu a changé (module du boss, du globe ou /regles) [$TAGS]"
+            suite=''; case " $TAGS" in *' inaccessible-'*) suite=', un autre reste inaccessible' ;; esac
+            if [ "$ETAT" = ecart ]; then titre="Veille : un fichier à part du jeu a changé (module du boss, du globe ou /regles)$suite [$TAGS]"
             else titre="Veille : un fichier à part du jeu reste inaccessible [$TAGS]"; fi
             if [ ! -s corps-fichiers.md ]; then cp rapport.md corps-fichiers.md; fi
             { cat corps-fichiers.md; echo; echo "Exécution : $RUN"; } > issue-fichiers.md

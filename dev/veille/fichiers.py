@@ -32,45 +32,50 @@ FICHIERS = {
 }
 RACINE = 'https://taxe-au-giga.fr'
 
-# zones des modules : (nom, forme, motif). forme : 'fonction' (corps entier, signature comprise, des seules fonctions
+# zones des modules : (nom, forme, motif, requise). requise : la zone ne peut pas être vide dans une référence (le
+# recalage la refuse : vide, elle resterait muette ensuite). forme : 'fonction' (corps entier, signature comprise, des seules fonctions
 # déclarées « function nom(…) » : un autre nom local identique, comme la flèche « var hit = function (t) » du module du
 # boss, n'y entre pas ; une fonction réécrite en flèche est une zone introuvable, donc un écart), 'liste' (instructions
 # entières du code et des gabarits qui contiennent le motif, doublons gardés), 'chaines' (instructions dont une chaîne
 # contient le motif), 'ensemble' (mots du motif trouvés dans les chaînes, sans doublon), 'noms' (premier groupe trouvé
 # du motif dans le code, doublons gardés)
 _COMMUN = [
-    ('écouteurs d\'événements', 'liste', r'\.addEventListener\s*\('),
-    ('gardes isTrusted', 'liste', r'\bisTrusted\b'),
-    ('globales posées par le module', 'liste', r'\bwindow\.[\w$]+\s*=(?![=>])'),
-    ('changements de classe', 'liste', r'\.classList\.(?:add|remove|toggle|replace)\s*\(|\.className\s*[+]?=(?!=)'),
-    ('clés du stockage du jeu (taxe-giga-…)', 'chaines', r'\btaxe-giga-[\w-]+'),
+    ('écouteurs d\'événements', 'liste', r'\.addEventListener\s*\(', True),
+    ('gardes isTrusted', 'liste', r'\bisTrusted\b', False),
+    ('globales posées par le module', 'liste', r'\bwindow\.[\w$]+\s*=(?![=>])', False),
+    ('changements de classe', 'liste', r'\.classList\.(?:add|remove|toggle|replace)\s*\(|\.className\s*[+]?=(?!=)', False),
+    ('clés du stockage du jeu (taxe-giga-…)', 'chaines', r'\btaxe-giga-[\w-]+', False),
 ]
 ZONES = {
     'boss-event-net.js': _COMMUN + [
-        ('constantes du combat (plafonds de cadence)', 'liste', r'\bCAP3?\s*=(?![=>])'),
-        ('compte et refus des coups (gate)', 'fonction', 'gate'),
-        ('coup sur le boss (hit)', 'fonction', 'hit'),
-        ('coups sur une travée (clickSquad)', 'fonction', 'clickSquad'),
-        ('super (launchSuper)', 'fonction', 'launchSuper'),
-        ('fermeture de la scène (closeFocus)', 'fonction', 'closeFocus'),
-        ('interface rendue par le montage (me, probe, state, close)', 'liste', r'\bprobe\s*:'),
-        ('gabarit HTML de la scène', 'liste', r'\bvar\s+HTML\s*='),
-        ('textes écrits dans la scène', 'liste', r'\.(?:textContent|innerText)\s*[+]?=(?!=)'),
+        ('constantes du combat (déclaration de CAP et CAP3)', 'liste', r'\bCAP3?\s*=(?![=>])', True),
+        ('racine de la scène (attachShadow)', 'liste', r'\battachShadow\s*\(', True),
+        ('compte et refus des coups (gate)', 'fonction', 'gate', True),
+        ('coup sur le boss (hit)', 'fonction', 'hit', True),
+        ('coups sur une travée (clickSquad)', 'fonction', 'clickSquad', True),
+        ('super (launchSuper)', 'fonction', 'launchSuper', True),
+        ('fermeture de la scène (closeFocus)', 'fonction', 'closeFocus', True),
+        ('interface rendue par le montage (me, probe, state, close)', 'liste', r'\bprobe\s*:', True),
+        ('gabarit HTML de la scène', 'liste', r'\bvar\s+HTML\s*=', True),
+        ('textes écrits dans la scène', 'liste', r'\.(?:textContent|innerText)\s*[+]?=(?!=)', True),
     ],
     'boss-site.js': _COMMUN + [
-        ('contrat de la page (TaxeBoss, BOSS_SERVER)', 'liste', r'\b(?:TaxeBoss|BOSS_SERVER)\b|\bT\.[\w$]+\s*\('),
-        ('montage de la scène (BossEvent.mount)', 'liste', r'\bBossEvent\.mount\s*\('),
-        ('hôte de la scène', 'chaines', r'bossHost'),
+        ('contrat de la page (TaxeBoss, BOSS_SERVER)', 'liste', r'\b(?:TaxeBoss|BOSS_SERVER)\b|\bT\.[\w$]+\s*\(', True),
+        ('montage de la scène (BossEvent.mount)', 'liste', r'\bBossEvent\.mount\s*\(', True),
+        ('hôte de la scène', 'chaines', r'bossHost', True),
     ],
     'monde.js': _COMMUN + [
-        ('noms exportés par le module', 'noms', r'(?<![\w$.])export\s+(?:default\s+)?(?:async\s+)?(?:function\*?|const|let|var|class)\s+([\w$]+)|(?<![\w$.])export\s*(\{[^}]*\})'),
-        ('lancement libre (launchFree)', 'fonction', 'launchFree'),
-        ('voyage libre (goFree)', 'fonction', 'goFree'),
-        ('stockage du navigateur', 'liste', r'\b(?:localStorage|sessionStorage)\b'),
-        ('envois au serveur', 'liste', r'\bfetch\s*\(|\bsendBeacon\s*\(|\benvoisUrl\b'),
-        ('fenêtre du globe (role, aria-label)', 'chaines', r'aria-label|\bdialog\b'),
-        ('classes de la fenêtre (mw-…)', 'ensemble', r'\bmw-[\w-]+'),
-        ('textes écrits dans la fenêtre', 'liste', r'\.(?:textContent|innerText|placeholder)\s*[+]?=(?!=)'),
+        ('noms exportés par le module', 'noms', r'(?<![\w$.])export\s+(?:default\s+)?(?:async\s+)?(?:function\*?|const|let|var|class)\s+([\w$]+)|(?<![\w$.])export\s*(\{[^}]*\})', True),
+        ('lancement libre (launchFree)', 'fonction', 'launchFree', True),
+        ('voyage libre (goFree)', 'fonction', 'goFree', True),
+        ('stockage du navigateur', 'liste', r'\b(?:localStorage|sessionStorage)\b', True),
+        ('envois au serveur', 'liste', r'\bfetch\s*\(|\bsendBeacon\s*\(|\benvoisUrl\b', True),
+        ('fenêtre du globe (role, aria-label)', 'chaines', r'aria-label|\bdialog\b', True),
+        ('classes de la fenêtre (mw, mw-…)', 'ensemble', r'(?<![\w-])mw(?:-[\w-]+)?(?![\w-])', True),
+        ('boutons de la fenêtre (btn)', 'liste', r'(?<![\w$.])btn\s*\(', True),
+        ('éléments créés par le module (mk, createElement)', 'liste', r'(?<![\w$.])mk\s*\(|\.createElement\s*\(', True),
+        ('structure écrite dans la fenêtre (innerHTML)', 'liste', r'\.innerHTML\s*[+]?=(?!=)', True),
+        ('textes écrits dans la fenêtre', 'liste', r'\.(?:textContent|innerText|placeholder)\s*[+]?=(?!=)', True),
     ],
 }
 # sections suivies de /regles (texte entier) ; #reprise n'est pas suivie (gabarit de code de compte)
@@ -100,7 +105,7 @@ def releve_module(nom, src):
     except autoclic.Illisible as e:
         raise Illisible(f'{nom} : {e}') from None
     zones = {}
-    for zn, forme, motif in ZONES[nom]:
+    for zn, forme, motif, _ in ZONES[nom]:
         if forme == 'fonction':
             v = [sc.texte(d, f) for d, f in _declarees(sc, motif)]
             zones[zn] = ' | '.join(sorted(set(v))) if v else None
@@ -172,12 +177,10 @@ def manques(cle, r):
         return out + ([] if r['liste des sections'] else ['/regles : aucune section'])
     out = []
     for partie, rp in r.items():
-        for zn, forme, _ in ZONES[partie]:
+        for zn, _, _, requise in ZONES[partie]:
             v = rp['zones'].get(zn)
-            if v is None or (forme == 'fonction' and not v):
+            if v is None or (requise and not v):
                 out.append(f'{partie} : {zn}')
-        if not rp['zones'].get('écouteurs d\'événements'):
-            out.append(f'{partie} : aucun écouteur d\'événements')
     return out
 
 
@@ -210,7 +213,8 @@ def a_lire(maintenant, tous, rattrapage, version_page, version_ref):
     out = {}
     if dans_plage(maintenant):
         out = {k: 'plage du jour' for k in suivis}
-    if version_page and version_ref and version_page != version_ref:
+    # ni l'un ni l'autre au-delà de ESSAIS échecs de suite : le fichier attend alors la plage du jour suivant
+    if version_page and version_ref and version_page != version_ref and rattrapage.get('boss', 0) < ESSAIS:
         out.setdefault('boss', 'version ?v= différente de la référence')
     for k, n in rattrapage.items():
         if k in suivis and n < ESSAIS:
@@ -254,7 +258,7 @@ def ecarts(cle, avant, apres, difference, changements, retires_ajoutes):
             ecart(f'- {partie} : absent de la référence, à recaler.', partie, 'reference-sans')
             continue
         vu = False
-        for zn, forme, _ in ZONES[partie]:
+        for zn, forme, _, _ in ZONES[partie]:
             x, y = ra['zones'].get(zn), rb['zones'].get(zn)
             if forme == 'fonction':
                 if x == y:

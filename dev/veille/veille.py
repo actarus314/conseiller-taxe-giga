@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Veille du jeu Taxe au Giga : le conseiller est-il toujours juste ?
 
-Télécharge la page du jeu et vérifie cinq choses :
+Télécharge la page du jeu et vérifie six choses :
 1. le barème du jeu (tableau SHOP) est identique à celui du conseiller (tableau P de conseiller.js) ;
 2. les règles dont le conseiller dépend (formules, limites, bonus, sauvegarde, éléments de page lus)
    sont identiques à la référence dev/veille/reference.json ;
@@ -351,11 +351,17 @@ def comparer_fichiers(lignes, lus, echecs, problemes, ref):
                    'globe : `architecture.md` §5 et §11 ; /regles : `architecture.md` §7. Puis recaler la référence '
                    '(`python3 dev/veille/veille.py --maj-reference`) ; tant qu\'elle n\'est pas recalée, l\'écart reste '
                    'signalé à chaque lecture du fichier.\n']
+    # échecs arrivés au nombre d'essais ce passage : ils durent, et sont signalés même à côté d'un écart d'un autre
+    # fichier (étiquette à eux dans le titre de l'issue), sans quoi le signal attendrait le recalage
+    ratt = fichiers.rattrapage_lu(SORTIES_FICHIERS['rattrapage'])
+    durables = sorted(k for k in echecs if ratt.get(k, 0) >= fichiers.ESSAIS)
+    tag_durables = ['inaccessible-' + '-'.join(durables)] if durables else []
+    if par_fichier:
         etiquettes = [f'{k}-' + hashlib.sha256('\n'.join(c for _, c in par_fichier[k]).encode()).hexdigest()[:10]
                       for k in fichiers.FICHIERS if k in par_fichier]
-        SORTIES_FICHIERS.update(etat='ecart', etiquettes=' '.join(etiquettes))
-    elif any(fichiers.rattrapage_lu(SORTIES_FICHIERS['rattrapage']).get(k, 0) >= fichiers.ESSAIS for k in echecs):
-        SORTIES_FICHIERS.update(etat='inaccessible', etiquettes='inaccessible-' + '-'.join(sorted(echecs)))
+        SORTIES_FICHIERS.update(etat='ecart', etiquettes=' '.join(etiquettes + tag_durables))
+    elif durables:
+        SORTIES_FICHIERS.update(etat='inaccessible', etiquettes=tag_durables[0])
     elif not lus and not echecs:
         SORTIES_FICHIERS.update(etat='rien')
     elif SORTIES_FICHIERS.get('complet') == 'true':
@@ -364,7 +370,7 @@ def comparer_fichiers(lignes, lus, echecs, problemes, ref):
     else:
         SORTIES_FICHIERS.update(etat='partiel')
         lignes.append('\nFichiers lus ce passage conformes à la référence ; les autres ne sont pas vérifiés ce passage.')
-    if SORTIES_FICHIERS.get('etat') == 'inaccessible':
+    if durables:
         lignes.append(f'\nÉchec qui dure ({fichiers.ESSAIS} de suite) : signalé ; le fichier sera relu à la plage du jour suivant.')
     return lignes
 

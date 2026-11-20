@@ -14,6 +14,7 @@ Deux fausses alertes connues de `dev/veille/autoclic.py`, écrites en limite le 
 
 - **Ne rien perdre de ce qui est détecté** : chaque test, chaque essai sur la vraie page et chaque sabotage actuels restent verts. Un changement réel du contenu d'une chaîne ou d'une expression `${…}` fait toujours un écart.
 - Référence recalée dans le même lot. Le premier passage réel après l'envoi doit être « Conforme », sinon le recalage est faux.
+- Depuis le lot V3 (20/11/2026), le lecteur et la normalisation d'`autoclic.py` lisent aussi les modules du boss et du globe (`dev/veille/fichiers.py`, section `fichiers` de la référence, empreintes comprises) : le recalage les couvre (`--maj-reference` les télécharge), et l'étalon du lot V3 (zones et sections modifiées, empreinte seule, module minifié) se rejoue sur des copies réelles des modules.
 
 ## Étalon (fixé d'avance)
 
