@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Veille du jeu Taxe au Giga : le conseiller est-il toujours juste ?
 
-Télécharge la page du jeu et vérifie quatre choses :
+Télécharge la page du jeu et vérifie cinq choses :
 1. le barème du jeu (tableau SHOP) est identique à celui du conseiller (tableau P de conseiller.js) ;
 2. les règles dont le conseiller dépend (formules, limites, bonus, sauvegarde, éléments de page lus)
    sont identiques à la référence dev/veille/reference.json ;
@@ -15,7 +15,7 @@ dans $GITHUB_OUTPUT ; avec --corps, le rapport plafonné pour le corps d'une iss
 Code de retour : 0 conforme, 1 écart, 2 page du jeu inaccessible, 3 erreur d'analyse (page reçue, mais qui fait planter ce script).
 Usage : python3 dev/veille/veille.py [--fichier page.html] [--reference ref.json] [--corps corps.md] [--maj-reference]
 """
-import difflib, hashlib, json, os, pathlib, re, sys, urllib.request, zlib
+import collections, difflib, hashlib, json, os, pathlib, re, sys, urllib.request, zlib
 
 try:
     import autoclic, principale
@@ -176,6 +176,12 @@ def changements(retires, ajoutes, n=8):
     return lignes
 
 
+def retires_ajoutes(x, y):
+    """Éléments retirés et ajoutés entre deux listes, doublons comptés (un second exemplaire identique est un ajout)."""
+    a, b = collections.Counter(x), collections.Counter(y)
+    return sorted((a - b).elements()), sorted((b - a).elements())
+
+
 def ecarts_autoclic(avant, apres):
     """[(affichage, clé complète)] des écarts de détection d'autoclic. avant : référence ; apres : page (ou None)."""
     out = []
@@ -195,9 +201,9 @@ def ecarts_autoclic(avant, apres):
                        ('champs', 'Champs de détection lus'), ('fenetres', 'Fenêtres de la page (id ; balise.classe pour celles que le script crée)'),
                        ('diapositives', 'Diapositives des nouveautés qui parlent d\'autoclic'),
                        ('textes', 'Textes qui parlent d\'autoclic')):
-        x, y = set(avant.get(cle, [])), set(apres[cle])
+        x, y = sorted(avant.get(cle, [])), sorted(apres[cle])
         if x != y:
-            ecart('\n'.join([f'- {titre} :'] + changements(sorted(x - y), sorted(y - x))), cle, sorted(x), sorted(y))
+            ecart('\n'.join([f'- {titre} :'] + changements(*retires_ajoutes(x, y))), cle, x, y)
     for k in autoclic.FENETRES_TEXTE:
         x, y = avant['textes des fenetres'].get(k), apres['textes des fenetres'].get(k)
         if x != y:
@@ -218,15 +224,14 @@ def ecarts_page(avant, apres):
     """[(affichage, clé complète, groupe)] des écarts du reste de la page. avant : référence ; apres : page."""
     out = []
     if avant is None:
-        return [('- Référence sans suivi du reste de la page : à recaler.', json.dumps(['reference-sans-page']), 'sync')]
+        return [('- Référence sans suivi du reste de la page : à recaler.', json.dumps(['reference-sans-page']), 'recalage')]
     for nom, (groupe, forme) in principale.PASSAGES.items():
         x, y = avant.get(nom), apres.get(nom)
         if forme == 'liste':
-            x, y = set(x or []), set(y or [])
+            x, y = sorted(x or []), sorted(y or [])
             if x == y:
                 continue
-            texte = '\n'.join([f'- **{nom}** :'] + changements(sorted(x - y), sorted(y - x)))
-            x, y = sorted(x), sorted(y)
+            texte = '\n'.join([f'- **{nom}** :'] + changements(*retires_ajoutes(x, y)))
         elif x == y:
             continue
         elif y is None:

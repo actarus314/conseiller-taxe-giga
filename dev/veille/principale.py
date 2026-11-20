@@ -15,8 +15,8 @@ PASSAGES = {
     'cadence() (régularité envoyée au serveur)': ('cad', 'texte'),
     'taxHit() (horodatage des clics)': ('cad', 'texte'),
     'origine des horodatages de clickTimes': ('cad', 'liste'),
-    'corps de la synchro (flush)': ('sync', 'liste'),
-    'corps de l\'envoi de fermeture (beacon)': ('sync', 'liste'),
+    'synchro, jusqu\'à son envoi (flush)': ('sync', 'texte'),
+    'envoi de fermeture (beacon)': ('sync', 'texte'),
     'cardFlags() (champs ajoutés à la synchro)': ('sync', 'texte'),
     'autres envois à /api/sync': ('sync', 'liste'),
     'taxerName() (règle des pseudos)': ('pseudos', 'texte'),
@@ -24,7 +24,7 @@ PASSAGES = {
     'chargeur du module du boss': ('boss', 'texte'),
     'version du module du boss': ('boss', 'texte'),
     'bandeau du Dépité': ('boss', 'texte'),
-    'contrat window.TaxeBoss': ('boss', 'texte'),
+    'contrat window.TaxeBoss': ('boss', 'liste'),
     'routes lues par le collecteur': ('routes', 'liste'),
     'chargeur et appel du module du globe': ('globe', 'liste'),
     'version du module du globe': ('globe', 'texte'),
@@ -37,12 +37,13 @@ GROUPES = {
             'est un bruit attendu ; un champ nouveau ou retiré est à comprendre avant de recaler.',
     'pseudos': 'Règle des pseudos changée : vérifier ce qui la recopie.',
     'boss': 'Chargeur, bandeau ou contrat du module du boss changé (fenêtre horaire, adresses, version, calendrier, '
-            '`window.TaxeBoss`) : vérifier le combat du Dépité (`architecture.md` §5 du projet). Une version `?v=` '
-            'nouvelle signale probablement un déploiement du module.',
+            '`window.TaxeBoss`) : vérifier le combat du Dépité (`architecture.md` §5 du projet). Si c\'est la version '
+            '`?v=` : probablement un déploiement du module (non établi).',
     'routes': 'Routes que lit le collecteur changées (version, paramètre) : signal pour le collecteur '
               '(`architecture.md` §12 du projet).',
     'globe': 'Chargeur ou appel du module du globe changé (version `?v=`, adresses) : le bot le pilote '
              '(`architecture.md` §5 et §11 du projet).',
+    'recalage': 'Référence sans suivi du reste de la page : la recaler sur une page relue.',
 }
 ANCRE_CHARGEUR = 'boss-event-net.js'
 ANCRE_BANDEAU = 'bossBar'
@@ -123,16 +124,21 @@ def releve(page):
         # qui remplit clickTimes, et d'où vient l'instant de chaque clic (appels de taxHit)
         acc['origine des horodatages de clickTimes'] += _instructions(
             sc, re.compile(r'\bclickTimes\b|(?<!function )\btaxHit\s*\('), hors=z['cadence'] + z['taxHit'])
-        # les deux émissions vers /api/sync, chacune ancrée dans sa fonction (deux « const body » coexistent)
-        corps = re.compile(r'\bbody\b|\blegacy\b|\bcardFlags\s*\(')
-        if z['flush']:
-            acc['corps de la synchro (flush)'] += _instructions(sc, corps, dans=z['flush'])
-        if z['beacon']:
-            acc['corps de l\'envoi de fermeture (beacon)'] += _instructions(sc, corps, dans=z['beacon'])
-        acc['autres envois à /api/sync'] += _instructions(sc, re.compile(r'/api/sync\b'), hors=z['flush'] + z['beacon'],
-                                                          chaines=True)
+        # les deux émissions vers /api/sync, chacune ancrée dans sa fonction (deux « const body » coexistent) :
+        # flush depuis son début jusqu'à l'énoncé qui envoie (tout ce qui prépare le corps : flags, alive, clics, legacy),
+        # beacon en entier ; la réponse lue par flush après l'envoi n'en fait pas partie
+        sync = re.compile(r'/api/sync')
+        emis = []
+        for d, f in z['flush']:
+            envoi = next((m.start() for m in sync.finditer(src, d, f) if sc.genre(m.start()) == 'chaine'), None)
+            if envoi is not None:
+                fin = _enonce(sc, envoi)[1]
+                acc['synchro, jusqu\'à son envoi (flush)'].append(sc.texte(d, fin)); emis.append((d, fin))
+        for d, f in z['beacon']:
+            acc['envoi de fermeture (beacon)'].append(sc.texte(d, f)); emis.append((d, f))
+        acc['autres envois à /api/sync'] += _instructions(sc, sync, hors=emis, chaines=True)
         acc['tables NOUNS et ADJS (règle des pseudos)'] += _instructions(sc, re.compile(r'\b(?:const|let|var)\s+(?:NOUNS|ADJS)\b'))
-        acc['contrat window.TaxeBoss'] += _instructions(sc, re.compile(r'\bwindow\.TaxeBoss\s*='))
+        acc['contrat window.TaxeBoss'] += _instructions(sc, re.compile(r'\bTaxeBoss\b'))  # affectation, ajouts, lectures
         acc['routes lues par le collecteur'] += _instructions(sc, re.compile(r'/api/(?:leaderboard|taxer)\b'), chaines=True)
         acc['chargeur et appel du module du globe'] += _instructions(sc, re.compile(r'/monde/'), chaines=True)
         # blocs du boss, suivis en entier ; ancrés par leur contenu (fonctions anonymes : pas de nom)
@@ -144,7 +150,8 @@ def releve(page):
                 acc['bandeau du Dépité'].append(entier)
     out = {}
     for nom, (_, forme) in PASSAGES.items():
-        out[nom] = sorted(set(acc[nom])) if forme == 'liste' else _joint(acc[nom])
+        # inventaire : doublons gardés (un second site d'appel au texte identique au premier est un changement)
+        out[nom] = sorted(acc[nom]) if forme == 'liste' else _joint(acc[nom])
     # versions des modules, lues dans leur chargeur : nommées à part pour que l'issue les dise en clair
     out['version du module du boss'] = _joint(re.findall(r'\?v=([\w.-]{1,40})', out['chargeur du module du boss'] or ''))
     out['version du module du globe'] = _joint(re.findall(r'monde\.js\?v=([\w.-]{1,40})',
@@ -155,8 +162,7 @@ def releve(page):
 def manques(r):
     """Ce qu'une référence ne doit jamais enregistrer comme absent (ancre disparue, inventaire attendu vide)."""
     out = [f'passage {k}' for k, (_, forme) in PASSAGES.items() if forme == 'texte' and r.get(k) is None]
-    for k in ('origine des horodatages de clickTimes', 'corps de la synchro (flush)', 'corps de l\'envoi de fermeture (beacon)',
-              'tables NOUNS et ADJS (règle des pseudos)', 'routes lues par le collecteur', 'chargeur et appel du module du globe'):
+    for k in ('origine des horodatages de clickTimes', 'contrat window.TaxeBoss', 'tables NOUNS et ADJS (règle des pseudos)', 'routes lues par le collecteur', 'chargeur et appel du module du globe'):
         if not r.get(k):
             out.append(f'passage {k}')
     return out

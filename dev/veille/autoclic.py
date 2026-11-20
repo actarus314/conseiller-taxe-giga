@@ -22,7 +22,7 @@ FENETRES_TEXTE = ('acOv', 'durOv', 'acWarnOv')
 CHAMP = re.compile(r'\.(ac[A-Z][\w$]*|autoclick)\b|\[\s*([\'"`])(ac[A-Z][\w$]*|autoclick)\2\s*\]')
 # … ou par déstructuration dans une déclaration (const { acDur, autoclick: x } = d ; sans accolades imbriquées)
 DESTRUCT = re.compile(r'\b(?:const|let|var)\s*\{([^{}]*)\}\s*=(?!=)')
-NOM_CHAMP = re.compile(r'(?<![\w$.])(ac[A-Z][\w$]*|autoclick)\s*(?=[,:=}]|$)')
+NOM_CHAMP = re.compile(r'(?:^|,)\s*([\'"]?)(ac[A-Z][\w$]*|autoclick)\1\s*(?=[,:=]|$)')  # clé, pas nom local
 # instructions suivies : champ lu, garde des clics, clé du choix gardé, minuteries des fenêtres d'autoclic
 INSTR = re.compile(r'\.(?:ac[A-Z][\w$]*|autoclick)\b|\[\s*([\'"`])(?:ac[A-Z][\w$]*|autoclick)\1\s*\]|\bisTrusted\b'
                    r'|(?<!function )\boneShot\s*\(|\bAC_KEY\b|\b(?:setInterval|setTimeout)\s*\(\s*(?:ac[A-Z][\w$]*|durWarn)\b')
@@ -371,7 +371,7 @@ def releve(page):
     """Ce que la page porte de la détection d'autoclic. Lève Illisible si un bloc de script ne se lit pas.
     Un texte déjà suivi par une règle de veille.py l'est aussi ici : un changement y fait deux écarts, jamais zéro."""
     zones = {nom: [] for nom in ZONES}
-    instructions, champs, chaines, fenetres = set(), set(), set(), set()
+    instructions, champs, chaines, fenetres = [], set(), set(), set()  # instructions : doublons gardés
     for n, src in enumerate(scripts(page), 1):
         try:
             sc = Script(src)
@@ -384,19 +384,19 @@ def releve(page):
         for m in sc.dans_code(CHAMP):
             champs.add(m.group(1) or m.group(3))
         for m in sc.dans_code(DESTRUCT):
-            noms = NOM_CHAMP.findall(m.group(1))
+            noms = [n for _, n in NOM_CHAMP.findall(m.group(1))]
             champs.update(noms)
             if noms and not any(d <= m.start() < f for d, f in pris):
                 # déclaration entière : du mot-clé à la fin de l'instruction qui suit le « = » (les accolades de la
                 # déstructuration ne sont pas un bloc)
                 d, f = m.start(), sc.instruction(m.end())[1]
-                instructions.add(sc.texte(d, f)); pris.append((d, f))
+                instructions.append(sc.texte(d, f)); pris.append((d, f))
         routes = [d for genre, d, f in sc.m if genre == 'chaine' and ROUTES.search(src[d:f])]
         for p in sorted([m.start() for m in sc.dans_code(INSTR)] + routes):
             if any(d <= p < f for d, f in pris):
                 continue
             d, f = sc.instruction(p)
-            instructions.add(sc.texte(d, f)); pris.append((d, f))
+            instructions.append(sc.texte(d, f)); pris.append((d, f))
         for m in sc.dans_code(ROLE):
             fenetres.add(_fenetre_script(src, m))
         for genre, d, f in sc.m:

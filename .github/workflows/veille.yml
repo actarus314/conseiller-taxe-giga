@@ -103,7 +103,7 @@ jobs:
             ecart)
               case "$SUJET" in
                 autoclic) titre="Veille : la détection d'autoclic du jeu a changé [$EMP]" ;;
-                page) titre="Veille : un passage suivi de la page du jeu a changé (synchro, pseudos, boss, routes ou globe) [$EMP]" ;;
+                page) titre="Veille : un passage suivi de la page du jeu a changé (synchro, régularité, pseudos, boss, routes ou globe) [$EMP]" ;;
                 mixte) titre="Veille : le jeu a changé sur plusieurs plans (barème, détection d'autoclic, reste de la page) [$EMP]" ;;
                 illisible) titre="Veille : le code du jeu n'a plus la forme connue, détection d'autoclic et reste de la page non vérifiés [$EMP]" ;;
                 *) titre="Veille : le jeu ne correspond plus au conseiller [$EMP]" ;;

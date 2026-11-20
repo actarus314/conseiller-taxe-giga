@@ -249,14 +249,20 @@ CAS3 = [
     ('horodatage gardé par taxHit changé', mute('clickTimes.push(ts);', 'clickTimes.push(Date.now());'), 'taxHit()'),
     ('origine des horodatages (bouton) changée', mute('taxHit(e.timeStamp);', 'taxHit(performance.now());'), 'origine des horodatages'),
     ('origine des horodatages (version mini) changée', mute('const n = taxHit(performance.now());', 'const n = taxHit(e.timeStamp);'), 'origine des horodatages'),
+    ('second site d\'appel de taxHit au texte identique', mute('const AC_KEY =', "sticky.addEventListener('click', e => { if (!e.isTrusted || bossLock) return;\n    taxHit(e.timeStamp);\n  });\n  const AC_KEY ="), 'origine des horodatages de clickTimes** :\najouté :\n~~~~\ntaxHit(e.timeStamp);'),
     ('clickTimes rempli ailleurs', mute('const AC_KEY =', 'document.onclick = () => clickTimes.push(Date.now());\n  const AC_KEY ='), 'origine des horodatages'),
     # 2. ce que la page envoie à /api/sync, chaque corps séparément
-    ('champ ajouté au corps de la synchro', mute('tb: 1, ...flags };', 'tb: 1, hz: 1, ...flags };'), 'corps de la synchro'),
-    ('champ retiré du corps de la synchro', mute('cad: cadence(), ', ''), 'corps de la synchro'),
-    ('body.legacy changé', mute('body.legacy = { myCount, wallet };', 'body.legacy = { myCount, wallet, owned };'), 'corps de la synchro'),
+    ('champ ajouté au corps de la synchro', mute('tb: 1, ...flags };', 'tb: 1, hz: 1, ...flags };'), 'synchro, jusqu'),
+    ('champ retiré du corps de la synchro', mute('cad: cadence(), ', ''), 'synchro, jusqu'),
+    ('body.legacy changé', mute('body.legacy = { myCount, wallet };', 'body.legacy = { myCount, wallet, owned };'), 'synchro, jusqu'),
     ('champ ajouté au corps de fermeture', mute('const body = { code, clicks: rr, gold', 'const body = { code, clicks: rr, cad: cadence(), gold'), 'envoi de fermeture'),
     ('cardFlags() changée', mute('f.rk = 1;', 'f.rk = 1; f.vu = 1;'), 'cardFlags()'),
-    ('adresse de la synchro changée (hors de l\'objet des options)', mute("api('/api/sync', { method", "api('/api/sync2', { method"), 'corps de la synchro'),
+    ('adresse de la synchro changée (hors de l\'objet des options)', mute("api('/api/sync', { method", "api('/api/sync2', { method"), 'synchro, jusqu'),
+    ('source d\'un champ du corps changée (flags)', mute('let flags = {};', 'let flags = { zz: 1 };'), 'synchro, jusqu'),
+    ('plafond des clics envoyés changé', mute('clicks: rr, cad', 'clicks: Math.min(rr, 30000), cad'), 'synchro, jusqu'),
+    ('second envoi dans beacon', mute("{ type: 'text/plain' })); } catch (e) {}", "{ type: 'text/plain' })); navigator.sendBeacon(API + '/api/sync', JSON.stringify(autre)); } catch (e) {}"), 'envoi de fermeture'),
+    ('second envoi dans flush, après le premier', mute("const d = r.ok ? await r.json() : { ok: false };", "const d = r.ok ? await r.json() : { ok: false };\n    navigator.sendBeacon(API + '/api/sync', JSON.stringify(autre));"), 'autres envois à /api/sync'),
+    ('envoi vers une route voisine (/api/sync2)', mute('function cardFlags()', "api('/api/sync2', { body: x });\n  function cardFlags()"), 'autres envois à /api/sync'),
     ('troisième envoi à /api/sync', mute('function cardFlags()', "setInterval(() => api('/api/sync', { method: 'POST', body: '{}' }), 6e4);\n  function cardFlags()"), 'autres envois'),
     # 3. règle des pseudos
     ('taxerName() changée', mute('#${h % 1000}', '#${h % 10000}'), 'taxerName()'),
@@ -270,6 +276,8 @@ CAS3 = [
     ('calendrier du bandeau changé', mute('o + 280000', 'o + 300000'), 'bandeau du Dépité** modifié'),
     ('ancre du bandeau disparue', mute("getElementById('bossBar')", "getElementById('bossBand')"), 'bandeau du Dépité** introuvable'),
     ('contrat window.TaxeBoss changé', mute(' now: () => Date.now() + serverOffset,', ''), 'contrat window.TaxeBoss'),
+    ('membre ajouté au contrat après coup', mute('</script>\n<div id="bossBar"', '  window.TaxeBoss.zork = () => 1;\n</script>\n<div id="bossBar"'), 'contrat window.TaxeBoss'),
+    ('contrat complété par Object.assign', mute('</script>\n<div id="bossBar"', '  Object.assign(window.TaxeBoss, { zork: 1 });\n</script>\n<div id="bossBar"'), 'contrat window.TaxeBoss'),
     # 5. restes de la détection d'autoclic
     ('clé AC_KEY changée', mute("'taxe-giga-ac-choice'", "'taxe-giga-ac-choix'"), 'Instructions'),
     ('minuterie de acShow changée', mute('setInterval(acShow, 3000);', 'setInterval(acShow, 5000);'), 'Instructions'),
@@ -280,6 +288,7 @@ CAS3 = [
     ('champ lu par crochets', mute('function cardFlags()', "if (d['acPause']) stop();\n  function cardFlags()"), 'Champs de détection lus :\najouté :\n~~~~\nacPause'),
     ('instruction qui lit un champ par crochets', mute('function cardFlags()', "if (d['acPause']) stop();\n  function cardFlags()"), "if(d['acPause'])stop();"),
     ('champ lu par déstructuration', mute('function cardFlags()', 'const { acHalt, ok } = d;\n  function cardFlags()'), 'Champs de détection lus :\najouté :\n~~~~\nacHalt'),
+    ('champ déstructuré à clé entre guillemets', mute('function cardFlags()', "const { 'acStop': s } = d;\n  function cardFlags()"), 'Champs de détection lus :\najouté :\n~~~~\nacStop'),
     ('instruction qui déstructure un champ', mute('function cardFlags()', 'const { acHalt, ok } = d;\n  function cardFlags()'), 'const{acHalt,ok}=d;'),
     # 6. routes que lit le collecteur
     ('version du classement changée', mute('/api/leaderboard?v=3&', '/api/leaderboard?v=4&'), 'routes lues par le collecteur'),
@@ -300,6 +309,9 @@ lancer(mute('monde.js?v=29', 'monde.js?v=30'), sortie=o7)
 verifie('sujet « page »', 'sujet=page' in o7.read_text())
 lancer(mute('monde.js?v=29', 'monde.js?v=30', page(shop=shop)), sortie=o8)
 verifie('sujet « mixte » (barème et page)', 'sujet=mixte' in o8.read_text())
+code, out = lancer(mute('function cardFlags()', 'const { x: acLocal } = d;\n  function cardFlags()'), '--maj-reference')
+verifie('déstructuration vers un nom local « ac… » : pas un champ lu', code == 0 and 'acLocal' not in json.loads(REF_TEST.read_text(encoding='utf-8'))['autoclic']['champs'], out[-300:])
+code, out = lancer(page(), '--maj-reference')  # référence des tests rétablie
 code, out = lancer(mute('if (t.length < 30) return', 'if (t.length  <  30)   return'))
 verifie('reformatage dans cadence() : conforme', code == 0, out[-300:])
 code, out = lancer(mute('const mondeMod =', "// fiche : /api/taxer?id=, globe : /monde/, envoi : /api/sync ; 'clickTimes'\n  const mondeMod ="))
@@ -352,12 +364,15 @@ pg = REF.get('page') or {}
 verifie('reference.json : section page complète (passages ancrés, inventaires attendus)',
         bool(pg) and set(pg) == set(principale.PASSAGES) and not principale.manques(pg))
 # codes de compte « GOBE-XXXX-… » : jamais dans le dépôt ; les pseudos « Gobe-Octet … » n'en sont pas
-CODE_COMPTE = re.compile(r'\bGOBE(?:-[A-Z0-9]{4}){4}\b', re.I)
+CODE_COMPTE = re.compile(r'\bGOBE(?:[-\s]?[A-Z0-9]{4}){4}\b', re.I)
 verifie('contrôle des codes de compte : trouve un code, pas un pseudo',
         CODE_COMPTE.search('GOBE' + '-ABCD-1234-EFGH-5678') and CODE_COMPTE.search('gobe' + '-abcd-1234-efgh-5678')
         and not CODE_COMPTE.search('Gobe-Octet sournois #732') and not CODE_COMPTE.search("'Gobe-Octet','Contrôleur'"))
-verifie('aucun code de compte dans dev/veille/ (pseudos permis)',
-        not any(CODE_COMPTE.search(x.read_text(encoding='utf-8')) for x in ICI.iterdir() if x.suffix in ('.json', '.py')))
+RACINE = ICI.parents[1]
+fichiers = [x for x in RACINE.rglob('*') if x.is_file() and not {'.git', 'node_modules'} & set(x.relative_to(RACINE).parts)]
+verifie('aucun code de compte dans le dépôt (pseudos permis ; tirets, espaces ou rien entre les groupes)',
+        CODE_COMPTE.search('GOBE' + ' ABCD 1234 EFGH 5678') and CODE_COMPTE.search('gobe' + 'abcd1234efgh5678')
+        and not any(CODE_COMPTE.search(x.read_text(encoding='utf-8', errors='ignore')) for x in fichiers), len(fichiers))
 
 long_avant = 'x = 1;' * 80 + "say('autoclic 36e5');"
 code, out = lancer(mute("say(`clics : ${d.acGab}`);", "say(`clics : ${d.acGab}`); if (d.acLong) { " + long_avant + " }"), '--maj-reference')
