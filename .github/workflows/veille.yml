@@ -1,5 +1,5 @@
 # Veille : vérifie que le barème et les règles du jeu sont ceux du conseiller, et que la détection d'autoclic du jeu
-# (code et textes) n'a pas changé.
+# (code et textes) et le reste suivi de la page principale (synchro, pseudos, boss, routes, globe) n'ont pas changé.
 # Écart → une issue (une seule par constat ; un constat nouveau remplace l'issue ouverte) ; retour à la normale → issues
 # de veille refermées.
 # Page inaccessible (le site bloque parfois les robots quand son trafic monte) : un seul essai, puis la relance suivante est
@@ -103,8 +103,9 @@ jobs:
             ecart)
               case "$SUJET" in
                 autoclic) titre="Veille : la détection d'autoclic du jeu a changé [$EMP]" ;;
-                mixte) titre="Veille : le jeu ne correspond plus au conseiller, et sa détection d'autoclic a changé [$EMP]" ;;
-                illisible) titre="Veille : le code du jeu n'a plus la forme connue, détection d'autoclic non vérifiée [$EMP]" ;;
+                page) titre="Veille : un passage suivi de la page du jeu a changé (synchro, pseudos, boss, routes ou globe) [$EMP]" ;;
+                mixte) titre="Veille : le jeu a changé sur plusieurs plans (barème, détection d'autoclic, reste de la page) [$EMP]" ;;
+                illisible) titre="Veille : le code du jeu n'a plus la forme connue, détection d'autoclic et reste de la page non vérifiés [$EMP]" ;;
                 *) titre="Veille : le jeu ne correspond plus au conseiller [$EMP]" ;;
               esac ;;
             erreur) titre="Veille : erreur d'analyse de la page du jeu [$EMP]" ;;

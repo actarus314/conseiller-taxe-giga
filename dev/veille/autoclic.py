@@ -17,9 +17,19 @@ import bisect, html.parser, re
 
 ZONES = ('durWarn', 'acNotice', 'acShow', 'acPick', 'acWarnShow', 'acWarnClose', 'oneShot')
 FENETRES_TEXTE = ('acOv', 'durOv', 'acWarnOv')
-# champs de détection : convention du jeu (et du bot, qui s'arrête sur tout champ « ac » + majuscule non vide)
-CHAMP = re.compile(r'\.(ac[A-Z][\w$]*|autoclick)\b')
-INSTR = re.compile(r'\.(?:ac[A-Z][\w$]*|autoclick)\b|\bisTrusted\b|(?<!function )\boneShot\s*\(')
+# champs de détection : convention du jeu (et du bot, qui s'arrête sur tout champ « ac » + majuscule non vide),
+# lus par un point (d.acDur) ou par crochets à chaîne littérale (d['acDur'])
+CHAMP = re.compile(r'\.(ac[A-Z][\w$]*|autoclick)\b|\[\s*([\'"`])(ac[A-Z][\w$]*|autoclick)\2\s*\]')
+# … ou par déstructuration dans une déclaration (const { acDur, autoclick: x } = d ; sans accolades imbriquées)
+DESTRUCT = re.compile(r'\b(?:const|let|var)\s*\{([^{}]*)\}\s*=(?!=)')
+NOM_CHAMP = re.compile(r'(?<![\w$.])(ac[A-Z][\w$]*|autoclick)\s*(?=[,:=}]|$)')
+# instructions suivies : champ lu, garde des clics, clé du choix gardé, minuteries des fenêtres d'autoclic
+INSTR = re.compile(r'\.(?:ac[A-Z][\w$]*|autoclick)\b|\[\s*([\'"`])(?:ac[A-Z][\w$]*|autoclick)\1\s*\]|\bisTrusted\b'
+                   r'|(?<!function )\boneShot\s*\(|\bAC_KEY\b|\b(?:setInterval|setTimeout)\s*\(\s*(?:ac[A-Z][\w$]*|durWarn)\b')
+# envois au serveur qui portent la méthode de clic d'un joueur averti (adresse dans une chaîne)
+ROUTES = re.compile(r'/api/feedback\b')
+# fenêtre créée par le script sans HTML dans une chaîne : role posé par setAttribute, ou élément <dialog> créé
+ROLE = re.compile(r'([\w$]+)\.setAttribute\(\s*([\'"])role\2\s*,\s*([\'"])dialog\3\s*\)|\bcreateElement\(\s*([\'"])dialog\4\s*\)')
 MOTS = re.compile(r'auto-?cli(?:c|ck)|trich(?!e du compteur)|sans (?:la moindre |aucune )?pause|des pauses|sous surveillance'
                   r'|comportement anormal', re.I)
 AVANT_REGEX = set('(,=:[!&|?{};+-*%~^<>')
@@ -342,6 +352,21 @@ def scripts(page):
     return [m.group(1) for m in re.finditer(r'<script\b[^>]*>(.*?)</script\b[^>]*>', page, re.S | re.I)]
 
 
+def _fenetre_script(src, m):
+    """Nom d'une fenêtre créée par le script (ROLE) : balise et classe de l'élément, lues à sa création
+    (mk('div', 'classe') du jeu, ou createElement) dans les 3000 caractères qui précèdent."""
+    if not m.group(1):
+        return 'dialog (script)'
+    v = re.escape(m.group(1))
+    cree = list(re.finditer(rf'(?<![\w$.]){v}\s*=\s*(?:mk\(\s*([\'"])(\w+)\1\s*(?:,\s*([\'"])([\w -]*)\3)?'
+                            rf'|document\.createElement\(\s*([\'"])(\w+)\5)', src[max(0, m.start() - 3000):m.start()]))
+    if not cree:
+        return f'{m.group(1)} (script)'
+    c = cree[-1]
+    balise, classe = c.group(2) or c.group(6), (c.group(4) or '').strip()
+    return f'{balise}.{".".join(classe.split())} (script)' if classe else f'{balise} (script)'
+
+
 def releve(page):
     """Ce que la page porte de la détection d'autoclic. Lève Illisible si un bloc de script ne se lit pas.
     Un texte déjà suivi par une règle de veille.py l'est aussi ici : un changement y fait deux écarts, jamais zéro."""
@@ -357,12 +382,23 @@ def releve(page):
             for d, f in sc.zone(nom):
                 zones[nom].append(sc.texte(d, f)); pris.append((d, f))
         for m in sc.dans_code(CHAMP):
-            champs.add(m.group(1))
-        for m in sc.dans_code(INSTR):
-            if any(d <= m.start() < f for d, f in pris):
+            champs.add(m.group(1) or m.group(3))
+        for m in sc.dans_code(DESTRUCT):
+            noms = NOM_CHAMP.findall(m.group(1))
+            champs.update(noms)
+            if noms and not any(d <= m.start() < f for d, f in pris):
+                # déclaration entière : du mot-clé à la fin de l'instruction qui suit le « = » (les accolades de la
+                # déstructuration ne sont pas un bloc)
+                d, f = m.start(), sc.instruction(m.end())[1]
+                instructions.add(sc.texte(d, f)); pris.append((d, f))
+        routes = [d for genre, d, f in sc.m if genre == 'chaine' and ROUTES.search(src[d:f])]
+        for p in sorted([m.start() for m in sc.dans_code(INSTR)] + routes):
+            if any(d <= p < f for d, f in pris):
                 continue
-            d, f = sc.instruction(m.start())
+            d, f = sc.instruction(p)
             instructions.add(sc.texte(d, f)); pris.append((d, f))
+        for m in sc.dans_code(ROLE):
+            fenetres.add(_fenetre_script(src, m))
         for genre, d, f in sc.m:
             # fenêtre écrite dans une chaîne (HTML injecté par le script) : son id entre dans l'inventaire
             # (attributs entre guillemets, guillemets échappés ou apostrophes ; createElement n'est pas vu)

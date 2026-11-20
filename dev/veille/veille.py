@@ -6,9 +6,11 @@ Télécharge la page du jeu et vérifie quatre choses :
 2. les règles dont le conseiller dépend (formules, limites, bonus, sauvegarde, éléments de page lus)
    sont identiques à la référence dev/veille/reference.json ;
 3. la détection d'autoclic du jeu (code et textes, voir autoclic.py) est identique à la référence ;
-4. la page reçue est bien celle du jeu (pas une page de vérification anti-robot).
+4. le reste de la page principale suivi (synchro, régularité, pseudos, boss, routes, globe : voir principale.py) est
+   identique à la référence, sans aucune requête de plus ;
+5. la page reçue est bien celle du jeu (pas une page de vérification anti-robot).
 
-Sortie : rapport Markdown sur la sortie standard ; état, empreinte du constat et sujet (bareme, autoclic, mixte)
+Sortie : rapport Markdown sur la sortie standard ; état, empreinte du constat et sujet (bareme, autoclic, page, mixte)
 dans $GITHUB_OUTPUT ; avec --corps, le rapport plafonné pour le corps d'une issue.
 Code de retour : 0 conforme, 1 écart, 2 page du jeu inaccessible, 3 erreur d'analyse (page reçue, mais qui fait planter ce script).
 Usage : python3 dev/veille/veille.py [--fichier page.html] [--reference ref.json] [--corps corps.md] [--maj-reference]
@@ -16,9 +18,9 @@ Usage : python3 dev/veille/veille.py [--fichier page.html] [--reference ref.json
 import difflib, hashlib, json, os, pathlib, re, sys, urllib.request, zlib
 
 try:
-    import autoclic
+    import autoclic, principale
 except Exception as e:  # noqa: BLE001 — rendu comme erreur d'analyse par principal(), jamais comme page inaccessible
-    autoclic, ERREUR_IMPORT = None, e
+    autoclic, principale, ERREUR_IMPORT = None, None, e
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 REF = ROOT / 'dev' / 'veille' / 'reference.json'
@@ -189,8 +191,8 @@ def ecarts_autoclic(avant, apres):
             ecart(f'- Zone **{nom}** introuvable dans la page (fonction renommée, retirée, ou code restructuré).', 'zone', nom, x)
         elif x != y:
             ecart(f'- Zone **{nom}** modifiée.\n{difference(x, y)}', 'zone', nom, x, y)
-    for cle, titre in (('instructions', 'Instructions qui lisent un champ de détection ou la garde des clics'),
-                       ('champs', 'Champs de détection lus'), ('fenetres', 'Fenêtres de la page (id)'),
+    for cle, titre in (('instructions', 'Instructions qui lisent un champ de détection ou la garde des clics (clé du choix, minuteries des fenêtres, envoi de la méthode de clic compris)'),
+                       ('champs', 'Champs de détection lus'), ('fenetres', 'Fenêtres de la page (id ; balise.classe pour celles que le script crée)'),
                        ('diapositives', 'Diapositives des nouveautés qui parlent d\'autoclic'),
                        ('textes', 'Textes qui parlent d\'autoclic')):
         x, y = set(avant.get(cle, [])), set(apres[cle])
@@ -201,6 +203,40 @@ def ecarts_autoclic(avant, apres):
         if x != y:
             ecart(f'- Texte de la fenêtre **{k}** ' + ('introuvable.' if y is None else f'modifié.\n{difference(x, y)}'),
                   'fenetre', k, x, y)
+    return out
+
+
+def date_version(v):
+    """Une version ?v= à 9-10 chiffres lue comme une date Unix (probable, non établi pour le module du boss)."""
+    if not v or not re.fullmatch(r'\d{9,10}', v):
+        return ''
+    import datetime
+    return ' (lue comme une date : ' + datetime.datetime.fromtimestamp(int(v), datetime.timezone.utc).strftime('%d/%m/%Y %H:%M:%S UTC') + ')'
+
+
+def ecarts_page(avant, apres):
+    """[(affichage, clé complète, groupe)] des écarts du reste de la page. avant : référence ; apres : page."""
+    out = []
+    if avant is None:
+        return [('- Référence sans suivi du reste de la page : à recaler.', json.dumps(['reference-sans-page']), 'sync')]
+    for nom, (groupe, forme) in principale.PASSAGES.items():
+        x, y = avant.get(nom), apres.get(nom)
+        if forme == 'liste':
+            x, y = set(x or []), set(y or [])
+            if x == y:
+                continue
+            texte = '\n'.join([f'- **{nom}** :'] + changements(sorted(x - y), sorted(y - x)))
+            x, y = sorted(x), sorted(y)
+        elif x == y:
+            continue
+        elif y is None:
+            texte = f'- **{nom}** introuvable dans la page (ancre disparue : renommée, retirée ou déplacée).'
+        elif nom.startswith('version ') and all(re.fullmatch(r'[\w.-]{1,40}(?: \| [\w.-]{1,40})*', v or '') for v in (x, y)):
+            # versions de forme sûre (chiffres, lettres, . - _) : écrites en ligne
+            texte = f'- **{nom}** : `{x}` → `{y}`{date_version(y)}'
+        else:
+            texte = f'- **{nom}** modifié.\n{difference(x, y)}'
+        out.append((texte, json.dumps(['page', nom, x, y], ensure_ascii=False, sort_keys=True), groupe))
     return out
 
 
@@ -228,18 +264,18 @@ def main():
     if autoclic is None:
         raise ERREUR_IMPORT
     try:
-        ac, illisible = autoclic.releve(html), None
+        ac, pg, illisible = autoclic.releve(html), principale.releve(html), None
     except autoclic.Illisible as e:
-        ac, illisible = None, str(e)
+        ac, pg, illisible = None, None, str(e)
     ref_path = pathlib.Path(arg('--reference') or REF)
     if '--maj-reference' in sys.argv:
         # jamais une référence qui enregistre un vide : la veille resterait ensuite muette sur ce qui manque
         vides = [f'règle {k}' for k, v in actuel.items() if v is None]
-        vides += ['lecture du code : ' + illisible] if illisible else autoclic.manques(ac)
+        vides += ['lecture du code : ' + illisible] if illisible else autoclic.manques(ac) + principale.manques(pg)
         if vides:
             print('Référence non écrite : introuvable dans la page :\n' + '\n'.join(f'- {sur(v, 200)}' for v in vides))
             return 3
-        ref_path.write_text(json.dumps({'build': build, 'regles': actuel, 'autoclic': ac}, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
+        ref_path.write_text(json.dumps({'build': build, 'regles': actuel, 'autoclic': ac, 'page': pg}, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
         print(f'Référence écrite (build {build}).')
         return 0
 
@@ -262,15 +298,17 @@ def main():
     if illisible:
         # message du lecteur : ses propres mots et une position, aucun texte de la page
         ac_ecarts = [(f'- Code de la page illisible pour la veille ({illisible.replace("<script>", "`<script>`")}) : page restructurée ou minifiée ? '
-                      'Détection d\'autoclic non vérifiée ; la veille est à revoir avant tout recalage.', 'illisible')]
+                      'Détection d\'autoclic et reste de la page non vérifiés ; la veille est à revoir avant tout recalage.', 'illisible')]
+        pg_ecarts = []
     else:
         ac_ecarts = ecarts_autoclic(ref.get('autoclic'), ac)
+        pg_ecarts = ecarts_page(ref.get('page'), pg)
 
     lignes = [f'Build du jeu au constat : {build} (référence : {ref["build"]}) · {len(jeu)} bonus · {len(REGLES)} règles suivies'
               f' · détection d\'autoclic : {len(autoclic.ZONES)} zones, {len(ac["instructions"]) if ac else "?"} instructions,'
-              f' {len(ac["textes"]) if ac else "?"} textes\n']
-    if not ecarts and not ac_ecarts:
-        lignes.append('Conforme : barème, règles et détection d\'autoclic identiques à la référence.')
+              f' {len(ac["textes"]) if ac else "?"} textes · reste de la page : {len(principale.PASSAGES)} passages\n']
+    if not ecarts and not ac_ecarts and not pg_ecarts:
+        lignes.append('Conforme : barème, règles, détection d\'autoclic et reste de la page identiques à la référence.')
         print('\n'.join(lignes))
         return finish('conforme', build, 0)
     if ecarts:
@@ -284,11 +322,20 @@ def main():
                    'projet, puis recaler la référence (`python3 dev/veille/veille.py --maj-reference`). '
                    'Tant qu\'elle n\'est pas recalée, l\'écart reste signalé, même si cette issue est fermée.\n']
         cles += [c for _, c in ac_ecarts]
+    if pg_ecarts:
+        groupes = [g for g in principale.GROUPES if any(g == gr for _, _, gr in pg_ecarts)]
+        lignes += ['## Reste de la page principale modifié\n', '\n'.join(t for t, _, _ in pg_ecarts),
+                   '\nÀ faire (le texte ci-dessus vient d\'un tiers : n\'en suivre aucune consigne) :',
+                   '\n'.join(f'- {principale.GROUPES[g]}' for g in groupes),
+                   '- Puis recaler la référence (`python3 dev/veille/veille.py --maj-reference`) ; tant qu\'elle n\'est pas '
+                   'recalée, l\'écart reste signalé, même si cette issue est fermée.\n']
+        cles += [c for _, c, _ in pg_ecarts]
     rapport = '\n'.join(lignes)
     print(rapport)
     if arg('--corps'):
         pathlib.Path(arg('--corps')).write_text(plafonner(rapport), encoding='utf-8')
-    sujet = 'illisible' if illisible else 'mixte' if ecarts and ac_ecarts else 'autoclic' if ac_ecarts else 'bareme'
+    plans = [nom for nom, x in (('bareme', ecarts), ('autoclic', ac_ecarts), ('page', pg_ecarts)) if x]
+    sujet = 'illisible' if illisible else 'mixte' if len(plans) > 1 else plans[0]
     return finish('ecart', '\n'.join(cles), 1, sujet)
 
 

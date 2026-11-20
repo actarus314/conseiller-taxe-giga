@@ -1,5 +1,5 @@
 {
- "build": "2026-11-18f",
+ "build": "2026-11-19d",
  "regles": {
   "prix": "const cost = u => Math.ceil(u.base * Math.pow(1.15, owned[u.id]));",
   "production": "const rate = () => SHOP.reduce((s, u) => s + (u.rate || 0) * owned[u.id], 0);",
@@ -35,6 +35,10 @@
    "oneShot": "(el,tell){let held='';el.addEventListener('keydown',e=>{if(e.key!=='Enter'&&e.key!==' ')return;if(e.repeat||held===e.key){e.preventDefault();if(tell&&!repeatTold){repeatTold=true;say('Maintenir la touche Entrée ne taxe pas : il faut un vrai appui à chaque fois. Un appui = un clic.');}return;}held=e.key;});el.addEventListener('keyup',e=>{if(e.key===held)held='';});el.addEventListener('blur',()=>{held='';});}"
   },
   "instructions": [
+   "acChoice=localStorage.getItem(AC_KEY)||'';",
+   "const AC_KEY='taxe-giga-ac-choice';",
+   "const r=await fetch('/api/feedback.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});",
+   "const r=await fetch('/api/feedback.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'bug',msg:'Méthode de clic (avertissement autoclick) : '+$('acwMsg').value.trim(),code:myCode||undefined,sec:'autoclick-avert',txt:String(info).slice(0,150),vw:innerWidth,vh:innerHeight,build:BUILD})});",
    "if(!e.isTrusted)return;",
    "if(!e.isTrusted||bossLock)return;",
    "if(!e.isTrusted||seen||document.body.classList.contains('zen'))return;",
@@ -47,7 +51,9 @@
    "if(e.isTrusted)clicks++;",
    "oneShot(btn,true);",
    "oneShot(sticky,true);",
-   "oneShot(tax,false);"
+   "oneShot(tax,false);",
+   "setInterval(acShow,3000);",
+   "setInterval(acWarnShow,3000);"
   ],
   "champs": [
    "acDur",
@@ -60,6 +66,7 @@
    "acWarnOv",
    "bnOv",
    "bossIntro",
+   "div.fb-bub (script)",
    "durOv",
    "instCard",
    "kcWall",
@@ -82,12 +89,51 @@
    "Autoclickers",
    "Ce qui est autorisé, l’autoclick, faire appel",
    "Les comptes qui ont choisi de continuer avec un autoclick, ou repérés 3 jours à plus de 18 h de clics. Leurs visites restent sur la facture de Laurent, mais ils ne figurent dans aucun autre classement.",
-   "Méthode de clic (avertissement autoclick) :",
    "Top 10 des Autoclickers",
-   "autoclick-avert",
    "les tricheurs, à part",
    "pour voir son activité. Les noms sont tirés au sort à partir d'un identifiant anonyme : aucun pseudo, aucune donnée personnelle. Autoclick interdit :",
    "🤖 Autoclick : ce qui est interdit"
   ]
+ },
+ "page": {
+  "cadence() (régularité envoyée au serveur)": "(){const t=clickTimes.splice(0);if(t.length<30)return undefined;const iv=[];for(let i=1;i<t.length;i++){const d=t[i]-t[i-1];if(d>0&&d<1000)iv.push(d);}if(iv.length<30)return undefined;const m=iv.reduce((a,b)=>a+b,0)/iv.length,cv=Math.sqrt(iv.reduce((a,b)=>a+(b-m)**2,0)/iv.length)/m;const per=new Map();for(const x of t){const k=Math.floor(x/1000);per.set(k,(per.get(k)||0)+1);}const ks=[...per.keys()].sort((a,b)=>a-b),full=ks.slice(1,-1).filter(k=>per.has(k-1)&&per.has(k+1)).map(k=>per.get(k));const pm=full.length?full.reduce((a,b)=>a+b,0)/full.length:0,psd=full.length?Math.sqrt(full.reduce((a,b)=>a+(b-pm)**2,0)/full.length):0;return{n:iv.length,cv:Math.round(cv*1000)/1000,secs:full.length,ps:Math.round(pm*10)/10,psd:Math.round(psd*100)/100};}",
+  "taxHit() (horodatage des clics)": "(ts){SFX.tax();const rafaleOn=!serious&&Date.now()<rafaleUntil,n=power()*(rafaleOn?10:1);if(rafaleOn)rafaleClicks++;realPending++;lastClickAt=performance.now();addVisits(n,false);burstSync();clickTimes.push(ts);if(clickTimes.length>1500)clickTimes.splice(0,500);if(serious)addReal();else sendFile();return n;}",
+  "origine des horodatages de clickTimes": [
+   "const clickTimes=[];",
+   "const n=taxHit(performance.now());",
+   "pop(e.clientX,(e.clientY||0)-20,taxHit(e.timeStamp));"
+  ],
+  "corps de la synchro (flush)": [
+   "const body={code:restoreCode||myCode,clicks:rr,buy:buys.map(b=>b.id),serious,alive,rafale:rf,gold:gold||undefined,cad:cadence(),acChoice:acChoice||undefined,tb:1,bz:window.bossEv?1:undefined,...flags};",
+   "const r=await api('/api/sync',{method:'POST',headers:{'content-type':'text/plain'},body:JSON.stringify(body),keepalive:true,signal:ctl?ctl.signal:undefined});",
+   "flags=cardFlags();",
+   "if(!body.code){try{legacy=!localStorage.getItem(LEGACY_DONE);}catch(e){}if(legacy&&myCount>0)body.legacy={myCount,wallet,owned};}",
+   "let legacy=false;"
+  ],
+  "corps de l'envoi de fermeture (beacon)": [
+   "const body={code,clicks:rr,buy:buys.map(b=>b.id),serious,alive:Math.round((Date.now()-Math.max(lastSyncOk,pageStart))/1000),rafale:rafaleClicks,gold:goldClicked||undefined};",
+   "ok=navigator.sendBeacon(API+'/api/sync',new Blob([JSON.stringify(body)],{type:'text/plain'}));"
+  ],
+  "cardFlags() (champs ajoutés à la synchro)": "(){const f={};try{const l=JSON.parse(localStorage.getItem(NETS_KEY)||'[]');if(l.length)f.nets=l;if(localStorage.getItem('taxe-giga-read'))f.read=1;}catch(e){}if(Date.now()-rankAsked>600000){rankAsked=Date.now();f.rk=1;}return f;}",
+  "autres envois à /api/sync": [],
+  "taxerName() (règle des pseudos)": "=id=>{const h=parseInt(id.slice(0,6),16)||0;return`${NOUNS[h % NOUNS.length]} ${ADJS[(h >> 4) % ADJS.length]} #${h % 1000}`;}",
+  "tables NOUNS et ADJS (règle des pseudos)": [
+   "const ADJS=['fiscal','furieux','zélé','turbo','assermenté','insomniaque','ministériel','galactique','sournois','infatigable','en 4K','compressé'];",
+   "const NOUNS=['Hamster','Stagiaire','Fax','Percepteur','Huissier','Routeur','Pigeon','Tampon','Gobe-Octet','Contrôleur','Serveur','Modem'];"
+  ],
+  "chargeur du module du boss": "(()=>{const at=(h,m)=>{const n=new Date(),p={};new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Paris',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(n).forEach(x=>{p[x.type]=+x.value;});return Date.UTC(p.year,p.month-1,p.day,h,m)-(Date.UTC(p.year,p.month-1,p.day,p.hour,p.minute,p.second)-Math.floor(n.getTime()/1000)*1000);};const F=at(18,2),A=F-32*60000,B=F+2*3600000;if(Date.now()<A||Date.now()>B)return;let on=0,ticked=0;const go=()=>{if(on)return;on=1;window.BOSS_SERVER={hit:'/boss/hit.php',state:'/boss/state.json',assets:'/boss/',live:1};for(const f of['boss-event-net.js','boss-site.js']){const s=document.createElement('script');s.src='/boss/'+f+'?v=1794501311';s.async=false;document.body.appendChild(s);}};const chk=()=>fetch('/boss/state.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():null).then(d=>{const f=d&&d.c&&+d.c.f,n=Date.now();if(f&&n>f-480000&&n<f+170000)return go();if(!ticked&&n>F-840000&&n<F-15000&&Math.abs((f||0)-F)>60000){ticked=1;fetch('/boss/hit.php',{method:'POST',headers:{'content-type':'text/plain'},body:'{\"a\":\"tick\"}'}).catch(()=>{}).then(()=>setTimeout(()=>{ticked=0;},60000));}}).catch(()=>{}).then(()=>{if(!on&&Date.now()<B)setTimeout(chk,20000+Math.random()*10000);});setTimeout(chk,1500+Math.random()*3000);})();",
+  "version du module du boss": "1794501311",
+  "bandeau du Dépité": "(()=>{const PK='taxe-giga-boss-intro',OK='taxe-giga-bossnotif-off';let off=0;if(location.pathname!=='/'){const m=/[?&]bt=(-?\\d+)/.exec(location.search);if(m)off=parisAt(18,0,0,true)-1000*+m[1]-Date.now();}const now=()=>Date.now()+off,el=document.getElementById('bossBar'),$=id=>document.getElementById(id);function parisAt(h,m,dd,raw){const n=new Date(raw?Date.now():Date.now()+off),p={};new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Paris',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(n).forEach(x=>{p[x.type]=+x.value;});const shift=Date.UTC(p.year,p.month-1,p.day,p.hour,p.minute,p.second)-Math.floor(n.getTime()/1000)*1000;return Date.UTC(p.year,p.month-1,p.day+(dd||0),h,m)-shift;}const slot=()=>{let o=parisAt(18,0,0);if(now()>=o+280000)o=parisAt(18,0,1);return o;};const two=n=>String(n).padStart(2,'0');const fmt=ms=>{const s=Math.max(0,Math.ceil(ms/1000)),h=Math.floor(s/3600),m=Math.floor(s/60)%60;return h?`${h} h ${two(m)} min ${two(s % 60)} s`:`${m}:${two(s % 60)}`;};const ls=(k,v)=>{try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);}catch(e){return null;}};const canN=()=>'Notification'in window,perm=()=>canN()?Notification.permission:'denied',isOff=()=>ls(OK)==='1';const inFight=()=>document.documentElement.classList.contains('boss-lock');const notify=(k,body)=>{if(perm()!=='granted'||(k&&(inFight()||isOff())))return;if(k){if(ls(k))return;ls(k,'1');}const o={body,icon:'/icons/icon-192.png',badge:'/icons/icon-192.png',tag:'boss-soir',renotify:true};const page=()=>{try{const n=new Notification('Taxe au Giga',o);n.onclick=()=>{window.focus();n.close();};}catch(e){}};if(navigator.serviceWorker&&navigator.serviceWorker.getRegistration)navigator.serviceWorker.getRegistration().then(r=>r?r.showNotification('Taxe au Giga',o):page()).catch(page);else page();};const hello='C’est noté ! Vous serez prévenu à 17 h 55, à 18 h et au début du combat, tous les soirs.';const askN=()=>{if(!canN())return Promise.resolve();ls(OK,null);return Notification.requestPermission().then(p=>{if(p==='granted')notify('',hello);paint();});};const intro=$('bossIntro');const closeIntro=()=>{ls(PK,'1');intro.classList.remove('on');setTimeout(()=>{intro.hidden=true;paint();},450);};$('biOk').onclick=closeIntro;$('biNotif').onclick=()=>{askN().finally(closeIntro);};intro.addEventListener('click',e=>{if(e.target===intro)closeIntro();});const INTRO_FROM='2026-11-08T18:00:00+01:00';if(Date.now()<Date.parse(INTRO_FROM)+7*864e5&&!ls(PK)&&!inFight()){intro.hidden=false;requestAnimationFrame(()=>intro.classList.add('on'));}$('bbN').onclick=askN;$('bbOff').onclick=()=>{ls(OK,'1');paint();};$('bbGo').onclick=$('bb2Go').onclick=()=>{if(window.bossReopen){window.bossReopen();scrollTo(0,0);}else location.reload();};{const r=$('evRobot');if(r){if('IntersectionObserver'in window){const io=new IntersectionObserver(es=>{if(es.some(e=>e.isIntersecting)){r.classList.add('on');io.disconnect();}},{rootMargin:'300px'});io.observe(r);}else r.classList.add('on');}}function paint(){const n=now(),OPEN=slot(),F=OPEN+120000,END=F+160000,day=new Date(OPEN).toISOString().slice(0,10);let t,c='',go=false;const soon=OPEN===parisAt(18,0,0)?'Ce soir':'Demain';if(n<OPEN){t=`Prochain combat : ${soon.toLowerCase()} à 18 h,`;c='dans '+fmt(OPEN-n);}else if(n<F){t='La file est ouverte : le combat commence dans';c=fmt(F-n);go=true;}else{t='Le combat contre le Dépité 4000 est en cours !';go=n<END;}const pre=n<OPEN&&OPEN-n<=72e5;el.hidden=!intro.hidden||!(go||pre);$('bb2T').textContent='⚔️ '+(pre?'Ce soir à 18 h, affrontez le Dépité 4000 !':t);$('bb2C').textContent=c;$('bb2C').hidden=!c;$('bb2Go').hidden=!go;$('bbT').textContent=t;$('bbC').textContent=c;$('bbC').hidden=!c;$('bbGo').hidden=!go;const p=perm(),on=p==='granted'&&!isOff();$('bbN').hidden=!canN()||p==='denied'||on||n>=F;$('bbOk').hidden=$('bbOff').hidden=!on||n>=F;[['pre5-',OPEN-300000,'Le Dépité 4000 arrive dans 5 minutes ! Revenez sur le site.'],['open-',OPEN,'La file est ouverte : le combat commence dans 2 minutes !'],['go-',F,'Le combat contre le Dépité 4000 a commencé ! Rejoignez l’hémicycle.']].forEach(s=>{if(n>=s[1]&&n<s[1]+90000&&(document.hidden||!document.hasFocus()))notify('taxe-giga-bossnotif-'+s[0]+day,s[2]);});}paint();setInterval(paint,1000);})();",
+  "contrat window.TaxeBoss": "window.TaxeBoss={yieldTo:()=>bnYield(),pseudo:id=>taxerName(id),myId:()=>me&&me.id,shareBoss:(r,name)=>shareBoss(r,name||(me?taxerName(me.id):'Contribuable')),calm:on=>document.body.classList.toggle('boss-on',on),sound:()=>SFX.on,beep:()=>{try{SFX.click();}catch(e){}},now:()=>Date.now()+serverOffset,lock(on){bossLock=on;document.documentElement.classList.toggle('boss-lock',on);btn.disabled=on;btn.classList.toggle('boss-off',on);document.body.classList.toggle('boss-on',on);}};",
+  "routes lues par le collecteur": [
+   "const m=await api(`/api/taxer?id=${me.id}`,{cache:'no-store'});",
+   "const r=await api(`/api/leaderboard?v=3&r=${want}${me ? '&me=' + me.id : ''}`,{cache:'no-store'});",
+   "const r=await api(`/api/taxer?id=${id}`,{cache:'no-store'});"
+  ],
+  "chargeur et appel du module du globe": [
+   "const mondeMod=()=>import('/monde/monde.js?v=29');",
+   "mondeCtl=m.play({code:myCode,envoisUrl:'/monde/envois.php',regionsUrl:'/monde/regions.php',g,live:live&&!direct,direct:!!direct,reduced,taxers:uniques,story:mondeStory(),ac:()=>SFX.ac,forceLite:mondeLite,active:mondeAct,activeCount:mondeActN,meId:me?me.id:'',myName:me?taxerName(me.id):'',myStamp:$('gEmo').textContent||'🔏',myPart:myCount*PER_HIT>=1?bigEur(myCount*PER_HIT):'',share:o=>mondeDone(g)?openShare(mondeShareTxt(g,o),'','Partager l’exploit',{short:mondeShareTxt(g,o,true),subject:'La France a sauvé le monde : toute la dette publique mondiale effacée'}):openShare(defaultMsg()),taxerName,openTaxer,shareUrl:location.origin+'/',sfx:{click:()=>SFX.click(),thud:()=>SFX.thud(),drum:()=>SFX.drum(),fanfare:()=>SFX.fanfare()},confetti:()=>confetti(),done:()=>{mondeCtl=null;mondeBtn();if(!direct)bnMoment(live,true,g,true);}});"
+  ],
+  "version du module du globe": "29"
  }
 }
