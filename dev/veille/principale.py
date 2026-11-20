@@ -28,6 +28,7 @@ PASSAGES = {
     'routes lues par le collecteur': ('routes', 'liste'),
     'chargeur et appel du module du globe': ('globe', 'liste'),
     'version du module du globe': ('globe', 'texte'),
+    'mesure du rythme des images (fps, fréquence)': ('images', 'liste'),
 }
 # texte de l'« à faire » de chaque groupe (fixe : jamais de texte de la page)
 GROUPES = {
@@ -43,11 +44,24 @@ GROUPES = {
               '(`architecture.md` §12 du projet).',
     'globe': 'Chargeur ou appel du module du globe changé (version `?v=`, adresses) : le bot le pilote '
              '(`architecture.md` §5 et §11 du projet).',
+    'images': 'Le code parle du rythme des images (fps, fréquence de l\'écran) : les machines tournent avec un écran à '
+              '10 Hz hors combat (`SCREEN_HZ`, `deploy/CHANGELOG.md` deploy-v0.92 du dépôt bot), visible par une page qui '
+              'mesure ce rythme. Lire ce que le code en fait et s\'il l\'envoie (synchro, autre adresse) ; dans le doute, '
+              'repasser les machines à `SCREEN_HZ=60`.',
     'recalage': 'Référence sans suivi du reste de la page : la recaler sur une page relue.',
 }
 ANCRE_CHARGEUR = 'boss-event-net.js'
 ANCRE_BANDEAU = 'bossBar'
 PRINCIPAL = 'const SHOP = ['  # le bloc du jeu lui-même : jamais pris pour le chargeur ou le bandeau
+# mots d'une mesure du rythme des images (demande de Romain du 20/11/2026, écran à 10 Hz), dans les noms du code :
+# en minuscules au début d'un nom (fps, fpsMax, frame_rate, frameCounter), avec majuscule n'importe où dans un nom
+# (maxFps, getFrameRate, FRAME_RATE) ; plus, en chaînes, les clés écrites entre guillemets (o['frameRate'], {"fps": 1}).
+# Les textes (« 60 fps à l'écran ») ne comptent pas. Limite : une mesure sans ces mots (écarts entre deux images rangés
+# dans un tableau anonyme) n'est pas vue ici ; ce que la page envoie reste suivi par le groupe « sync ».
+_SUITE = r'(?:[Rr]ate|[Tt]ime|[Cc]ount|[Pp]er)'
+MOTS_IMAGES = (r'(?<![a-z0-9])(?:fps|frames?_?' + _SUITE + r'|refresh_?[Rr]ate|v[Ss]ync)'
+               r'|(?:F(?:ps|PS)|Frames?_?' + _SUITE + r'|FRAMES?_?(?:RATE|TIME|COUNT|PER)|Refresh_?[Rr]ate|REFRESH_?RATE|V[Ss]ync|VSYNC)')
+CLES_IMAGES = r'(?<=[\'"`])[\w$]*(?:' + MOTS_IMAGES + r')[\w$]*(?=[\'"`])'
 
 
 def _enonce(sc, p):
@@ -139,6 +153,8 @@ def releve(page):
         acc['contrat window.TaxeBoss'] += _instructions(sc, re.compile(r'\bTaxeBoss\b'))  # affectation, ajouts, lectures
         acc['routes lues par le collecteur'] += _instructions(sc, re.compile(r'/api/(?:leaderboard|taxer)\b'), chaines=True)
         acc['chargeur et appel du module du globe'] += _instructions(sc, re.compile(r'/monde/'), chaines=True)
+        acc['mesure du rythme des images (fps, fréquence)'] += _instructions(sc, re.compile(MOTS_IMAGES))
+        acc['mesure du rythme des images (fps, fréquence)'] += _instructions(sc, re.compile(CLES_IMAGES), chaines=True)
         # blocs du boss, suivis en entier ; ancrés par leur contenu (fonctions anonymes : pas de nom)
         if PRINCIPAL not in src:
             entier = sc.texte(0, len(src))

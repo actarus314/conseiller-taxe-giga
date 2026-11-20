@@ -129,7 +129,8 @@
    "const mondeMod=()=>import('/monde/monde.js?v=30');",
    "mondeCtl=m.play({code:myCode,envoisUrl:'/monde/envois.php',regionsUrl:'/monde/regions.php',g,live:live&&!direct,direct:!!direct,reduced,taxers:uniques,story:mondeStory(),ac:()=>SFX.ac,forceLite:mondeLite,active:mondeAct,activeCount:mondeActN,meId:me?me.id:'',myName:me?taxerName(me.id):'',myStamp:$('gEmo').textContent||'🔏',myPart:myCount*PER_HIT>=1?bigEur(myCount*PER_HIT):'',share:o=>mondeDone(g)?openShare(mondeShareTxt(g,o),'','Partager l’exploit',{short:mondeShareTxt(g,o,true),subject:g.k==='pibmonde'?'Le monde produit, la France taxe : la taxe au Giga dépasse tout le PIB mondial':'La France a sauvé le monde : toute la dette publique mondiale effacée'}):openShare(defaultMsg()),taxerName,openTaxer,shareUrl:location.origin+'/',sfx:{click:()=>SFX.click(),thud:()=>SFX.thud(),drum:()=>SFX.drum(),fanfare:()=>SFX.fanfare()},confetti:()=>g.fete?confettiFete():confetti(),done:()=>{mondeCtl=null;mondeBtn();if(!direct)bnMoment(live,true,g,true);}});"
   ],
-  "version du module du globe": "30"
+  "version du module du globe": "30",
+  "mesure du rythme des images (fps, fréquence)": []
  },
  "fichiers": {
   "boss": {
@@ -318,7 +319,8 @@
       "tx.textContent=EMO[i];",
       "tx.textContent=EMO[i];",
       "x.textContent=fmt(Math.round(+x.getAttribute('data-n')*e));"
-     ]
+     ],
+     "mesure du rythme des images (fps, fréquence)": []
     },
     "empreinte": "7dbd44a67d844419"
    },
@@ -363,7 +365,8 @@
      ],
      "hôte de la scène": [
       "hostEl.id='bossHost';"
-     ]
+     ],
+     "mesure du rythme des images (fps, fréquence)": []
     },
     "empreinte": "7ccada0cc010cc05"
    }
@@ -742,7 +745,8 @@
       "whoEl.textContent='';",
       "whoEl.textContent='';",
       "whoEl.textContent='';"
-     ]
+     ],
+     "mesure du rythme des images (fps, fréquence)": []
     },
     "empreinte": "9719e8f0a9324c68"
    }

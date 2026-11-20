@@ -362,6 +362,22 @@ finally:
     sys.argv, veille.urllib.request.urlopen = argv, vrai
 verifie('une seule requête au site par passage (conforme)', code == 0 and appels == [veille.URL], appels)
 
+# mesure du rythme des images (demande de Romain du 20/11/2026, écran à 10 Hz) : noms du code vus, textes ignorés
+_k = 'mesure du rythme des images (fps, fréquence)'
+_r = principale.releve('<script>const fps = 1000 / dt; let frameRate = 0; vsync(); say("60 fps à l\'écran");</script>')[_k]
+verifie('rythme des images : fps, frameRate et vsync du code relevés, « fps » d\'un texte ignoré',
+        len(_r) == 3 and not any('écran' in x for x in _r), _r)
+verifie('rythme des images : rien sur la page de test (inventaire vide permis)', principale.releve(page())[_k] == [])
+_mots = re.compile(principale.MOTS_IMAGES)
+_vus = ['fpsMax', 'maxFps', '_fps', 'getFrameRate', 'frameCounter', 'FRAME_RATE', 'framesPerSecond', 'refreshRate', 'useVsync']
+_ignores = ['clifps', 'gps', 'frames', 'framework', 'frameElement', 'timeframe', 'keyframes']
+verifie('rythme des images : noms composés vus (fpsMax, getFrameRate…), mots voisins ignorés (framework, keyframes…)',
+        all(_mots.search(w) for w in _vus) and not any(_mots.search(w) for w in _ignores),
+        [w for w in _vus if not _mots.search(w)] + [w for w in _ignores if _mots.search(w)])
+_r = principale.releve('<script>o["frameRate"] = 1; const x = { "fps": 1 }; say("le fps du jour");</script>')[_k]
+verifie('rythme des images : clés entre guillemets vues, texte ignoré', len(_r) == 2 and not any('jour' in x for x in _r), _r)
+_z = fichiers.releve_module('monde.js', 'let fps = 1; o["maxFps"] = 2; t("Le fps du jour");')['zones'][_k]
+verifie('rythme des images : zone des modules (code et clés, pas les textes)', len(_z) == 2 and not any('jour' in x for x in _z), _z)
 pg = REF.get('page') or {}
 verifie('reference.json : section page complète (passages ancrés, inventaires attendus)',
         bool(pg) and set(pg) == set(principale.PASSAGES) and not principale.manques(pg))

@@ -38,13 +38,15 @@ RACINE = 'https://taxe-au-giga.fr'
 # boss, n'y entre pas ; une fonction réécrite en flèche est une zone introuvable, donc un écart), 'liste' (instructions
 # entières du code et des gabarits qui contiennent le motif, doublons gardés), 'chaines' (instructions dont une chaîne
 # contient le motif), 'ensemble' (mots du motif trouvés dans les chaînes, sans doublon), 'noms' (premier groupe trouvé
-# du motif dans le code, doublons gardés)
+# du motif dans le code, doublons gardés), 'images' (comme 'liste', plus les instructions dont une chaîne est une clé qui
+# contient le motif, principale.CLES_IMAGES : même relevé que le passage de la page)
 _COMMUN = [
     ('écouteurs d\'événements', 'liste', r'\.addEventListener\s*\(', True),
     ('gardes isTrusted', 'liste', r'\bisTrusted\b', False),
     ('globales posées par le module', 'liste', r'\bwindow\.[\w$]+\s*=(?![=>])', False),
     ('changements de classe', 'liste', r'\.classList\.(?:add|remove|toggle|replace)\s*\(|\.className\s*[+]?=(?!=)', False),
     ('clés du stockage du jeu (taxe-giga-…)', 'chaines', r'\btaxe-giga-[\w-]+', False),
+    ('mesure du rythme des images (fps, fréquence)', 'images', principale.MOTS_IMAGES, False),
 ]
 ZONES = {
     # les gardes isTrusted sont des contrôles propres au module du boss : requises dans boss-event-net.js
@@ -115,6 +117,9 @@ def releve_module(nom, src):
             zones[zn] = sorted({m.group(0) for g, d, f in sc.m if g == 'chaine' for m in rx.finditer(src, d, f)})
         elif forme == 'noms':  # noms seuls (pas le corps des fonctions exportées), lus dans le code
             zones[zn] = sorted(autoclic.compacter(next(g for g in m.groups() if g)) for m in sc.dans_code(re.compile(motif)))
+        elif forme == 'images':
+            zones[zn] = sorted(principale._instructions(sc, re.compile(motif))
+                               + principale._instructions(sc, re.compile(principale.CLES_IMAGES), chaines=True))
         else:
             zones[zn] = sorted(principale._instructions(sc, re.compile(motif), chaines=forme == 'chaines'))
     return {'zones': zones, 'empreinte': hashlib.sha256(sc.texte(0, len(src)).encode()).hexdigest()[:16]}
