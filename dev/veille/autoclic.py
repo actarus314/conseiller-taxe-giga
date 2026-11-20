@@ -6,8 +6,9 @@ Trois filets, comparés à la section « autoclic » de dev/veille/reference.jso
 - inventaires : champs de détection lus, fenêtres de la page (id), texte des fenêtres d'autoclic et des diapositives
   des nouveautés qui en parlent ;
 - balayage : chaque chaîne du code et chaque texte de la page, hors des deux filets précédents, qui contient un mot-clé.
-Tout est comparé normalisé (commentaires retirés, blancs réduits, échappements des chaînes décodés) : un reformatage
-ne déclenche rien. Une zone introuvable ou un code que le lecteur ne sait pas lire est un écart, jamais un silence.
+Tout est comparé normalisé (commentaires retirés, blancs réduits, chaînes sous une forme unique, expressions ${…} des
+gabarits normalisées comme du code) : un reformatage ou un changement de guillemets ne déclenche rien. Une zone
+introuvable ou un code que le lecteur ne sait pas lire est un écart, jamais un silence.
 
 Le lecteur est volontairement petit (pas d'analyseur JS, pas de Node dans le job de veille) : chaînes, gabarits ${…},
 commentaires et expressions régulières littérales. Il ne vise que du code lisible par un humain ; une page minifiée
@@ -59,22 +60,10 @@ def _fin_chaine(s, i):
 
 
 def _fin_expr(s, j):
-    """Fin d'une expression ${…} d'un gabarit (j : juste après « ${ »)."""
-    prof, n = 0, len(s)
-    while j < n:
-        c = s[j]
-        if c in '\'"':
-            j = _fin_chaine(s, j); continue
-        if c == '`':
-            j = _fin_gabarit(s, j); continue
-        if c == '{':
-            prof += 1
-        elif c == '}':
-            if not prof:
-                return j + 1
-            prof -= 1
-        j += 1
-    raise Illisible(f'expression de gabarit non fermée (position {j})')
+    """Fin (exclue, après la « } ») d'une expression ${…} d'un gabarit (j : juste après « ${ ») : l'expression est
+    découpée par le lecteur lui-même, qui y délimite chaînes, gabarits, commentaires et expressions régulières ; elle
+    finit à la première « } » du code qui n'en ferme pas une autre."""
+    return _lire(s, j, True)[1]
 
 
 def _fin_gabarit(s, i):
@@ -115,7 +104,13 @@ def _fin_regex(s, i):
 
 def lire(s):
     """Découpe un script en morceaux (genre, début, fin) : code, chaine (gabarits compris), com, regex."""
-    morceaux, i, n, a, prec, mot = [], 0, len(s), 0, '', ''
+    return _lire(s, 0, False)[0]
+
+
+def _lire(s, i, expr):
+    """(morceaux, fin) depuis la position i. expr : lecture d'une expression ${…}, qui s'arrête juste après la « } »
+    du code de profondeur nulle (accolades comptées dans le code seul) ; sinon jusqu'à la fin de s."""
+    morceaux, n, a, prec, mot, prof = [], len(s), i, '', '', 0
 
     def code_jusqua(j):
         if j > a:
@@ -151,12 +146,19 @@ def lire(s):
                 j += 1
             mot, prec, i = s[i:j], 'a', j
             continue
+        if expr and c in '{}':
+            if c == '}' and not prof:
+                code_jusqua(i)
+                return morceaux, i + 1
+            prof += 1 if c == '{' else -1
         # après ++ ou -- (opérande déjà lue), un / est une division, pas une expression régulière
         prec = 'a' if c in '+-' and s[i - 1:i] == c and prec == c else c
         mot = ''
         i += 1
+    if expr:
+        raise Illisible(f'expression de gabarit non fermée (position {n})')
     code_jusqua(n)
-    return morceaux
+    return morceaux, n
 
 
 class Script:
@@ -254,7 +256,7 @@ class Script:
         return out
 
     def texte(self, d, f):
-        """Texte normalisé de s[d:f] : commentaires retirés, blancs du code réduits, chaînes décodées."""
+        """Texte normalisé de s[d:f] : commentaires retirés, blancs du code réduits, chaînes sous leur forme unique."""
         out, code = [], []
         x = max(0, bisect.bisect_right(self.debuts, d) - 1)
         for genre, a, b in self.m[x:]:
@@ -268,7 +270,9 @@ class Script:
                 continue
             out.append(compacter(''.join(code))); code = []
             t = self.s[a2:b2]
-            out.append(propre(decoder(t)) if genre == 'chaine' else t)
+            if genre == 'chaine':  # forme unique d'une chaîne entière ; un morceau coupé (jamais attendu) reste brut
+                t = propre(forme(t) if (a2, b2) == (a, b) else decoder(t))
+            out.append(t)
         out.append(compacter(''.join(code)))
         return ''.join(out).strip()
 
@@ -279,6 +283,66 @@ def decoder(t):
         c = chr(int(m.group(1) or m.group(2) or m.group(3), 16))
         return m.group(0) if c in '\'"`\\\n\r' else c
     return re.sub(r'\\x([0-9a-fA-F]{2})|\\u([0-9a-fA-F]{4})|\\u\{([0-9a-fA-F]{1,6})\}', un, t)
+
+
+_ECHAP = re.compile(r'\\x([0-9a-fA-F]{2})|\\u([0-9a-fA-F]{4})|\\u\{([0-9a-fA-F]{1,6})\}')
+
+
+def _litteral(t, delim, gabarit):
+    """Texte littéral d'une chaîne (sans ses délimiteurs), forme unique : un guillemet ou un accent grave, échappé ou
+    non (\\', \\x27…), est rendu en clair, puis réécrit échappé s'il est le délimiteur delim ('' : texte montré) ;
+    \\xHH, \\uHHHH, \\u{…} décodés, sauf barre, blancs et caractères de commande (et « $ », « { » d'un gabarit), gardés
+    tels quels ; tout autre échappement (\\n, \\\\…) gardé tel quel. Deux valeurs différentes gardent deux formes."""
+    out, i, n = [], 0, len(t)
+    while i < n:
+        c = t[i]
+        if c == '\\' and i + 1 < n:
+            m = _ECHAP.match(t, i)
+            if m:
+                ch = chr(int(m.group(1) or m.group(2) or m.group(3), 16))
+                if ch == '\\' or ch.isspace() or ch < ' ' or (gabarit and ch in '${'):
+                    out.append(m.group(0)); i = m.end(); continue
+                c, i = ch, m.end()
+            elif t[i + 1] in '\'"`':
+                c, i = t[i + 1], i + 2
+            else:
+                out.append(t[i:i + 2]); i += 2; continue
+        else:
+            i += 1
+        out.append('\\' + c if c == delim else c)
+    return ''.join(out)
+
+
+def _gabarit(t, delim):
+    """Gabarit `…` en forme unique : texte littéral par _litteral, chaque expression ${…} normalisée comme du code."""
+    out, a, i, n = [], 1, 1, len(t) - 1
+    while i < n:
+        if t[i] == '\\':
+            i += 2
+        elif t.startswith('${', i):
+            e = _fin_expr(t, i + 2)
+            x = t[i + 2:e - 1]
+            out += [_litteral(t[a:i], delim, True), '${', Script(x).texte(0, len(x)), '}']
+            i = a = e
+        else:
+            i += 1
+    out.append(_litteral(t[a:n], delim, True))
+    return delim + ''.join(out) + delim
+
+
+def forme(t):
+    """Forme unique d'une chaîne entière (délimiteurs compris) : '…' ou "…" deviennent '…', guillemets échappés
+    équivalents compris ; un gabarit garde ses accents graves, ses expressions ${…} normalisées comme du code."""
+    if t[:1] == '`':
+        return _gabarit(t, '`')
+    return "'" + _litteral(t[1:-1], "'", False) + "'"
+
+
+def contenu(t):
+    """Texte montré d'une chaîne entière (sans délimiteurs), sur la même forme unique que forme()."""
+    if t[:1] == '`':
+        return _gabarit(t, '')
+    return _litteral(t[1:-1], '', False)
 
 
 def compacter(t):
@@ -380,7 +444,7 @@ def _destructurations(sc, decal=0):
             elif genre == 'com':
                 cles.append(' ')
             else:
-                nom = decoder(sc.s[d + 1:f - 1]) if f - d >= 2 and sc.s[d] in '\'"' and sc.s[f - 1] == sc.s[d] else ''
+                nom = contenu(sc.s[d:f]) if f - d >= 2 and sc.s[d] in '\'"' and sc.s[f - 1] == sc.s[d] else ''
                 cles.append(f"'{nom}'" if re.fullmatch(r'ac[A-Z][\w$]*|autoclick', nom) else "''")
         # énoncé : depuis le « ; » de même hauteur qui précède, l'ouvrant qui l'enferme ou la fin d'un bloc voisin
         # (une fermante de même hauteur suivie d'un « = » simple ferme un motif voisin, une ) ou ] une expression
@@ -462,7 +526,7 @@ def releve(page):
             if genre == 'chaine' and re.search(r'class=\\?["\'][^"\']*\bbn-ov\b|role=\\?["\']dialog|<dialog\b', src[d:f]):
                 fenetres |= set(re.findall(r'id=\\?["\']([\w-]{1,60})', src[d:f])) or {'fenêtre sans id (script)'}
             if genre == 'chaine' and not any(a <= d < b for a, b in pris):
-                t = propre(decoder(src[d + 1:f - 1]))
+                t = propre(contenu(src[d:f]))
                 if MOTS.search(t):
                     chaines.add(t)
     p = _Page()

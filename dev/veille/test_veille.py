@@ -389,7 +389,7 @@ DESTRUCTURES = [
     ("const { u = 'https://x', acA } = d;", ['acA'], "const{u='https://x',acA}=d;"),
     ('const { ok, // }\n acB } = d;', ['acB'], 'const{ok,acB}=d;'),
     ('const { acA, /* } */ acB } = d;', ['acA', 'acB'], 'const{acA,acB}=d;'),
-    ("const { 'acQ': s, \"acR\" : r } = d;", ['acQ', 'acR'], "const{'acQ':s,\"acR\":r}=d;"),
+    ("const { 'acQ': s, \"acR\" : r } = d;", ['acQ', 'acR'], "const{'acQ':s,'acR':r}=d;"),
     ("const { 'a\\x63S': s } = d;", ['acS'], "const{'acS':s}=d;"),
     ('const { acK /* c */ : l } = d;', ['acK'], 'const{acK:l}=d;'),
     ('const { ok = 4 / 2 / 1, acDV } = d;', ['acDV'], 'const{ok=4/2/1,acDV}=d;'),
@@ -407,9 +407,17 @@ DESTRUCTURES = [
     ("const { ok = ', acS, ' } = d;", [], None),
     ('const { ok = `${a}, acX`, acT } = d;', ['acT'], 'const{ok=`${a}, acX`,acT}=d;'),
     ('for (const { acF } of liste) f(acF);', [], None),
+    # « } » dans un commentaire ou une expression régulière d'un ${…} : le lecteur découpe l'expression (lot V4)
+    ('x = `${ f(1) // }\n ({ acX } = d) }`;', ['acX'], '{acX}=d'),
+    ('x = `${ s.replace(/}/g, "") }`; const { acR } = d;', ['acR'], 'const{acR}=d;'),
+    ('x = `${ a /* } */ }`; const { acC } = d;', ['acC'], 'const{acC}=d;'),
+    ('x = `${ `${ b /* } */ }` }`; const { acI } = d;', ['acI'], 'const{acI}=d;'),
 ]
 for code, attendu, instr in DESTRUCTURES:
-    r = autoclic.releve(f'<script>{code}</script>')
+    try:
+        r = autoclic.releve(f'<script>{code}</script>')
+    except autoclic.Illisible as e:
+        r = {'champs': f'illisible : {e}', 'instructions': None}
     verifie(f'déstructuration lue sur le découpage : {code!r} → {attendu}',
             r['champs'] == attendu and r['instructions'] == ([instr] if instr else []), (r['champs'], r['instructions']))
 
@@ -422,6 +430,25 @@ code, out = lancer(mute("say(`clics : ${d.acGab}`);", "say(`clics : ${d.acGab}`)
 code, out = lancer(mute("say(`clics : ${d.acGab}`);", "say(`clics : ${d.acGab}`); say('" + long_txt.replace('30 jours', '90 jours') + "');"))
 verifie('changement loin dans un long morceau sans « ; » : visible dans le rapport', code == 1 and '90 jours' in out, out[-500:])
 code, out = lancer(page(), '--maj-reference')  # référence des tests rétablie
+
+# forme unique des chaînes et des expressions ${…} (lot V4) : (source A, source B, même forme attendue)
+FORMES = [
+    ("'it\\'s'", '"it\'s"', True), ('"say \\"hi\\""', "'say \"hi\"'", True), ("'\\x27'", "'\\''", True),
+    ("'\\u0041b'", "'Ab'", True), ("'a'", '"a"', True), ('`${ a + 1 }`', '`${a+1}`', True),
+    ("`x ${ f( 'y' ) } z`", '`x ${f("y")} z`', True), ('`${ a /* } */ }`', '`${a}`', True),
+    ("`${ s.replace(/}/g, '') }`", '`${s.replace(/}/g,"")}`', True), ('`${ `${ b }` }`', '`${`${b}`}`', True),
+    ("'it\\'s'", "'its'", False), ("'a\\\\'", "'a\\''", False), ("'\\\\x41'", "'\\x41'", False),
+    ("'a\\nb'", "'anb'", False), ("'a\\tb'", "'a b'", False), ("'a\\x09b'", "'a b'", False), ("'a\\nb'", "'a b'", False),
+    ('`\\${a}`', '`${a}`', False), ('`\\x24{a}`', '`${a}`', False), ('`$\\{a}`', '`${a}`', False),
+    ('`a${b}c`', '`a${c}b`', False), ('`${ a + 1 }`', '`${ a + 2 }`', False), ("`${ f('y') }`", "`${ f('z') }`", False),
+    ("'a`b'", "'a\\'b'", False), ('`a\\`b`', "'a`b'", False),
+]
+for a, b, egal in FORMES:
+    try:
+        fa, fb = (autoclic.Script(x).texte(0, len(x)) for x in (a, b))
+    except autoclic.Illisible as e:
+        fa, fb = f'illisible : {e}', None
+    verifie(f'forme unique : {a} {"=" if egal else "≠"} {b}', (fa == fb) == egal, (fa, fb))
 
 code, out = lancer(mute("'Méthode de clic (avertissement autoclick) : '", "'M\\xE9thode de clic (avertissement autoclick) : '"))
 verifie('échappement \\xE9 dans une chaîne : décodé, conforme', code == 0, out[-300:])
@@ -455,6 +482,36 @@ code, out = lancer(mute('if (x.vol) {', '// commentaire neuf, avec autoclic\n   
 verifie('reformatage et commentaire seuls : conforme', code == 0, out[-300:])
 code, out = lancer(mute('// « autoclic » en commentaire', '// autre commentaire sur l’autoclicker'))
 verifie('commentaire à mot-clé changé hors zone : conforme', code == 0, out[-300:])
+
+# lot V4 : reformatage dans un ${…}, style de guillemets, guillemets échappés équivalents sans écart ; un caractère
+# changé dans une chaîne, un ${…} ou une chaîne à guillemets échappés fait un écart ; « } » dans un commentaire ou une
+# expression régulière d'un ${…} lu sans « illisible »
+SANS_ECART = [
+    ('reformatage dans un ${…} de zone', mute('`Avertissement ${n}/${max} : plus', '`Avertissement ${ n }/${  max  } : plus')),
+    ('reformatage dans un ${…} d\'instruction', mute('${d.acGab}', '${ d.acGab /* gabarit */ }')),
+    ('guillemets doubles dans une zone', mute("'Classement Autoclickers : clics 24 h sur 24'", '"Classement Autoclickers : clics 24 h sur 24"')),
+    ('guillemets doubles dans une chaîne balayée', mute("'Un humain se fatigue, un autoclicker non.'", '"Un humain se fatigue, un autoclicker non."')),
+    ('guillemets doubles et apostrophe en clair, contre apostrophe échappée (référence)',
+     mute("'Un humain se fatigue, un autoclicker non.'", '"Un humain se fatigue, l\'autoclicker non."')),
+]
+ECHAPPEE = mute("'Un humain se fatigue, un autoclicker non.'", "'Un humain se fatigue, l\\'autoclicker non.'")
+for nom, html in SANS_ECART:
+    if 'apostrophe échappée' in nom:
+        lancer(ECHAPPEE, '--maj-reference')
+    code, out = lancer(html)
+    verifie(nom + ' : conforme', code == 0, out[-300:])
+code, out = lancer(page(), '--maj-reference')  # référence des tests rétablie
+AVEC_ECART = [
+    ('caractère changé dans un ${…} de zone', mute('`Avertissement ${n}/${max} : plus', '`Avertissement ${n}/${max + 1} : plus'), 'durWarn'),
+    ('caractère changé dans un ${…} d\'instruction', mute('${d.acGab}', '${d.acGab2}'), 'acGab2'),
+    ('caractère changé dans une chaîne à guillemets échappés', mute("'Un humain se fatigue, un autoclicker non.'", "'Un humain se fatigue, l\\'autoclicker oui.'"), 'Textes'),
+    ('« } » dans une expression régulière d\'un ${…} : lu, changement vu', mute('${d.acGab}', '${d.acGab.replace(/}/g, "")}'), "/g,'')}"),
+    ('« } » dans un commentaire d\'un ${…} : lu, changement vu', mute('${d.acGab}', '${d.acGab /* } */ + 1}'), 'd.acGab+1'),
+    ('« // } » dans un ${…} puis déstructuration : champ vu', mute('${d.acGab}', '${d.acGab // }\n + (({ acCache } = d), 0)}'), 'Champs de détection lus :\najouté :\n~~~~\nacCache'),
+]
+for nom, html, attendu in AVEC_ECART:
+    code, out = lancer(html)
+    verifie(nom + ' : écart signalé', code == 1 and attendu in out and 'illisible' not in out, out[-400:])
 
 o1, o2 = TMP / 'o1', TMP / 'o2'
 h = mute('Plus de 175 000 clics en 8 h', 'Plus de 150 000 clics en 8 h')
