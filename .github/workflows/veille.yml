@@ -1,5 +1,6 @@
 # Veille : vérifie que le barème et les règles du jeu sont ceux du conseiller, et que la détection d'autoclic du jeu
-# (code et textes) et le reste suivi de la page principale (synchro, pseudos, boss, routes, globe) n'ont pas changé.
+# (code et textes) et le reste suivi de la page principale (synchro, régularité, pseudos, boss, routes, globe) n'ont
+# pas changé.
 # Écart → une issue (une seule par constat ; un constat nouveau remplace l'issue ouverte) ; retour à la normale → issues
 # de veille refermées.
 # Page inaccessible (le site bloque parfois les robots quand son trafic monte) : un seul essai, puis la relance suivante est

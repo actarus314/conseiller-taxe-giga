@@ -384,7 +384,8 @@ def releve(page):
         for m in sc.dans_code(CHAMP):
             champs.add(m.group(1) or m.group(3))
         for m in sc.dans_code(DESTRUCT):
-            noms = [n for _, n in NOM_CHAMP.findall(m.group(1))]
+            # commentaires retirés avant de lire les clés (« { ok, // note\n acX } »)
+            noms = [n for _, n in NOM_CHAMP.findall(re.sub(r'/\*.*?\*/|//[^\n]*', ' ', m.group(1), flags=re.S))]
             champs.update(noms)
             if noms and not any(d <= m.start() < f for d, f in pris):
                 # déclaration entière : du mot-clé à la fin de l'instruction qui suit le « = » (les accolades de la

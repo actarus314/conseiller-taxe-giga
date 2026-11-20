@@ -89,17 +89,15 @@ def _objet(sc, k):
     return mot is not None and mot.group(0) in ('return', 'yield', 'await')
 
 
-def _instructions(sc, rx, dans=None, hors=(), chaines=False):
+def _instructions(sc, rx, hors=(), chaines=False):
     """Textes des instructions qui contiennent une correspondance de rx : dans le code (et les gabarits), ou dans les
-    chaînes avec chaines=True ; seulement dans les étendues dans (si donné), jamais dans hors. Une correspondance prise
+    chaînes avec chaines=True ; jamais dans les étendues hors. Une correspondance prise
     dans une instruction déjà retenue n'en fait pas une seconde."""
     out, pris = [], list(hors)
     for m in rx.finditer(sc.s):
         p = m.start()
         genre = sc.genre(p)
         if not (genre == 'chaine' if chaines else (genre == 'code' or sc.dans_gabarit(p))):
-            continue
-        if dans is not None and not any(d <= p < f for d, f in dans):
             continue
         if any(d <= p < f for d, f in pris):
             continue

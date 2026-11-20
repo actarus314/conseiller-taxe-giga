@@ -289,6 +289,7 @@ CAS3 = [
     ('instruction qui lit un champ par crochets', mute('function cardFlags()', "if (d['acPause']) stop();\n  function cardFlags()"), "if(d['acPause'])stop();"),
     ('champ lu par déstructuration', mute('function cardFlags()', 'const { acHalt, ok } = d;\n  function cardFlags()'), 'Champs de détection lus :\najouté :\n~~~~\nacHalt'),
     ('champ déstructuré à clé entre guillemets', mute('function cardFlags()', "const { 'acStop': s } = d;\n  function cardFlags()"), 'Champs de détection lus :\najouté :\n~~~~\nacStop'),
+    ('champ déstructuré après un commentaire', mute('function cardFlags()', 'const { ok,\n    // champ\n    acNote /* fin */ } = d;\n  function cardFlags()'), 'Champs de détection lus :\najouté :\n~~~~\nacNote'),
     ('instruction qui déstructure un champ', mute('function cardFlags()', 'const { acHalt, ok } = d;\n  function cardFlags()'), 'const{acHalt,ok}=d;'),
     # 6. routes que lit le collecteur
     ('version du classement changée', mute('/api/leaderboard?v=3&', '/api/leaderboard?v=4&'), 'routes lues par le collecteur'),
