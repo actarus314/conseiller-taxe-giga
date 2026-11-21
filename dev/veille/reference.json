@@ -1,5 +1,5 @@
 {
- "build": "2026-11-20b",
+ "build": "2026-11-20c",
  "regles": {
   "prix": "const cost = u => Math.ceil(u.base * Math.pow(1.15, owned[u.id]));",
   "production": "const rate = () => SHOP.reduce((s, u) => s + (u.rate || 0) * owned[u.id], 0);",
@@ -127,6 +127,7 @@
   ],
   "chargeur et appel du module du globe": [
    "const mondeMod=()=>import('/monde/monde.js?v=30');",
+   "fetch('/monde/regions.php',{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({code:myCode,dep:d,cp:c})}).then(r=>{if(r.ok)try{localStorage.setItem('taxe-giga-cp-ok','1');}catch(e){}}).catch(()=>{});",
    "mondeCtl=m.play({code:myCode,envoisUrl:'/monde/envois.php',regionsUrl:'/monde/regions.php',g,live:live&&!direct,direct:!!direct,reduced,taxers:uniques,story:mondeStory(),ac:()=>SFX.ac,forceLite:mondeLite,active:mondeAct,activeCount:mondeActN,meId:me?me.id:'',myName:me?taxerName(me.id):'',myStamp:$('gEmo').textContent||'🔏',myPart:myCount*PER_HIT>=1?bigEur(myCount*PER_HIT):'',share:o=>mondeDone(g)?openShare(mondeShareTxt(g,o),'','Partager l’exploit',{short:mondeShareTxt(g,o,true),subject:g.k==='pibmonde'?'Le monde produit, la France taxe : la taxe au Giga dépasse tout le PIB mondial':'La France a sauvé le monde : toute la dette publique mondiale effacée'}):openShare(defaultMsg()),taxerName,openTaxer,shareUrl:location.origin+'/',sfx:{click:()=>SFX.click(),thud:()=>SFX.thud(),drum:()=>SFX.drum(),fanfare:()=>SFX.fanfare()},confetti:()=>g.fete?confettiFete():confetti(),done:()=>{mondeCtl=null;mondeBtn();if(!direct)bnMoment(live,true,g,true);}});"
   ],
   "version du module du globe": "30",
@@ -239,6 +240,7 @@
       "this.el.classList.remove('boss-sprite','boss-impact');"
      ],
      "clés du stockage du jeu (taxe-giga-…)": [],
+     "mesure du rythme des images (fps, fréquence)": [],
      "constantes du combat (déclaration de CAP et CAP3)": [
       "var P2=0.5,P3=0.2,CAP3=14,RAINBOW=['255, 59, 48','255, 149, 0','255, 214, 10','52, 199, 89','50, 173, 230','88, 86, 214','255, 45, 146'],CAP=6,ALERT=2500,WIN=1500,STUN=1500,STUN_MAX=6000,OTHERS=299,PLAYERS=300,MAX_DOTS=1200,BRK=4000,CLICK=100,CUT=1700,HIT_AT=1000;"
      ],
@@ -319,8 +321,7 @@
       "tx.textContent=EMO[i];",
       "tx.textContent=EMO[i];",
       "x.textContent=fmt(Math.round(+x.getAttribute('data-n')*e));"
-     ],
-     "mesure du rythme des images (fps, fréquence)": []
+     ]
     },
     "empreinte": "7dbd44a67d844419"
    },
@@ -344,6 +345,7 @@
      ],
      "changements de classe": [],
      "clés du stockage du jeu (taxe-giga-…)": [],
+     "mesure du rythme des images (fps, fréquence)": [],
      "contrat de la page (TaxeBoss, BOSS_SERVER)": [
       "T.calm(!pre.hidden||!!ev);",
       "T.lock(false);",
@@ -365,8 +367,7 @@
      ],
      "hôte de la scène": [
       "hostEl.id='bossHost';"
-     ],
-     "mesure du rythme des images (fps, fréquence)": []
+     ]
     },
     "empreinte": "7ccada0cc010cc05"
    }
@@ -475,6 +476,7 @@
      "clés du stockage du jeu (taxe-giga-…)": [
       "const CP_KEY='taxe-giga-cp',DEP_KEY='taxe-giga-dep',PAYS_KEY='taxe-giga-monde-pays';"
      ],
+     "mesure du rythme des images (fps, fréquence)": [],
      "noms exportés par le module": [
       "play",
       "preload",
@@ -745,8 +747,7 @@
       "whoEl.textContent='';",
       "whoEl.textContent='';",
       "whoEl.textContent='';"
-     ],
-     "mesure du rythme des images (fps, fréquence)": []
+     ]
     },
     "empreinte": "9719e8f0a9324c68"
    }
