@@ -46,3 +46,28 @@ jobs:
         run: pipx run ruff==0.17.3 check dev/
       - name: tests de la veille
         run: python3 dev/veille/test_veille.py
+  prod:
+    # Livraison (décision de Romain du 22/11/2026) : les machines et le widget tirent la branche prod,
+    # avancée ici seulement quand tests et contrôles sont verts sur un envoi à main. Jamais en arrière :
+    # prod n'avance que si le commit testé la contient (comparaison « ahead ») ; un passage plus ancien qui
+    # finit après un plus récent ne fait rien. Revenir : variables BOT_REF / CONSEILLER_REF = main.
+    needs: [tests, controles]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write          # déplacer la référence prod (API git refs), rien d'autre
+    steps:
+      - name: Avancer prod
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          etat=$(gh api "repos/$REPO/compare/prod...$SHA" --jq .status)
+          echo "prod...$SHA : $etat"
+          case "$etat" in
+            ahead) gh api -X PATCH "repos/$REPO/git/refs/heads/prod" -f sha="$SHA" -F force=false --jq .object.sha ;;
+            identical|behind) echo "rien à faire" ;;
+            *) echo "::error::prod et main ont divergé ($etat) : à remettre d'aplomb à la main"; exit 1 ;;
+          esac
