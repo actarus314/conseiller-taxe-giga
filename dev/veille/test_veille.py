@@ -213,6 +213,8 @@ CAS = [
     ('fenêtre neuve', mute('<dialog id="txDlg">', '<div class="bn-ov" id="pauseOv" hidden></div><dialog id="txDlg">'), 'pauseOv'),
     ('texte de fenêtre changé', mute('Rien n’est bloqué pour l’instant.', 'Vos clics sont bloqués.'), 'acWarnOv'),
     ('diapositive changée', mute('Plus de 175 000 clics en 8 h', 'Plus de 150 000 clics en 8 h'), 'Diapositives'),
+    ('diapositive sans mot-clé ajoutée aux nouveautés (22/11/2026)', mute('<div class="nw-slide" data-slide="0">', '<div class="nw-slide" data-slide="2" hidden><b>Nouveau</b><p>Une pause compte à partir de 20 min.</p></div><div class="nw-slide" data-slide="0">'), 'Diapositives des nouveautés, toutes'),
+    ('diapositive sans mot-clé changée', mute('<b>Hier</b><p>+0 €</p>', '<b>Hier</b><p>+1 €</p>'), 'Diapositives des nouveautés, toutes'),
     ('texte HTML balayé changé', mute('🤖 Autoclick : ce qui est interdit', '🤖 Autoclick : les limites'), 'Textes'),
     ('chaîne JS après une expression régulière à guillemet (lecteur pas déraillé)', mute("'Méthode de clic (avertissement autoclick) : '", "'Méthode de clic (signalement autoclick) : '"), 'Textes'),
     ('chaîne JS en fin de script changée', mute("'Un humain se fatigue, un autoclicker non.'", "'Un humain se fatigue, un autoclicker jamais.'"), 'Textes'),

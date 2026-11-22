@@ -213,6 +213,7 @@ def ecarts_autoclic(avant, apres):
     for cle, titre in (('instructions', 'Instructions qui lisent un champ de détection ou la garde des clics (clé du choix, minuteries des fenêtres, envoi de la méthode de clic compris)'),
                        ('champs', 'Champs de détection lus'), ('fenetres', 'Fenêtres de la page (id ; balise.classe pour celles que le script crée)'),
                        ('diapositives', 'Diapositives des nouveautés qui parlent d\'autoclic'),
+                       ('nouveautes', 'Diapositives des nouveautés, toutes (une règle annoncée sans mot-clé d\'autoclic comprise : à lire)'),
                        ('textes', 'Textes qui parlent d\'autoclic')):
         x, y = sorted(avant.get(cle, [])), sorted(apres[cle])
         if x != y:

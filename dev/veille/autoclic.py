@@ -4,7 +4,8 @@ Trois filets, comparés à la section « autoclic » de dev/veille/reference.jso
 - zones de code : corps entiers de fonctions nommées (ZONES), et chaque instruction, où qu'elle soit, qui lit un champ
   de détection (.acXxx, .autoclick) ou la garde des clics (isTrusted, appels de oneShot) ;
 - inventaires : champs de détection lus, fenêtres de la page (id), texte des fenêtres d'autoclic et des diapositives
-  des nouveautés qui en parlent ;
+  des nouveautés qui en parlent ; depuis le 22/11/2026, toutes les diapositives des nouveautés, avec ou sans mot-clé (les
+  règles des 8 h y ont été annoncées : une règle annoncée sans les mots suivis ne passe plus inaperçue) ;
 - balayage : chaque chaîne du code et chaque texte de la page, hors des deux filets précédents, qui contient un mot-clé.
 Tout est comparé normalisé (commentaires retirés, blancs réduits, chaînes sous une forme unique, expressions ${…} des
 gabarits normalisées comme du code) : un reformatage ou un changement de guillemets ne déclenche rien. Une zone
@@ -380,6 +381,7 @@ class _Page(html.parser.HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.fenetres, self.textes_fen, self.diapos, self.textes = set(), {}, set(), set()
+        self.nouveautes = set()  # toutes les diapositives des nouveautés, avec ou sans mot-clé (22/11/2026)
         self.brut = 0  # dans <script> ou <style>
         self.prises = []  # textes en cours de capture : [balise, profondeur, clé, morceaux]
 
@@ -414,8 +416,11 @@ class _Page(html.parser.HTMLParser):
                     t = propre(' '.join(p[3]))
                     if p[2][0] == 'fen':
                         self.textes_fen[p[2][1]] = t
-                    elif MOTS.search(t):
-                        self.diapos.add(t)
+                    else:
+                        if t:
+                            self.nouveautes.add(t)
+                        if MOTS.search(t):
+                            self.diapos.add(t)
 
     def handle_data(self, data):
         if self.brut:
@@ -558,6 +563,7 @@ def releve(page):
         'fenetres': sorted(p.fenetres | fenetres),
         'textes des fenetres': {k: p.textes_fen.get(k) for k in FENETRES_TEXTE},
         'diapositives': sorted(p.diapos),
+        'nouveautes': sorted(p.nouveautes),
         'textes': textes,
     }
 
