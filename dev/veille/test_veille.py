@@ -77,7 +77,7 @@ AUTOCLIC = """<button id="taxBtn">TAXER</button>
 
 # Modèle du reste de la page principale (forme du build 2026-11-19d) : régularité et origine de ses horodatages, les deux
 # corps envoyés à /api/sync, règle des pseudos, contrat du boss, restes de la détection d'autoclic (clé, minuteries,
-# envoi de la méthode, fenêtre créée par le script), routes du collecteur, globe ; puis le bandeau et le chargeur du
+# envoi de la méthode, fenêtre créée par le script), routes de classement et de fiche joueur, globe ; puis le bandeau et le chargeur du
 # boss, chacun dans son bloc <script>.
 PRINCIPALE = """<script>
   const clickTimes = []; let lastClickAt = 0;
@@ -293,9 +293,9 @@ CAS3 = [
     ('champ déstructuré à clé entre guillemets', mute('function cardFlags()', "const { 'acStop': s } = d;\n  function cardFlags()"), 'Champs de détection lus :\najouté :\n~~~~\nacStop'),
     ('champ déstructuré après un commentaire', mute('function cardFlags()', 'const { ok,\n    // champ\n    acNote /* fin */ } = d;\n  function cardFlags()'), 'Champs de détection lus :\najouté :\n~~~~\nacNote'),
     ('instruction qui déstructure un champ', mute('function cardFlags()', 'const { acHalt, ok } = d;\n  function cardFlags()'), 'const{acHalt,ok}=d;'),
-    # 6. routes que lit le collecteur
-    ('version du classement changée', mute('/api/leaderboard?v=3&', '/api/leaderboard?v=4&'), 'routes lues par le collecteur'),
-    ('paramètre de la fiche changé', mute('/api/taxer?id=', '/api/taxer?pid='), 'routes lues par le collecteur'),
+    # 6. routes de classement et de fiche joueur
+    ('version du classement changée', mute('/api/leaderboard?v=3&', '/api/leaderboard?v=4&'), 'routes de classement et de fiche joueur'),
+    ('paramètre de la fiche changé', mute('/api/taxer?id=', '/api/taxer?pid='), 'routes de classement et de fiche joueur'),
     # 7. globe
     ('version du module du globe changée', mute('monde.js?v=29', 'monde.js?v=30'), 'version du module du globe** : `29` → `30`'),
     ('adresse du globe changée', mute("envoisUrl: '/monde/envois.php'", "envoisUrl: '/monde/envoi.php'"), 'chargeur et appel du module du globe'),
@@ -306,7 +306,7 @@ for nom, html, attendu in CAS3:
     verifie(nom + ' : écart signalé', code == 1 and attendu in out, out[-400:])
 
 code, out = lancer(mute('#${h % 1000}', '#${h % 10000}'))
-verifie("règle des pseudos : l'issue dit « vérifier ce qui la recopie »", 'Règle des pseudos changée : vérifier ce qui la recopie.' in out, out[-400:])
+verifie("règle des pseudos : l'issue renvoie à la documentation privée, groupe `pseudos`", 'Règle des pseudos changée. Conséquences à vérifier : voir la documentation privée du projet, groupe `pseudos`.' in out, out[-400:])
 o7, o8 = TMP / 'o7', TMP / 'o8'
 lancer(mute('monde.js?v=29', 'monde.js?v=30'), sortie=o7)
 verifie('sujet « page »', 'sujet=page' in o7.read_text())
@@ -340,7 +340,8 @@ class Reponse:
         self.data = data
 
     def read(self, n):
-        return self.data[:n]
+        m, self.data = self.data[:n], self.data[n:]
+        return m
 
     def __enter__(self):
         return self
@@ -364,7 +365,7 @@ finally:
     sys.argv, veille.urllib.request.urlopen = argv, vrai
 verifie('une seule requête au site par passage (conforme)', code == 0 and appels == [veille.URL], appels)
 
-# mesure du rythme des images (demande de Romain du 20/11/2026, écran à 10 Hz) : noms du code vus, textes ignorés
+# mesure du rythme des images (demande de Romain du 20/11/2026) : noms du code vus, textes ignorés
 _k = 'mesure du rythme des images (fps, fréquence)'
 _r = principale.releve('<script>const fps = 1000 / dt; let frameRate = 0; vsync(); say("60 fps à l\'écran");</script>')[_k]
 verifie('rythme des images : fps, frameRate et vsync du code relevés, « fps » d\'un texte ignoré',
@@ -955,6 +956,51 @@ etq = []
 for m in (('CAP = 6,', 'CAP = 7,'), ('CAP = 6,', 'CAP = 9,')):
     of.unlink(missing_ok=True); lancer(PAGE_F, *copies(boss_event_net=m), sortie=of); etq.append(sorties(of)['fichiers_etiquettes'])
 verifie('deux écarts différents d\'un même fichier : deux étiquettes différentes', etq[0] != etq[1] and all(e.startswith('boss-') for e in etq), etq)
+
+# téléchargement : User-Agent neutre (ni adresse du dépôt, ni nom du projet) et durée totale bornée
+class Lente:
+    """Réponse qui donne un petit morceau à chaque lecture : chaque lecture est rapide, l'ensemble ne finit jamais."""
+    headers = {}
+
+    def read(self, n):
+        return b'x'
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+vus = []
+
+
+def ouvre_ua(req, timeout=None):
+    vus.append((req.get_header('User-agent'), timeout))
+    return Reponse(b'<html>ok</html>')
+
+
+vrai_urlopen, vrai_dm, vrai_horloge = veille.urllib.request.urlopen, veille.DUREE_MAX, veille.time.monotonic
+try:
+    veille.urllib.request.urlopen = ouvre_ua
+    veille.telecharger('https://taxe-au-giga.fr/')
+    verifie('User-Agent neutre : sans adresse ni nom de dépôt', vus[0][0] == 'veille-page/1.0' and 'http' not in vus[0][0] and 'github' not in vus[0][0].lower(), vus)
+    veille.urllib.request.urlopen = lambda req, timeout=None: Lente()
+    veille.DUREE_MAX = 0.3
+    try:
+        veille.telecharger('https://taxe-au-giga.fr/'); fin = 'fini'
+    except TimeoutError:
+        fin = 'borné'
+    verifie('téléchargement lent : durée totale bornée (TimeoutError), pas seulement chaque lecture', fin == 'borné', fin)
+    veille.DUREE_MAX = vrai_dm
+    veille.urllib.request.urlopen = lambda req, timeout=None: Reponse(b'x' * (veille.MAX_PAGE + 10))
+    try:
+        veille.telecharger('https://taxe-au-giga.fr/'); fin = 'fini'
+    except ValueError:
+        fin = 'plafonné'
+    verifie('fichier plus gros que le plafond : refusé', fin == 'plafonné', fin)
+finally:
+    veille.urllib.request.urlopen, veille.DUREE_MAX = vrai_urlopen, vrai_dm
 
 print('\nTout est passé' if not echecs else f'\n{echecs} échec(s)')
 sys.exit(1 if echecs else 0)

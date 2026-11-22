@@ -126,7 +126,7 @@
   "contrat window.TaxeBoss": [
    "window.TaxeBoss={yieldTo:()=>bnYield(),pseudo:id=>taxerName(id),myId:()=>me&&me.id,shareBoss:(r,name)=>shareBoss(r,name||(me?taxerName(me.id):'Contribuable')),calm:on=>document.body.classList.toggle('boss-on',on),sound:()=>SFX.on,beep:()=>{try{SFX.click();}catch(e){}},now:()=>Date.now()+serverOffset,lock(on){bossLock=on;document.documentElement.classList.toggle('boss-lock',on);btn.disabled=on;btn.classList.toggle('boss-off',on);document.body.classList.toggle('boss-on',on);}};"
   ],
-  "routes lues par le collecteur": [
+  "routes de classement et de fiche joueur": [
    "const m=await api(`/api/taxer?id=${me.id}`,{cache:'no-store'});",
    "const r=await api(`/api/leaderboard?v=3&r=${want}${me?'&me='+me.id:''}`,{cache:'no-store'});",
    "const r=await api(`/api/taxer?id=${id}`,{cache:'no-store'});"

@@ -25,35 +25,36 @@ PASSAGES = {
     'version du module du boss': ('boss', 'texte'),
     'bandeau du Dépité': ('boss', 'texte'),
     'contrat window.TaxeBoss': ('boss', 'liste'),
-    'routes lues par le collecteur': ('routes', 'liste'),
+    'routes de classement et de fiche joueur': ('routes', 'liste'),
     'chargeur et appel du module du globe': ('globe', 'liste'),
     'version du module du globe': ('globe', 'texte'),
     'mesure du rythme des images (fps, fréquence)': ('images', 'liste'),
 }
 # texte de l'« à faire » de chaque groupe (fixe : jamais de texte de la page)
 GROUPES = {
-    'cad': 'Régularité envoyée au serveur (`cad`) ou origine de ses horodatages : relire `architecture.md` §7 (point 4) '
-           'du projet et ce que le bot fournit au jeu.',
-    'sync': 'Ce que la page envoie à `/api/sync` a changé : le bot lit les synchros. Un drapeau ajouté par l\'auteur '
-            'est un bruit attendu ; un champ nouveau ou retiré est à comprendre avant de recaler.',
-    'pseudos': 'Règle des pseudos changée : vérifier ce qui la recopie.',
+    'cad': 'Régularité envoyée au serveur (`cad`) ou origine de ses horodatages changée. Conséquences à vérifier : voir '
+           'la documentation privée du projet, groupe `cad`.',
+    'sync': 'Ce que la page envoie à `/api/sync` a changé. Un drapeau ajouté par l\'auteur est un bruit attendu ; un champ '
+            'nouveau ou retiré est à comprendre avant de recaler. Conséquences à vérifier : voir la documentation privée '
+            'du projet, groupe `sync`.',
+    'pseudos': 'Règle des pseudos changée. Conséquences à vérifier : voir la documentation privée du projet, groupe '
+               '`pseudos`.',
     'boss': 'Chargeur, bandeau ou contrat du module du boss changé (fenêtre horaire, adresses, version, calendrier, '
-            '`window.TaxeBoss`) : vérifier le combat du Dépité (`architecture.md` §5 du projet). Si c\'est la version '
-            '`?v=` : probablement un déploiement du module (non établi).',
-    'routes': 'Routes que lit le collecteur changées (version, paramètre) : signal pour le collecteur '
-              '(`architecture.md` §12 du projet).',
-    'globe': 'Chargeur ou appel du module du globe changé (version `?v=`, adresses) : le bot le pilote '
-             '(`architecture.md` §5 et §11 du projet).',
-    'images': 'Le code parle du rythme des images (fps, fréquence de l\'écran) : les machines tournent avec un écran à '
-              '10 Hz hors combat (`SCREEN_HZ`, `deploy/CHANGELOG.md` deploy-v0.92 du dépôt bot), visible par une page qui '
-              'mesure ce rythme. Lire ce que le code en fait et s\'il l\'envoie (synchro, autre adresse) ; dans le doute, '
-              'repasser les machines à `SCREEN_HZ=60`.',
+            '`window.TaxeBoss`). Si c\'est la version `?v=` : probablement un déploiement du module (non établi). '
+            'Conséquences à vérifier : voir la documentation privée du projet, groupe `boss`.',
+    'routes': 'Routes de classement ou de fiche joueur changées (version, paramètre). Conséquences à vérifier : voir la '
+              'documentation privée du projet, groupe `routes`.',
+    'globe': 'Chargeur ou appel du module du globe changé (version `?v=`, adresses). Conséquences à vérifier : voir la '
+             'documentation privée du projet, groupe `globe`.',
+    'images': 'Le code parle du rythme des images (fps, fréquence de l\'écran). Lire ce que le code en fait et s\'il '
+              'l\'envoie (synchro, autre adresse). Conséquences à vérifier : voir la documentation privée du projet, '
+              'groupe `images`.',
     'recalage': 'Référence sans suivi du reste de la page : la recaler sur une page relue.',
 }
 ANCRE_CHARGEUR = 'boss-event-net.js'
 ANCRE_BANDEAU = 'bossBar'
 PRINCIPAL = 'const SHOP = ['  # le bloc du jeu lui-même : jamais pris pour le chargeur ou le bandeau
-# mots d'une mesure du rythme des images (demande de Romain du 20/11/2026, écran à 10 Hz), dans les noms du code :
+# mots d'une mesure du rythme des images (demande de Romain du 20/11/2026), dans les noms du code :
 # en minuscules au début d'un nom (fps, fpsMax, frame_rate, frameCounter), avec majuscule n'importe où dans un nom
 # (maxFps, getFrameRate, FRAME_RATE) ; plus, en chaînes, les clés écrites entre guillemets (o['frameRate'], {"fps": 1}).
 # Les textes (« 60 fps à l'écran ») ne comptent pas. Limite : une mesure sans ces mots (écarts entre deux images rangés
@@ -151,7 +152,7 @@ def releve(page):
         acc['autres envois à /api/sync'] += _instructions(sc, sync, hors=emis, chaines=True)
         acc['tables NOUNS et ADJS (règle des pseudos)'] += _instructions(sc, re.compile(r'\b(?:const|let|var)\s+(?:NOUNS|ADJS)\b'))
         acc['contrat window.TaxeBoss'] += _instructions(sc, re.compile(r'\bTaxeBoss\b'))  # affectation, ajouts, lectures
-        acc['routes lues par le collecteur'] += _instructions(sc, re.compile(r'/api/(?:leaderboard|taxer)\b'), chaines=True)
+        acc['routes de classement et de fiche joueur'] += _instructions(sc, re.compile(r'/api/(?:leaderboard|taxer)\b'), chaines=True)
         acc['chargeur et appel du module du globe'] += _instructions(sc, re.compile(r'/monde/'), chaines=True)
         acc['mesure du rythme des images (fps, fréquence)'] += _instructions(sc, re.compile(MOTS_IMAGES))
         acc['mesure du rythme des images (fps, fréquence)'] += _instructions(sc, re.compile(CLES_IMAGES), chaines=True)
@@ -176,7 +177,7 @@ def releve(page):
 def manques(r):
     """Ce qu'une référence ne doit jamais enregistrer comme absent (ancre disparue, inventaire attendu vide)."""
     out = [f'passage {k}' for k, (_, forme) in PASSAGES.items() if forme == 'texte' and r.get(k) is None]
-    for k in ('origine des horodatages de clickTimes', 'contrat window.TaxeBoss', 'tables NOUNS et ADJS (règle des pseudos)', 'routes lues par le collecteur', 'chargeur et appel du module du globe'):
+    for k in ('origine des horodatages de clickTimes', 'contrat window.TaxeBoss', 'tables NOUNS et ADJS (règle des pseudos)', 'routes de classement et de fiche joueur', 'chargeur et appel du module du globe'):
         if not r.get(k):
             out.append(f'passage {k}')
     return out

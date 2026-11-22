@@ -1,6 +1,6 @@
 """Fichiers à part du jeu : modules du boss et du globe, page /regles. Ce que la veille en suit, et quand elle les lit.
 
-Chacun demande des requêtes de plus au site. Quand (décision de Romain du 20/11/2026, `dev/lots/veille-3-fichiers.md`) :
+Chacun demande des requêtes de plus au site. Quand (décision de Romain du 20/11/2026, mesures dans `dev/contexte.md`) :
 - module du boss : à chaque passage tant que sa version ?v= dans la page diffère de la référence (déploiement pas encore
   recalé ; sauf après ESSAIS échecs de suite), et une fois par jour dans la plage PLAGE ;
 - page /regles et module du globe : une fois par jour dans la plage PLAGE ; le globe tant que SUIVI_GLOBE est vrai ;

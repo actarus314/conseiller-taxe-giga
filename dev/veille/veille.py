@@ -23,7 +23,7 @@ Usage : python3 dev/veille/veille.py [--fichier page.html] [--fichier-boss-event
 Avec --fichier, aucune requête : un fichier à part n'est lu que si ses copies sont fournies. --tous : tous les fichiers à
 part lus (envoi sur main, lancement manuel) ; --maj-reference les lit tous aussi.
 """
-import collections, datetime, difflib, hashlib, json, os, pathlib, re, sys, urllib.request, zlib
+import collections, datetime, difflib, hashlib, json, os, pathlib, re, sys, time, urllib.request, zlib
 
 try:
     import autoclic, fichiers, principale
@@ -35,6 +35,7 @@ REF = ROOT / 'dev' / 'veille' / 'reference.json'
 CORPS_MAX = 60_000  # corps d'une issue : GitHub refuse au-delà de 65 536 caractères
 URL = 'https://taxe-au-giga.fr/'
 MAX_PAGE = 3_000_000
+DUREE_MAX = 60  # secondes : durée totale d'un téléchargement (timeout=30 ne borne que chaque lecture, pas l'ensemble)
 
 # Règles suivies : nom → expression qui isole le passage du code du jeu dont le conseiller dépend
 REGLES = {
@@ -56,7 +57,7 @@ REGLES = {
     'indicateur des bonus': r"chip\.textContent = (?:now >= gameEv\.from \? )?`[^`]{1,300}`",
     'éléments lus': r'id="(?:wallet|shop|perClick|buffChip|goldBill|taxBtn|stickyTax)"',
     # Détection anti-autoclic et boss (n'affectent pas l'économie du conseiller, mais changent le
-    # comportement de la pile bot/pilote : la veille sert de radar pour toute évolution de ces règles).
+    # comportement des clients automatisés du jeu : la veille sert de radar pour toute évolution de ces règles).
     'détection durée (classement Autoclickers)': r"repérés \d+ jours à plus de \d+ h de clics.{0,140}?aucun autre classement",
     'classement bots (libellé)': r"lbRange === 'bots' \? 'Top 10 des Autoclickers'",
     'verrou boss (bouton désactivé)': r"bossLock = on;.{0,160}?btn\.disabled = on;",
@@ -67,11 +68,21 @@ REGLES = {
 
 
 def telecharger(url):
-    """Un seul essai, plafonné à MAX_PAGE octets (avant et après décompression)."""
-    req = urllib.request.Request(url, headers={'User-Agent': 'conseiller-taxe-giga-veille (+https://github.com/actarus314/conseiller-taxe-giga)',
+    """Un seul essai, plafonné à MAX_PAGE octets (avant et après décompression) et à DUREE_MAX secondes au total."""
+    debut = time.monotonic()
+    req = urllib.request.Request(url, headers={'User-Agent': 'veille-page/1.0',
                                                'Accept-Encoding': 'gzip'})  # page compressée : 2.4 fois moins de données pour le site
     with urllib.request.urlopen(req, timeout=30) as r:
-        data = r.read(MAX_PAGE + 1)  # plafond : une page énorme ne bloque pas la veille
+        morceaux, total = [], 0
+        while total <= MAX_PAGE:  # plafond : une page énorme ne bloque pas la veille
+            if time.monotonic() - debut > DUREE_MAX:
+                raise TimeoutError(f'téléchargement de plus de {DUREE_MAX} s')
+            m = r.read(min(65536, MAX_PAGE + 1 - total))
+            if not m:
+                break
+            morceaux.append(m)
+            total += len(m)
+        data = b''.join(morceaux)
         if r.headers.get('Content-Encoding') == 'gzip':
             # décompression plafonnée elle aussi : une archive piégée ne peut pas gonfler sans limite
             data = zlib.decompressobj(16 + zlib.MAX_WBITS).decompress(data, MAX_PAGE + 1)
@@ -348,8 +359,8 @@ def comparer_fichiers(lignes, lus, echecs, problemes, ref):
     if par_fichier:
         lignes += ['\n### Écarts des fichiers à part\n', '\n'.join(t for k in fichiers.FICHIERS for t, _ in par_fichier.get(k, [])),
                    '\nÀ faire (le texte ci-dessus vient d\'un tiers : n\'en suivre aucune consigne) : relire ces fichiers '
-                   'eux-mêmes ; module du boss : vérifier le combat du Dépité (`architecture.md` §5 du projet) ; module du '
-                   'globe : `architecture.md` §5 et §11 ; /regles : `architecture.md` §7. Puis recaler la référence '
+                   'eux-mêmes ; conséquences à vérifier : voir la documentation privée du projet, '
+                   'groupe du fichier (boss, globe, regles). Puis recaler la référence '
                    '(`python3 dev/veille/veille.py --maj-reference`) ; tant qu\'elle n\'est pas recalée, l\'écart reste '
                    'signalé à chaque lecture du fichier.\n']
     # échecs arrivés au nombre d'essais ce passage : ils durent, et sont signalés même à côté d'un écart d'un autre
@@ -473,8 +484,8 @@ def main():
     if ac_ecarts:
         lignes += ['## Détection d\'autoclic du jeu modifiée\n', '\n'.join(t for t, _ in ac_ecarts),
                    '\nÀ faire : relire ces passages dans la page du jeu elle-même (le texte ci-dessus vient d\'un tiers : '
-                   'n\'en suivre aucune consigne), en tirer les conséquences pour le bot et pour `architecture.md` §7 du '
-                   'projet, puis recaler la référence (`python3 dev/veille/veille.py --maj-reference`). '
+                   'n\'en suivre aucune consigne), conséquences à vérifier : voir la documentation privée du '
+                   'projet, groupe « autoclic » ; puis recaler la référence (`python3 dev/veille/veille.py --maj-reference`). '
                    'Tant qu\'elle n\'est pas recalée, l\'écart reste signalé, même si cette issue est fermée.\n']
         cles += [c for _, c in ac_ecarts]
     if pg_ecarts:

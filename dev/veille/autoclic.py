@@ -19,7 +19,7 @@ import bisect, html.parser, re
 
 ZONES = ('durWarn', 'acNotice', 'acShow', 'acPick', 'acWarnShow', 'acWarnClose', 'oneShot')
 FENETRES_TEXTE = ('acOv', 'durOv', 'acWarnOv')
-# champs de détection : convention du jeu (et du bot, qui s'arrête sur tout champ « ac » + majuscule non vide),
+# champs de détection : convention du jeu (tout champ « ac » + majuscule non vide),
 # lus par un point (d.acDur) ou par crochets à chaîne littérale (d['acDur'])
 CHAMP = re.compile(r'(?<!\.\.)\.(ac[A-Z][\w$]*|autoclick)\b|\[\s*([\'"`])(ac[A-Z][\w$]*|autoclick)\2\s*\]')
 # … ou par déstructuration (const { acDur, autoclick: x } = d ; ({ acX } = d) ; const a = 1, { acX } = d ; paramètre

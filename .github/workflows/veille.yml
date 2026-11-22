@@ -82,8 +82,18 @@ jobs:
           # fichiers à part : lus selon la plage du jour, la version du module du boss et le rattrapage ; tous à un
           # envoi sur main ou sur demande
           tous=(); if [ "$TOUS" = true ]; then tous=(--tous); fi
-          python3 dev/veille/veille.py --corps corps.md --corps-fichiers corps-fichiers.md --rattrapage "$RATT" "${tous[@]}" > rapport.md || true
+          # le script ne peut pas tourner jusqu'au délai du job sans rien dire : 5 min au plus (une lecture complète dure
+          # quelques secondes), puis état « erreur », traité comme une panne
+          rc=0
+          timeout 300 python3 dev/veille/veille.py --corps corps.md --corps-fichiers corps-fichiers.md --rattrapage "$RATT" "${tous[@]}" > rapport.md || rc=$?
           etat=$(grep -o '^etat=.*' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2)
+          if [ "$rc" = 124 ] || [ -z "$etat" ]; then
+            { echo "## Veille en panne"; echo; echo "Le script n'a pas rendu d'état (code de sortie $rc ; 124 = délai de 300 s)."; } > rapport.md
+            : > corps.md; : > corps-fichiers.md
+            # la dernière valeur écrite l'emporte : celles du script, s'il en a écrit, sont remplacées
+            { echo "etat=erreur"; echo "empreinte=panne-$rc"; echo "sujet="; echo "fichiers_etat=rien"; echo "fichiers_etiquettes="; echo "fichiers_complet=false"; echo "rattrapage=$RATT"; } >> "$GITHUB_OUTPUT"
+            etat=erreur
+          fi
           if [ "$etat" = inaccessible ]; then echo "echecs=$((AVANT + 1))" >> "$GITHUB_OUTPUT"; else echo "echecs=0" >> "$GITHUB_OUTPUT"; fi
           # rapport (contenu tiers) dans le résumé seulement, jamais sur la sortie standard : pas de commandes « :: » injectables
           cat rapport.md >> "$GITHUB_STEP_SUMMARY"
@@ -183,6 +193,22 @@ jobs:
             for n in $(echo "$liste" | jq -r --arg e "$exacte" '.[] | select((.number | tostring) != $e) | .number'); do
               gh issue close "$n" --comment "Remplacée par #$exacte ($RUN)."
             done
+          fi
+      - name: Signaler une veille en panne
+        # le passage a échoué ou a été annulé (étape qui plante, API GitHub en erreur, annulation à la main) : une seule
+        # issue « en panne », tenue à jour (pas de doublon), refermée par le premier passage conforme (étiquette veille)
+        if: failure() || cancelled()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh label create veille --color FFD23F --description "Alerte de la veille automatique du jeu" --force >/dev/null || true
+          corps="Le passage de la veille a échoué ou a été annulé ; le jeu n'est plus surveillé tant que cette issue est ouverte. Dernier échec : $(date -u '+%d/%m/%Y %H:%M UTC'), $RUN"
+          ouverte=$(gh issue list --label veille --state open --limit 100 --json number,title --jq '.[] | select(.title | startswith("Veille : en panne")) | .number' | head -1)
+          if [ -n "$ouverte" ]; then
+            gh issue edit "$ouverte" --body "$corps"
+          else
+            gh issue create --title "Veille : en panne (passage échoué ou annulé)" --label veille --body "$corps"
           fi
       - name: Noter l'heure de fin
         id: fin
