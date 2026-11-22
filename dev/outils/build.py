@@ -26,8 +26,8 @@ header = f"""// ==UserScript==
 // @grant        none
 // @noframes
 // @run-at       document-idle
-// @downloadURL  https://raw.githubusercontent.com/actarus314/conseiller-taxe-giga/main/conseiller.user.js
-// @updateURL    https://raw.githubusercontent.com/actarus314/conseiller-taxe-giga/main/conseiller.user.js
+// @downloadURL  https://raw.githubusercontent.com/actarus314/conseiller-taxe-giga/prod/conseiller.user.js
+// @updateURL    https://raw.githubusercontent.com/actarus314/conseiller-taxe-giga/prod/conseiller.user.js
 // ==/UserScript==
 """
 (ROOT / 'conseiller.user.js').write_text(header + src, encoding='utf-8')

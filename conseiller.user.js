@@ -7,8 +7,8 @@
 // @grant        none
 // @noframes
 // @run-at       document-idle
-// @downloadURL  https://raw.githubusercontent.com/actarus314/conseiller-taxe-giga/main/conseiller.user.js
-// @updateURL    https://raw.githubusercontent.com/actarus314/conseiller-taxe-giga/main/conseiller.user.js
+// @downloadURL  https://raw.githubusercontent.com/actarus314/conseiller-taxe-giga/prod/conseiller.user.js
+// @updateURL    https://raw.githubusercontent.com/actarus314/conseiller-taxe-giga/prod/conseiller.user.js
 // ==/UserScript==
 (() => {
   // Conseiller pour taxe-au-giga.fr : lit l'état affiché par le jeu, ne clique et n'achète jamais rien.

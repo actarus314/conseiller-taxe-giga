@@ -24,7 +24,7 @@ Dans tous les cas, la cadence retenue reste sous 1030 clics par minute (17.2/s),
 
 ## Installation
 
-- **Script utilisateur** (Tampermonkey, Violentmonkey) : ouvrir [`conseiller.user.js`](https://raw.githubusercontent.com/actarus314/conseiller-taxe-giga/main/conseiller.user.js), l'extension propose l'installation. Le panneau s'ouvre à chaque visite du jeu.
+- **Script utilisateur** (Tampermonkey, Violentmonkey) : ouvrir [`conseiller.user.js`](https://raw.githubusercontent.com/actarus314/conseiller-taxe-giga/prod/conseiller.user.js), l'extension propose l'installation. Le panneau s'ouvre à chaque visite du jeu.
 - **Favori à jour** (conseillé) : glisser le bouton vert de la [page d'installation](https://actarus314.github.io/conseiller-taxe-giga/) dans la barre de favoris, ou créer un favori dont l'adresse est le contenu de [`bookmarklet-auto.txt`](bookmarklet-auto.txt). Il charge `conseiller.js` depuis GitHub Pages à chaque clic : une nouvelle version arrive quelques minutes après sa publication (déploiement de Pages, puis une minute de cache au plus).
 - **Favori figé** : le contenu de [`bookmarklet.txt`](bookmarklet.txt), avec le code entier dans l'adresse ; rien n'est chargé à distance, mais il faut le refaire à chaque nouvelle version.
 

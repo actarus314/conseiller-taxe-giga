@@ -47,10 +47,10 @@ jobs:
       - name: tests de la veille
         run: python3 dev/veille/test_veille.py
   prod:
-    # Livraison (décision de Romain du 22/11/2026) : les machines et le widget tirent la branche prod,
+    # Livraison (22/11/2026) : les clients à jour automatique tirent la branche prod,
     # avancée ici seulement quand tests et contrôles sont verts sur un envoi à main. Jamais en arrière :
     # prod n'avance que si le commit testé la contient (comparaison « ahead ») ; un passage plus ancien qui
-    # finit après un plus récent ne fait rien. Revenir : variables BOT_REF / CONSEILLER_REF = main.
+    # finit après un plus récent ne fait rien. Revenir : tirer main.
     needs: [tests, controles]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
