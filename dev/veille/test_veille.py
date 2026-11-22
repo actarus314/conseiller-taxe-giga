@@ -343,6 +343,8 @@ class Reponse:
         m, self.data = self.data[:n], self.data[n:]
         return m
 
+    read1 = read
+
     def __enter__(self):
         return self
 
@@ -964,6 +966,8 @@ class Lente:
 
     def read(self, n):
         return b'x'
+
+    read1 = read
 
     def __enter__(self):
         return self

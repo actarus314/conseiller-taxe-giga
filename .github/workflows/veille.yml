@@ -91,7 +91,7 @@ jobs:
             { echo "## Veille en panne"; echo; echo "Le script n'a pas rendu d'état (code de sortie $rc ; 124 = délai de 300 s)."; } > rapport.md
             : > corps.md; : > corps-fichiers.md
             # la dernière valeur écrite l'emporte : celles du script, s'il en a écrit, sont remplacées
-            { echo "etat=erreur"; echo "empreinte=panne-$rc"; echo "sujet="; echo "fichiers_etat=rien"; echo "fichiers_etiquettes="; echo "fichiers_complet=false"; echo "rattrapage=$RATT"; } >> "$GITHUB_OUTPUT"
+            { echo; echo "etat=erreur"; echo "empreinte=panne-$rc"; echo "sujet="; echo "fichiers_etat=rien"; echo "fichiers_etiquettes="; echo "fichiers_complet=false"; echo "rattrapage=$RATT"; } >> "$GITHUB_OUTPUT"
             etat=erreur
           fi
           if [ "$etat" = inaccessible ]; then echo "echecs=$((AVANT + 1))" >> "$GITHUB_OUTPUT"; else echo "echecs=0" >> "$GITHUB_OUTPUT"; fi

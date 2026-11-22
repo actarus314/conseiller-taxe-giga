@@ -77,7 +77,7 @@ def telecharger(url):
         while total <= MAX_PAGE:  # plafond : une page énorme ne bloque pas la veille
             if time.monotonic() - debut > DUREE_MAX:
                 raise TimeoutError(f'téléchargement de plus de {DUREE_MAX} s')
-            m = r.read(min(65536, MAX_PAGE + 1 - total))
+            m = r.read1(min(65536, MAX_PAGE + 1 - total))  # read1 : rend ce qui est arrivé, un site qui goutte n'échappe pas à DUREE_MAX
             if not m:
                 break
             morceaux.append(m)
