@@ -19,7 +19,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 let fails = 0;
 const check = (ok, msg) => { console.log((ok ? '  ok   ' : '  ÉCHEC ') + msg); if (!ok) fails++; };
 
-async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, clicks = [], hourClicks = 0, hist = null, ev = null, mini = null, det = false, detClosed = false, clickDet = false, cpsInput = null, clickMode = null, raw = null, son = false, chipLater = null, at = 0, done = [], gold = false, save = null }) {
+async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, clicks = [], hourClicks = 0, hist = null, ev = null, mini = null, det = false, detClosed = false, clickDet = false, cpsInput = null, clickMode = null, raw = null, son = false, chipLater = null, at = 0, done = [], gold = false, save = null, probe = null }) {
   const items = Object.entries(owned).map(([id, n]) => {
     const c = Math.ceil(B[id] * 1.15 ** n), d = done.includes(id);
     return `<button class="item" data-id="${id}" ${d || wallet < c ? 'disabled' : ''}><span class="ic"><b class="own">${d ? '✓' : '×' + n}</b><small class="price">${d ? 'acquis' : '💰 ' + big(c)}</small></span></button>`;
@@ -83,7 +83,10 @@ async function page({ owned, wallet, mode = 'auto', cps = 5, perClick, chip, cli
     best: d.querySelector('.tagAdvBest')?.dataset.id, adv: d.querySelector('.tagAdvBest')?.dataset.adv,
     idleMutations, repo: d.querySelector('#tagAdv header a.v')?.getAttribute('href'), state: w.eval('window.__tagAdv.state()'), text: d.querySelector('#tagAdv').textContent, z: parseInt(w.getComputedStyle(d.querySelector('#tagAdv')).zIndex, 10), titles: d.querySelectorAll('#tagAdv [title]').length, docTitle: d.title,
   };
-  r.notes = notes; w.eval('window.__tagAdv.stop()'); r.openRestored = mini !== 'popup' || w.open === stubOpen; r.stopped = !d.querySelector('#tagAdv') && !d.querySelector('.tagAdvBest') && !d.querySelector('[data-adv]'); r.timers = timers.size; w.close();
+  r.notes = notes; r.tickMs = refresh.ms; r.timerMs = [...timers.values()].map(x => x.ms).sort((a, b) => a - b);
+  // sonde : code de test exécuté sur le panneau vivant (horloge, rafraîchissement, stockage), avant l'arrêt
+  r.probe = probe ? await probe({ w, d, refresh: refresh.f, setNow: v => { now = v; }, getNow: () => now }) : null;
+  w.eval('window.__tagAdv.stop()'); r.openRestored = mini !== 'popup' || w.open === stubOpen; r.stopped = !d.querySelector('#tagAdv') && !d.querySelector('.tagAdvBest') && !d.querySelector('[data-adv]'); r.timers = timers.size; w.close();
   return r;
 }
 const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) }, (_, i) => from + i / n);
@@ -426,6 +429,82 @@ const every = (n, from, to) => Array.from({ length: Math.round((to - from) * n) 
   r = await page({ ...base, raw: { 'taxe-giga-me': 'pas du json', 'taxe-giga-badges': '{{{' } });
   check(r.state.me === null && Array.isArray(r.state.badges) && r.state.badges.length === 0,
     'repli propre : ' + JSON.stringify({ me: r.state.me, badges: r.state.badges }));
+
+  console.log('Rafraîchissement toutes les 500 ms (jamais sous 400 : contrat avec les intégrations qui lisent le marqueur d’achat), sauvegarde toutes les 30 s');
+  r = await page({ ...base, mode: 'passif' });
+  check(r.tickMs === 500 && r.timerMs.length === 2 && r.timerMs[1] === 30000, 'minuteries (ms) : ' + r.timerMs.join(', '));
+
+  console.log('Sauvegarde des clics à la fermeture (pagehide) et au passage en arrière-plan, pas avant');
+  {
+    const lu = w => JSON.parse(w.localStorage.getItem('tagAdv-clics') || '{}');
+    const total = w => Object.values(lu(w)).reduce((a, b) => a + b, 0);
+    const clic = (w, tgt) => { const e = new w.MouseEvent('click', { bubbles: true }), ei = utils.implForWrapper(e); ei.isTrusted = true; utils.implForWrapper(tgt)._dispatch(ei); };
+    r = await page({ ...base, probe: ({ w, d }) => {
+      const avant = total(w); clic(w, d.getElementById('taxBtn')); clic(w, d.getElementById('taxBtn'));
+      const sansEvenement = total(w);
+      w.dispatchEvent(new w.Event('pagehide'));
+      const apresPagehide = total(w);
+      clic(w, d.getElementById('taxBtn'));
+      Object.defineProperty(d, 'visibilityState', { value: 'visible', configurable: true }); d.dispatchEvent(new w.Event('visibilitychange'));
+      const visible = total(w);
+      Object.defineProperty(d, 'visibilityState', { value: 'hidden', configurable: true }); d.dispatchEvent(new w.Event('visibilitychange'));
+      return { avant, sansEvenement, apresPagehide, visible, cache: total(w) };
+    } });
+    const q = r.probe;
+    check(q.sansEvenement === q.avant && q.apresPagehide === q.avant + 2 && q.visible === q.apresPagehide && q.cache === q.apresPagehide + 1, 'clics écrits : ' + JSON.stringify(q));
+  }
+
+  console.log('feedClick : horodatage ramené dans [maintenant − 24 h, maintenant + 1 s] ; minutes futures supprimées');
+  {
+    r = await page({ ...base, probe: ({ w, d, refresh, getNow }) => {
+      const now = getNow(), m = t => Math.floor(t / 60e3), clics = () => JSON.parse(w.localStorage.getItem('tagAdv-clics') || '{}');
+      const feed = ts => w.__tagAdv.feedClick(ts);
+      feed(now + 3 * 3600e3); feed(now - 30 * 3600e3); feed('x'); feed(undefined); feed(now - 120e3);
+      w.dispatchEvent(new w.Event('pagehide'));
+      const cles = Object.keys(clics()).map(Number);
+      // minute future écrite à la main dans le stockage, puis relue par un nouveau tour après une minute écoulée
+      return { futur: cles.filter(k => k > m(now) + 1).length, trop: cles.filter(k => k < m(now) - 1440).length, minutes: cles.length, haute: Math.max(...cles) - m(now), basse: m(now) - Math.min(...cles) };
+    } });
+    const q = r.probe;
+    check(q.futur === 0 && q.trop === 0 && q.haute <= 1 && q.basse <= 1440, 'minutes écrites : ' + JSON.stringify(q));
+    r = await page({ ...base, mode: 'auto', raw: { 'tagAdv-clics': JSON.stringify({ [Math.floor(1793700000000 / 60e3) + 500]: 800, [Math.floor(1793700000000 / 60e3) - 3]: 12 }) }, probe: ({ w, d, refresh, setNow, getNow }) => {
+      setNow(getNow() + 61e3); refresh(); w.dispatchEvent(new w.Event('pagehide'));
+      return Object.keys(JSON.parse(w.localStorage.getItem('tagAdv-clics'))).map(Number).filter(k => k > Math.floor(getNow() / 60e3) + 1).length;
+    } });
+    check(r.probe === 0 && r.state.cadence.hour < 800, 'minute future (+500) lue au chargement : supprimée, hors du quota (heure : ' + r.state.cadence.hour + ')');
+  }
+
+  console.log('state().drift : liste (vide si le jeu correspond au barème, noms des écarts sinon) ; lecture additive');
+  r = await page({ ...base });
+  check(Array.isArray(r.state.drift) && r.state.drift.length === 0 && 'adv' in r.state && 'badges' in r.state, 'drift : ' + JSON.stringify(r.state.drift));
+  r = await page({ ...base, perClick: '99 999 visites' });
+  check(r.state.drift.includes('puissance de clic'), 'drift avec une puissance affichée fausse : ' + JSON.stringify(r.state.drift));
+
+  console.log('Puissance de clic affichée abrégée (« 2,00 M visites ») : lue avec son unité, sans fausse alerte ; un vrai écart reste vu');
+  {
+    // 50 Tampons : 1 + 50 × 40000 = 2000001 visites par clic, sans production
+    const gros = { owned: { tampon: 50 }, wallet: 1e9, mode: 'passif' };
+    r = await page({ ...gros, perClick: '2 000 001 visites' });
+    check(!r.warn, 'entier en toutes lettres : ' + (r.warn || 'aucune alerte'));
+    r = await page({ ...gros, perClick: big(2000001) + ' visites' });
+    check(/2,00 M visites/.test(big(2000001) + ' visites') && !r.warn, 'abrégé « ' + big(2000001) + ' visites » : ' + (r.warn || 'aucune alerte'));
+    r = await page({ ...gros, perClick: '2,50 M visites' });
+    check(/puissance de clic/.test(r.warn), 'abrégé, 25 % trop haut : ' + (r.warn || 'aucune alerte'));
+  }
+
+  console.log('Chiffres clés réécrits cellule par cellule : seule la cagnotte change quand le temps passe (production et clics, intacts)');
+  for (const mode of ['passif', 'actif']) {
+    r = await page({ ...base, mode, cps: 5, probe: ({ d, refresh, setNow, getNow }) => {
+      const cells = [...d.querySelectorAll('#tagAdv .kpi span')], touched = new Set();
+      const mo = new d.defaultView.MutationObserver(recs => { for (const m of recs) { const c = cells.findIndex(x => x === m.target || x.contains(m.target)); touched.add(c); } });
+      mo.observe(d.querySelector('#tagAdv .kpi'), { subtree: true, childList: true, attributes: true, characterData: true });
+      for (let i = 0; i < 6; i++) { setNow(getNow() + 1000); d.getElementById('wallet').textContent = big(9847633 + 40000 * (i + 1)); refresh(); } // la cagnotte du jeu monte, rien d'autre ne bouge
+      mo.takeRecords().forEach(m => touched.add(cells.findIndex(x => x === m.target || x.contains(m.target)))); mo.disconnect();
+      return { n: cells.length, noms: cells.map(c => c.querySelector('small').textContent), touched: [...touched].sort() };
+    } });
+    const q = r.probe;
+    check(q.n === 3 && q.noms[2] === 'Cagnotte' && !q.touched.includes(-1) && !q.touched.includes(0) && !q.touched.includes(1) && q.touched.includes(2), `${mode} : cartes ${q.noms.join('/')}, cartes réécrites : ${q.touched.map(i => q.noms[i]).join(', ')}`);
+  }
 
   console.log('Favori à jour : charge conseiller.js depuis GitHub Pages (paramètre à la minute), ouvre puis ferme le panneau');
   {

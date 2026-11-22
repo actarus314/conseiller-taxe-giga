@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Conseiller — Taxe au Giga
 // @namespace    https://github.com/actarus314/conseiller-taxe-giga
-// @version      2.48
+// @version      2.49
 // @description  Indique le meilleur bonus à acheter dans Taxe au Giga. Ne clique et n'achète rien.
 // @match        https://taxe-au-giga.fr/*
 // @grant        none
@@ -15,7 +15,7 @@
   if (!/^(taxe-au-giga\.fr|localhost|127\.0\.0\.1)$/.test(location.hostname)) { alert('Conseiller : à lancer sur taxe-au-giga.fr'); return; }
   if (window.__tagAdv) { window.__tagAdv.stop(); return; }
 
-  const VERSION = '2.48'; // écrite par dev/outils/build.py <version>
+  const VERSION = '2.49'; // écrite par dev/outils/build.py <version>
 
   // Barème recopié du code du jeu le 03/11/2026 (Décret porté à +100000 par clic au build 2026-11-03h), identique au build 2026-11-04n.
   // prix = arrondi_sup(base × 1,15^possédés) ; rate = visites/s ; click = visites en plus par clic ; pct = part de la production ajoutée à chaque clic.
@@ -39,8 +39,8 @@
   const FRENESIE = 3, RAFALE = 10;
   // part de la production ajoutée à chaque clic sans aucun bonus en %
   const PCT_BASE = 0.01;
-  // rafraîchissement (ms), sauvegarde du compteur (ms), achats planifiés, largeur d'écran « téléphone » (px)
-  const TICK = 250, SAVE_EVERY = 5000, PLAN_LEN = 8, PHONE = 600;
+  // rafraîchissement (ms ; les intégrations tierces qui lisent le marqueur d'achat et state() comptent sur un délai d'au moins 400 : ne pas descendre en dessous), sauvegarde du compteur (ms ; aussi à la fermeture et au passage en arrière-plan), achats planifiés, largeur d'écran « téléphone » (px)
+  const TICK = 500, SAVE_EVERY = 30000, PLAN_LEN = 8, PHONE = 600;
   // écart relatif toléré entre le modèle et l'affichage du jeu (prix, puissance de clic)
   const DRIFT = 0.01;
   const CPS_MIN = 0.1, CPS_DEFAULT = 5;
@@ -50,7 +50,6 @@
   const prodRate = own => P.reduce((s, u) => s + u.rate * (own[u.id] || 0), 0);
   // rate : prodRate(own), déjà calculée par l'appelant
   const clickPow = (own, rate = prodRate(own)) => Math.floor(1 + P.reduce((s, u) => s + u.click * (own[u.id] || 0), 0) + (PCT_BASE + P.reduce((s, u) => s + u.pct * (own[u.id] || 0), 0)) * rate);
-  const income = (own, cps) => { const r = prodRate(own); return r + (cps > 0 ? clickPow(own, r) * cps : 0); };
 
   const $ = s => document.querySelector(s);
   const num = s => {
@@ -61,7 +60,7 @@
   };
   // Grands nombres : unités du jeu (M, Md, billion = 10¹² abrégé « Bn »), le billion dès 10¹² (le jeu garde « Md »
   // jusqu'à 10¹⁵ : choix de Romain du 15/11/2026, pour la lisibilité), au point décimal et sans séparateur de milliers.
-  // Même règle dans le widget et le collecteur (dépôt taxe-au-giga-bot).
+  // Même règle dans les outils de suivi associés.
   const fmt = n => n < 1e6 ? String(Math.round(n)) : n < 1e9 ? (n / 1e6).toFixed(2) + ' M' : n < 1e12 ? (n / 1e9).toFixed(2) + ' Md' : (n / 1e12).toFixed(2) + ' Bn';
   // trois chiffres significatifs au moins (suite des achats : un ordre de grandeur suffit, la place va au nom)
   const fmt3 = n => n < 1e6 ? String(Math.round(n)) : ((v, u) => (v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : Math.round(v)) + ' ' + u)(...(n < 999.5e6 ? [n / 1e6, 'M'] : n < 999.5e9 ? [n / 1e9, 'Md'] : [n / 1e12, 'Bn']));
@@ -112,7 +111,8 @@
     ? Object.fromEntries(Object.entries(perMin).filter(([k, v]) => /^\d+$/.test(k) && Number.isFinite(v) && v >= 0)) : {};
   let perMinDirty = false;
   // début de l'observation minute par minute (v2.14) : les minutes plus anciennes, notées par les versions qui ne
-  // gardaient que les minutes avec clics, comptent pour le quota horaire mais pas pour la moyenne
+  // gardaient que les minutes avec clics, comptent pour le quota horaire mais pas pour la moyenne. Pas inerte : un favori figé
+  // d'avant la v2.14, encore utilisé, laisse de telles minutes (moins de 24 h) sans cette clé (test « minutes notées par une version antérieure »)
   let since = parseInt(store('vu'), 10); if (!Number.isFinite(since)) { since = Math.floor(Date.now() / 60e3); store('vu', String(since)); }
   const onClick = e => {
     if (!e.isTrusted || !e.target.closest || !e.target.closest('#taxBtn, #stickyTax, #mTax')) return;
@@ -133,6 +133,8 @@
   // minutes passées : recalculées une fois par minute (seule la minute en cours change entre deux)
   let past = null;
   function pastMinutes(m0) {
+    // minutes futures (horloge reculée, flux externe mal daté) : supprimées, elles fausseraient le quota et la moyenne
+    for (const k of Object.keys(perMin)) if (+k > m0 + 1) { delete perMin[k]; perMinDirty = true; }
     const ks = Object.keys(perMin).map(Number).filter(k => k < m0).sort((x, y) => x - y), counted = [];
     // avant le premier clic de la fenêtre, comme dans la simulation (dev/sim/presence.py) : la fenêtre s'ouvre comme un clic
     // sort : clics des minutes qui quittent l'heure glissante dans les 15 prochaines minutes (m0−59 … m0−45) — autant
@@ -180,6 +182,9 @@
   }
   const save = () => { if (perMinDirty) { store('clics', JSON.stringify(perMin)); perMinDirty = false; } };
   const ivSave = setInterval(save, SAVE_EVERY);
+  // sauvegarde aussi quand la page se ferme ou passe en arrière-plan (l'intervalle est long : 30 s)
+  const onHide = () => save(), onVis = () => { if (document.visibilityState === 'hidden') save(); };
+  addEventListener('pagehide', onHide); document.addEventListener('visibilitychange', onVis);
 
   // Cagnotte : l'affichage du jeu est arrondi (10000 près en M, 10 M près en Md, 10 Md près en billions). La sauvegarde du jeu
   // (exacte, réécrite toutes les 5 s), plus la production et les clics TAXER faits depuis son heure, donne
@@ -200,6 +205,10 @@
     } catch (e) {}
     return Number.isFinite(est) ? Math.min(hi, Math.max(lo, est)) : shown;
   }
+
+  // puissance de clic affichée : entier en toutes lettres (« 5 770 visites »), ou abrégé avec l'unité du jeu au-delà (« 5,80 M visites »,
+  // à 0,01 près : l'écart toléré en pourcentage couvre l'arrondi)
+  const pcRead = s => { const m = /(\d[\d\s  ]*(?:[.,]\d+)?)\s*(billions?|Md|M)\b/.exec(s); return m ? num(m[1] + m[2]) : parseInt(s.replace(/\D/g, ''), 10); };
 
   // Lecture de l'état affiché
   function read() {
@@ -231,7 +240,7 @@
     // indicateur affiché : le bonus est en cours, même si la fin retenue (à 30 s près) est passée
     if (bsx && !boost.bs) Object.assign(boost, { bs: 1, bsm: parseFloat(bsx[1].replace(',', '.')) });
     // la puissance de clic affichée par le jeu (×bonus du Dépité) sert de contrôle du modèle ; près de la fin du bonus (fin connue à 30 s près), les deux valeurs passent
-    const pcTxt = ($('#perClick') || {}).textContent || '', pc = /volontaire/.test(pcTxt) ? 0 : parseInt(pcTxt.replace(/\D/g, ''), 10); // mode sérieux : rien à contrôler
+    const pcTxt = ($('#perClick') || {}).textContent || '', pc = /volontaire/.test(pcTxt) ? 0 : pcRead(pcTxt); // mode sérieux : rien à contrôler
     const cp0 = clickPow(own);
     // bonus commencé sous une Frénésie ou une Rafale (indicateur masqué) : multiplicateur déduit de la puissance affichée, pour la durée du bonus doré
     if (pc && items.length && !boost.bs && (fzOn || rfOn) && left && cp0 > 0 && pc / cp0 >= 1.4 && pc / cp0 <= 2.6) Object.assign(boost, { bs: +left, bsm: Math.round(pc / cp0 * 10) / 10 });
@@ -402,8 +411,23 @@
   if (innerWidth < PHONE) box.classList.add('min');
   const ui = { flash: box.querySelector('.flash'), now: box.querySelector('.now'), warn: box.querySelector('.warn'), ol: box.querySelector('ol'), kpi: box.querySelector('.kpi'), al: box.querySelector('.al'), det: box.querySelector('.det'), dtx: box.querySelector('.det .dtx'), detBtn: box.querySelector('[data-a="det"]') };
   // N'écrit dans le DOM que ce qui change : innerHTML recrée tous les nœuds même à contenu identique (recalcul de style et de mise en page à chaque tick)
+  // Une écriture peut changer la taille du panneau : la position est alors revue (place(), au tour suivant), et seulement alors.
   const shown = {};
-  const put = (k, el, prop, v) => { if (shown[k] !== v) { el[prop] = v; shown[k] = v; } };
+  let needPlace = true;
+  const put = (k, el, prop, v) => { if (shown[k] !== v) { el[prop] = v; shown[k] = v; needPlace = true; } };
+  // Chiffres clés : une cellule par carte, réécrite seulement si son contenu change (la cagnotte bouge à chaque tour, pas les autres)
+  const kpiCells = [];
+  const setKpi = rows => {
+    if (kpiCells.length !== rows.length) {
+      for (let i = 0; i < Math.max(kpiCells.length, rows.length); i++) { delete shown['kc' + i]; delete shown['kcc' + i]; }
+      ui.kpi.textContent = ''; kpiCells.length = 0; needPlace = true;
+      for (let i = 0; i < rows.length; i++) kpiCells.push(ui.kpi.appendChild(document.createElement('span')));
+    }
+    rows.forEach(([k, v, sub, cl], i) => {
+      put('kcc' + i, kpiCells[i], 'className', cl || '');
+      put('kc' + i, kpiCells[i], 'innerHTML', `<small>${k}</small> <b>${v}</b>${sub ? ` <i>${sub}</i>` : ''}`);
+    });
+  };
   // cadence prévue (mode Actif) : champ texte, pour afficher le point décimal quelle que soit la langue du navigateur ;
   // la virgule est acceptée à la saisie, les flèches haut et bas ajoutent ou retirent 0.5
   const cpsIn = box.querySelector('#tagAdvCps'), showCps = () => { cpsIn.value = dec1(cpsPlan); };
@@ -489,11 +513,18 @@
     const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); endDrag = null; };
     endDrag = up; addEventListener('pointermove', mv); addEventListener('pointerup', up); addEventListener('pointercancel', up);
   });
-  addEventListener('resize', place); place();
+  // position revue : à la taille de la fenêtre, au défilement (à 150 ms près), à la taille du panneau, et à chaque écriture dans le panneau
+  // (voir put) ; plus un contrôle toutes les 10 tours pour ce que le jeu change de son côté (bandeaux, en-tête) sans événement
+  let scrollTimer = 0;
+  const onResize = () => { needPlace = false; place(); };
+  const onScroll = () => { if (!scrollTimer) scrollTimer = setTimeout(() => { scrollTimer = 0; needPlace = false; place(); }, 150); };
+  addEventListener('resize', onResize); addEventListener('scroll', onScroll, { capture: true, passive: true }); place(); needPlace = false;
+  const sizeObs = typeof ResizeObserver === 'function' ? new ResizeObserver(() => { needPlace = true; }) : null;
+  if (sizeObs) sizeObs.observe(box);
 
   let last = null;
   // instantané de l'avis courant (plan, production, clics, moyenne), réexposé par state().adv pour le monitoring
-  // du container : purement additif, calculé à la fin de tickBody, remis à null quand le conseil ne peut être donné.
+  // d'un outil de suivi : purement additif, calculé à la fin de tickBody, remis à null quand le conseil ne peut être donné.
   let lastAdv = null;
   const unmark = () => { if (marked) { marked.classList.remove('tagAdvBest'); delete marked.dataset.adv; marked = null; } };
   const PFX = /^🟢 [^·]+ · /, baseTitle = () => document.title.replace(PFX, ''); let marked = null;
@@ -501,13 +532,14 @@
   const blank = msg => {
     lastAdv = null;
     unmark(); put('nowClass', ui.now, 'className', 'now'); put('now', ui.now, 'textContent', msg);
-    put('ol', ui.ol, 'innerHTML', ''); put('kpi', ui.kpi, 'innerHTML', ''); put('al', ui.al, 'innerHTML', ''); put('det', ui.dtx, 'innerHTML', '');
+    put('ol', ui.ol, 'innerHTML', ''); setKpi([]); put('al', ui.al, 'innerHTML', ''); put('det', ui.dtx, 'innerHTML', '');
     const t = baseTitle(); if (document.title !== t) document.title = t;
   };
   // une erreur (page du jeu inattendue, donnée imprévue) s'affiche dans le panneau au lieu de le figer
+  let ticks = 0;
   function tick() {
     try { tickBody(); } catch (e) { blank('Erreur du conseiller : ' + (e && e.message || e) + '. Recharger la page du jeu.'); }
-    place();
+    if (needPlace || ++ticks % 10 === 0) { needPlace = false; place(); } // place() force la mise en page : pas à chaque tour
   }
   function tickBody() {
     const st = last = read();
@@ -566,7 +598,7 @@
         : mode === 'auto' && cad.absent ? ['Clics', '+0/s', `absent · moyenne ${cpsTxt(cad.avg)}/s`]
         : ['Clics', '+' + fmt(clk) + '/s', `${mode === 'auto' ? 'moyenne' : 'prévus'} ${cpsTxt(cps)}/s` + (st.boost.rf ? ` ×${RAFALE}` : '') + (st.boost.bs ? ` ×${dec1(st.boost.bsm)} Dépité` : '')],
       ['Cagnotte', '💰 ' + fmt(st.wallet), '']];
-    put('kpi', ui.kpi, 'innerHTML', kpi.map(([k, v, sub, cl]) => `<span${cl ? ` class="${cl}"` : ''}><small>${k}</small> <b>${v}</b>${sub ? ` <i>${sub}</i>` : ''}</span>`).join(''));
+    setKpi(kpi);
     const al = [], det = [];
     // courtes : la colonne Production dit déjà que c'est la production qui est multipliée
     if (st.boost.ev) al.push(`📣 ${esc(st.boost.evn)} ×${dec1(st.boost.evm)} · encore ${dur(st.boost.ev)}`);
@@ -583,7 +615,7 @@
     if (mode === 'auto') det.push(cad.tot ? `moyenne de ${cad.tot} clics sur ${durMin(Math.max(cad.obs, MOY_PLANCHER * 60))}` + (cad.obs < MOY_PLANCHER * 60 ? ' (durée minimale comptée)' : ' de présence (au-delà d’1 h sans clic, minutes écartées)') : 'aucun clic compté sur 24 h : conseil passif');
     put('al', ui.al, 'innerHTML', al.map(t => `<p>${t}</p>`).join('') + lim.map(t => `<p class="lim">⚠️ ${t}</p>`).join(''));
     put('det', ui.dtx, 'innerHTML', det.map(t => `<p>${t}</p>`).join(''));
-    // instantané pour le monitoring du container (lu via __tagAdv.state().adv) : n'altère ni le conseil ni l'affichage
+    // instantané pour un outil de suivi (lu via __tagAdv.state().adv) : n'altère ni le conseil ni l'affichage
     lastAdv = {
       mode, ready, capped,
       prod,                       // production/s, bonus (Frénésie, événement) compris
@@ -605,7 +637,9 @@
     stopped = true; perMinDirty = true; save();
     document.removeEventListener('pointerdown', unlock, true); try { if (actx) actx.close(); } catch (e) { /* déjà fermé */ }
     clearInterval(iv); clearInterval(ivSave); box.remove(); css.remove(); document.title = baseTitle();
-    document.removeEventListener('click', onClick, true); removeEventListener('resize', place);
+    document.removeEventListener('click', onClick, true); removeEventListener('resize', onResize);
+    removeEventListener('scroll', onScroll, true); clearTimeout(scrollTimer); if (sizeObs) sizeObs.disconnect();
+    removeEventListener('pagehide', onHide); document.removeEventListener('visibilitychange', onVis);
     if (DPIP) DPIP.removeEventListener('enter', onPip);
     if (window.open === openSpy) window.open = winOpen;
     for (const w of minis) try { w.document.removeEventListener('click', onClick, true); } catch (e) { /* fenêtre fermée */ }
@@ -616,12 +650,13 @@
   // pour qu'un second clic sur le favori arrête toujours le panneau
   // Flux de clics externe (automatisation, intégration tierce) : enregistre un clic « taxer » comme le ferait onClick.
   // Additif et O(1) : les vrais clics continuent d'être comptés par le listener DOM, rien d'autre n'est modifié.
-  const feedClick = ts => { const t = Number.isFinite(ts) ? ts : Date.now(); recent.push(t); const m = Math.floor(t / 60e3); perMin[m] = (perMin[m] || 0) + 1; perMinDirty = true; };
-  // Identité joueur + palmarès lus en localStorage pour le monitoring distant (collecteur) : lecture seule,
+  // ts ramené dans [maintenant − 24 h, maintenant + 1 s] : un horodatage aberrant ne doit ni fausser le quota ni durer
+  const feedClick = ts => { const now = Date.now(), t = Math.min(now + 1000, Math.max(now - 864e5, Number.isFinite(ts) ? ts : now)); recent.push(t); const m = Math.floor(t / 60e3); perMin[m] = (perMin[m] || 0) + 1; perMinDirty = true; };
+  // Identité joueur + palmarès lus en localStorage pour un suivi distant : lecture seule,
   // jamais écrits ni affichés. me.id → pseudo et rang via l'API ; badges → liste des ids gagnés.
   const meId = () => { try { const m = JSON.parse(localStorage.getItem('taxe-giga-me') || 'null'); return m && m.id ? m.id : null; } catch (e) { return null; } };
   const myBadges = () => { try { return Object.keys(JSON.parse(localStorage.getItem('taxe-giga-badges') || '{}')); } catch (e) { return []; } };
-  window.__tagAdv = { stop, state: () => last && { version: VERSION, wallet: last.wallet, own: { ...last.own }, boost: { ...last.boost }, cadence: cadence(), minis: minis.size, me: meId(), badges: myBadges(), adv: lastAdv }, feedClick };
+  window.__tagAdv = { stop, state: () => last && { version: VERSION, wallet: last.wallet, own: { ...last.own }, boost: { ...last.boost }, cadence: cadence(), minis: minis.size, me: meId(), badges: myBadges(), adv: lastAdv, drift: last.drift.slice() }, feedClick };
   setMode(mode);
   iv = setInterval(tick, TICK);
 })();
